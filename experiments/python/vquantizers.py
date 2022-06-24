@@ -7,10 +7,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sb
 
-from . import product_quantize as pq
-from . import subspaces as subs
-from . import clusterize
-from .utils import kmeans
+import product_quantize as pq
+import subspaces as subs
+import clusterize
+from utils import kmeans
 
 
 # ================================================================ misc funcs

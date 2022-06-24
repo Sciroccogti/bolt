@@ -1,6 +1,6 @@
 #!/bin/env/python
 
-from . import amm, vq_amm
+import amm, vq_amm
 
 METHOD_EXACT = 'Exact'
 METHOD_SCALAR_QUANTIZE = 'ScalarQuantize'

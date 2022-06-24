@@ -3,8 +3,8 @@
 import abc
 import numpy as np
 
-from . import vquantizers as vq
-from . import amm
+import vquantizers as vq
+import amm
 
 KEY_NLOOKUPS = 'nlookups'
 
@@ -42,6 +42,7 @@ class VQMatmul(amm.ApproxMatmul, abc.ABC):
         if D < self.ncodebooks:
             raise amm.InvalidParametersException(
                 'D < C: {} < {}'.format(D, self.ncodebooks))
+        # A = X_train B = W_train Y = Y_train
         self.enc.fit(A, B.T)
 
     def set_A(self, A):

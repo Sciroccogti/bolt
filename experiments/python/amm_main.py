@@ -1,5 +1,7 @@
 #!/bin/env/python
 
+from joblib import Memory
+from . import amm_methods as methods
 import functools
 import numpy as np
 import pprint
@@ -11,9 +13,13 @@ from . import matmul_datasets as md
 from . import pyience as pyn
 from . import compress
 
-from . import amm_methods as methods
+import sys
+from Logger import *
+# std_out重定向
+sys.stdout = Logger("./log/caltech/Figure7_log.txt", sys.stdout)
+sys.stderr = Logger("./log/caltech/Figure7_debug.txt", sys.stderr)
 
-from joblib import Memory
+
 _memory = Memory('.', verbose=0)
 
 
@@ -212,7 +218,8 @@ def _compute_metrics(task, Y_hat, compression_metrics=True, **sink):
                 affinities[kk, lbls_centroids[kk]] = 1
 
             for prods in [Y_hat, Y]:
-                dists_sq_hat = (-2 * prods) + centroid_norms_sq + sample_norms_sq
+                dists_sq_hat = (-2 * prods) + \
+                    centroid_norms_sq + sample_norms_sq
                 # 1nn classification
                 centroid_idx = np.argmin(dists_sq_hat, axis=1)
                 lbls_hat_1nn.append(lbls_centroids[centroid_idx])
@@ -220,7 +227,8 @@ def _compute_metrics(task, Y_hat, compression_metrics=True, **sink):
                 # gamma = 1. / np.sqrt(W.shape[0])
                 # gamma = 1. / W.shape[0]
                 gamma = 1
-                similarities = scipy.special.softmax(-dists_sq_hat * gamma, axis=1)
+                similarities = scipy.special.softmax(
+                    -dists_sq_hat * gamma, axis=1)
                 class_probs = similarities @ affinities
                 rbf_lbls_hat.append(np.argmax(class_probs, axis=1))
 
@@ -316,7 +324,7 @@ def _fitted_est_for_hparams(method_id, hparams_dict, X_train, W_train,
 
 # def _main(tasks, methods=['SVD'], saveas=None, ntasks=None,
 def _main(tasks_func, methods=None, saveas=None, ntasks=None,
-          verbose=1, limit_ntasks=-1, compression_metrics=False, # TODO uncomment below
+          verbose=1, limit_ntasks=-1, compression_metrics=False,  # TODO uncomment below
           # verbose=3, limit_ntasks=-1, compression_metrics=False,
           tasks_all_same_shape=False):
     methods = methods.DEFAULT_METHODS if methods is None else methods
@@ -328,6 +336,7 @@ def _main(tasks_func, methods=None, saveas=None, ntasks=None,
 
     for method_id in methods:
         if verbose > 0:
+            print("==============================")
             print("running method: ", method_id)
         ntrials = _ntrials_for_method(method_id=method_id, ntasks=ntasks)
         # for hparams_dict in _hparams_for_method(method_id)[2:]: # TODO rm
@@ -383,7 +392,11 @@ def _main(tasks_func, methods=None, saveas=None, ntasks=None,
                     try:
                         # print(f"task {task.name} matrix hashes:")
                         # pprint.pprint(task.hashes())
-
+                        # print(ntrials)
+                        # TODO 改变
+                        # task = list(enumerate(md.load_dft_tasks()))[0][1]
+                        task = list(enumerate(md.load_dft_test()))[0][1]
+                        # tast = md.load_dft_tasks()
                         for trial in range(ntrials):
                             metrics = _eval_amm(
                                 task, est, compression_metrics=compression_metrics)
@@ -412,6 +425,7 @@ def _main(tasks_func, methods=None, saveas=None, ntasks=None,
                 pass
 
             if len(metrics_dicts):
+                # TODO save
                 pyn.save_dicts_as_data_frame(
                     metrics_dicts, save_dir='results/amm', name=saveas,
                     dedup_cols=independent_vars)
@@ -473,6 +487,12 @@ def main_cifar10(methods=methods.USE_METHODS, saveas='cifar10'):
                  saveas=saveas, ntasks=1)
 
 
+def main_dft(methods=methods.USE_METHODS, saveas='dft'):
+    # TODO 解耦了Test和Train
+    return _main(tasks_func=md.load_dft_train, methods=methods,
+                 saveas=saveas, ntasks=1)
+
+
 def main_cifar100(methods=methods.USE_METHODS, saveas='cifar100'):
     # tasks = md.load_cifar100_tasks()
     return _main(tasks_func=md.load_cifar100_tasks, methods=methods,
@@ -487,11 +507,13 @@ def main_all(methods=methods.USE_METHODS):
 
 
 def main():
+
+    # main_ucr(methods=['Mithral', 'MithralPQ', 'Exact', 'ScalarQuantize', 'Bolt', 'FastJL', 'HashJL', 'PCA', 'SparsePCA'])
     # main_cifar10(methods='ScalarQuantize')
     # main_cifar100(methods='ScalarQuantize')
     # main_ucr(methods='ScalarQuantize')
-    main_caltech(methods='ScalarQuantize', filt='sobel')
-    main_caltech(methods='ScalarQuantize', filt='dog5x5')
+    # main_caltech(methods='ScalarQuantize', filt='sobel')
+    # main_caltech(methods='ScalarQuantize', filt='dog5x5')
 
     # main_cifar10(methods='MithralPQ')
     # main_cifar100(methods='Mithral')
@@ -502,7 +524,13 @@ def main():
     # main_ucr(methods='Bolt', k=64, limit_ntasks=5, problem='softmax')
 
     # rerun mithral stuff with fixed numerical issues
-    # main_cifar10(methods=['Mithral', 'MithralPQ'])
+    # main_cifar10(methods=['Mithral', 'MithralPQ', 'Exact', 'ScalarQuantize', 'Bolt', 'FastJL', 'HashJL', 'PCA', 'SparsePCA'])
+    # main_cifar100(methods=['Mithral', 'MithralPQ', 'Exact', 'ScalarQuantize', 'Bolt', 'FastJL', 'HashJL', 'PCA', 'SparsePCA'])
+
+    # main_caltech(methods=['Mithral', 'MithralPQ', 'Exact', 'SparsePCA'], filt='dog5x5')
+    # main_cifar10(methods=['SparsePCA'])
+    main_dft(methods=['Mithral'])
+
     # main_cifar100(methods=['Mithral', 'MithralPQ'])
     # main_ucr(methods=['Mithral', 'MithralPQ'], k=128, problem='rbf')
     # main_caltech(methods=['Mithral', 'MithralPQ'], filt='sobel')

@@ -8,9 +8,9 @@ import numpy as np
 from sklearn import linear_model
 from scipy import signal
 
-from python.datasets import caltech, sharee, incart, ucr
-from python import misc_algorithms as algo
-from python import window
+from datasets import caltech, sharee, incart, ucr
+import misc_algorithms as algo
+import window
 
 from joblib import Memory
 # _memory = Memory('.', verbose=0, compress=7)  # compression between 1 and 9
@@ -21,6 +21,7 @@ _memory = Memory('.', verbose=0)
 _dir = os.path.dirname(os.path.abspath(__file__))
 CIFAR10_DIR = os.path.join(_dir, '..', 'assets', 'cifar10-softmax')
 CIFAR100_DIR = os.path.join(_dir, '..', 'assets', 'cifar100-softmax')
+DFT_DIR = os.path.join(_dir, '..', 'assets', 'dft')
 
 
 # ================================================================ types
@@ -81,13 +82,14 @@ class MatmulTask(object):
             assert mse < mse_thresh
 
     def _hashes(self):
+        # TODO 修改了hash
         return {
-            'X_train': self.X_train.std(),
-            'Y_train': self.Y_train.std(),
-            'W_train': self.W_train.std(),
-            'X_test': self.X_test.std(),
-            'Y_test': self.Y_test.std(),
-            'W_test': self.W_test.std()
+            'X_train': self.X_train.std() if self.X_train is not None else 1,
+            'Y_train': self.Y_train.std() if self.Y_train is not None else 2,
+            'W_train': self.W_train.std() if self.W_train is not None else 3,
+            'X_test': self.X_test.std() if self.X_test is not None else 4,
+            'Y_test': self.Y_test.std() if self.Y_test is not None else 5,
+            'W_test': self.W_test.std() if self.W_test is not None else 6
         }
 
 
@@ -511,8 +513,8 @@ def load_caltech_tasks(order='chw', limit_ntrain=-1,
 
     W = _filters_list_to_mat(filters)
     X_train, Y_train = _load_caltech_train(
-            W=W, filt_spatial_shape=filt_spatial_shape, order=order,
-            limit_ntrain=limit_ntrain, limit_per_class=limit_per_class_train)
+        W=W, filt_spatial_shape=filt_spatial_shape, order=order,
+        limit_ntrain=limit_ntrain, limit_per_class=limit_per_class_train)
 
     test_imgs, test_ids = _load_caltech_test_imgs(
         limit_per_class=limit_per_class_test)
@@ -586,6 +588,67 @@ def test_caltech_loading():
     mse = np.sum(diffs * diffs) / np.var(Y)
     print("mse: ", mse)
     assert mse < 1e-10
+
+# ================================================================ dft
+
+
+def load_dft_tasks():
+    DFT_INPUTS_TRAIN_PATH = 'Xtrain.npy'
+    DFT_OUTPUTS_TRAIN_PATH = 'Ytrain.npy'
+    DFT_INPUTS_TEST_PATH = 'Xtest.npy'
+    DFT_OUTPUTS_TEST_PATH = 'Ytest.npy'
+    DFT_MATRIX_PATH = 'DFTmatrix.npy'
+
+    def load_mat(fname):
+        fpath = os.path.join(DFT_DIR, fname)
+        return np.load(fpath)
+
+    X_train = load_mat(DFT_INPUTS_TRAIN_PATH)
+    Y_train = load_mat(DFT_OUTPUTS_TRAIN_PATH)
+    X_test = load_mat(DFT_INPUTS_TEST_PATH)
+    Y_test = load_mat(DFT_OUTPUTS_TEST_PATH)
+    W = load_mat(DFT_MATRIX_PATH)
+
+    # info = {'dft': 'myDFT'}
+    return [MatmulTask(X_train, Y_train, X_test, Y_test, W,
+                       name='DFT test')]
+
+
+def load_dft_train(X_path, W_path, Y_path, dir):
+    DFT_INPUTS_TRAIN_PATH = X_path
+    DFT_OUTPUTS_TRAIN_PATH = Y_path
+    DFT_MATRIX_PATH = W_path
+
+    def load_mat(fname):
+        DIR = os.path.join(_dir, '..', 'assets', dir)
+        fpath = os.path.join(DIR, fname)
+        return np.load(fpath)
+
+    X_train = load_mat(DFT_INPUTS_TRAIN_PATH)
+    Y_train = load_mat(DFT_OUTPUTS_TRAIN_PATH)
+    W = load_mat(DFT_MATRIX_PATH)
+
+    # info = {'dft': 'myDFT'}
+    return [MatmulTask(X_train, Y_train, None, None, W,
+                       name='DFT')]
+
+
+def load_dft_test():
+    DFT_INPUTS_TEST_PATH = 'Xtest.npy'
+    DFT_OUTPUTS_TEST_PATH = 'Ytest.npy'
+    DFT_MATRIX_PATH = 'DFTmatrix.npy'
+
+    def load_mat(fname):
+        fpath = os.path.join(DFT_DIR, fname)
+        return np.load(fpath)
+
+    X_test = load_mat(DFT_INPUTS_TEST_PATH)
+    Y_test = load_mat(DFT_OUTPUTS_TEST_PATH)
+    W = load_mat(DFT_MATRIX_PATH)
+
+    # info = {'dft': 'myDFT'}
+    return [MatmulTask(None, None, X_test, Y_test, W,
+                       name='DFT test')]
 
 
 # ================================================================ cifar
