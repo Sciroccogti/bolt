@@ -4,7 +4,18 @@
 
 本项目是[bolt](https://github.com/dblalock/bolt)项目中的MADDNESS算法的开源工程，经过了调整和测试。项目只包含MADDNESS算法Python的精确度测试部分，不包括CPP部分的时间测试。如有需要自行使用原项目程序调试即可。
 
-#### 安装教程
+#### Ubuntu 上安装教程
+
+```bash
+cd bolt # 进入项目路径
+git submodule update --init # 下载子模块 kmc2（github源）
+conda create -n bolt --file ./requirements.txt python=3.10 # 新建虚拟环境
+conda activate bolt # 启用虚拟环境
+conda install cudatoolkit=11.3 torch # 安装 cuda 和 Pytorch
+pip3 install ./third_party/kmc2/ # 安装 kmc2
+```
+
+#### Windows 上安装教程
 
 1. 请使用Python3.5以上版本进行使用，在Python3.8环境本例测试通过。推荐使用本地Python环境，Anaconda虚拟环境请自行寻找安装`setup.py`的包的方法
 
@@ -20,14 +31,14 @@ python setup.py install
 ```
 即可安装
 
-4.  kmc2包可能需要 `Microsoft Visual C++ 14.0`环境，可以自行在网络寻找，或向我要求安装包
+4.  kmc2包可能需要 `Microsoft Visual C++ 14.0`环境，可以自行在网络寻找，或向我们要求安装包
 
 5.  数据集文件默认需要放置在`C:\\Users\\user\\Desktop\\datasets\\caltech\\101_ObjectCategories`（用户名无所谓，取的就是桌面后路径，这是caltech数据集的位置）请将数据集文件放置妥当，数据集如下：
 - [Caltech-101](http://www.vision.caltech.edu/Image_Datasets/Caltech101/) - The dataset we extracted image patches from.
 - [UCR Time Series Archive](https://www.cs.ucr.edu/~eamonn/time_series_data/) - The corpus we used to compare AMM methods across many datasets in a unified manner.
 - [CIFAR-10 and CIFAR-100](https://www.cs.toronto.edu/~kriz/cifar.html).
 
-部分数据集需要外网访问环境，请自行寻找方法或向我咨询
+部分数据集需要外网访问环境，请自行寻找方法或向我们咨询
 
 #### 说明
 
@@ -56,11 +67,11 @@ python setup.py install
 
 这个场景中使用IDFT和DFT变换滤波，提高信道估计的准确度。场景如下图所示
 
-![image-20220605201119121](D:%5Cbolt-master%5Cbolt-master%5Cexperiments%5Cpython%5CREADME.assets%5Cimage-20220605201119121.png)
+![](./README.assets/image-20220605201119121.png)
 
 注意该场景下我们需要将复数矩阵更换为实数矩阵， 具体地说，需要使用如下公式：
 
-![image-20220605201601405](D:%5Cbolt-master%5Cbolt-master%5Cexperiments%5Cpython%5CREADME.assets%5Cimage-20220605201601405.png)
+![](./README.assets/image-20220605201601405.png)
 
 将复数乘法通过拼接转变为实数矩阵乘法。
 
@@ -85,11 +96,11 @@ W:(16*2)*128 = 32*128
 
 这个场景考察的是一个神经网络的最后一层的替换方法，运用于如下场景之中：
 
-<img src="D:%5Cbolt-master%5Cbolt-master%5Cexperiments%5Cpython%5CREADME.assets%5Cimage-20220605201938738.png" alt="image-20220605201938738" style="zoom:67%;" />
+![](./README.assets/image-20220605201938738.png)
 
 网络结构如下：
 
-<img src="D:%5Cbolt-master%5Cbolt-master%5Cexperiments%5Cpython%5CREADME.assets%5Cimage-20220605202028881.png" alt="image-20220605202028881" style="zoom: 67%;" />
+![](./README.assets/image-20220605202028881.png)
 
 左边的黄色线框是将最后一个全连接层替换后的替代函数，其中的矩阵乘法部分可以替换为无乘法方案。我们给出具体的代码整理：
 
