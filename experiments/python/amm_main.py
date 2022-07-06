@@ -1,17 +1,17 @@
 #!/bin/env/python
 
 from joblib import Memory
-from . import amm_methods as methods
+import amm_methods as methods
 import functools
 import numpy as np
 import pprint
 import scipy
 import time
 
-from . import amm
-from . import matmul_datasets as md
-from . import pyience as pyn
-from . import compress
+import amm
+import matmul_datasets as md
+import pyience as pyn
+import compress
 
 import sys
 from Logger import *
@@ -393,7 +393,7 @@ def _main(tasks_func, methods=None, saveas=None, ntasks=None,
                         # print(f"task {task.name} matrix hashes:")
                         # pprint.pprint(task.hashes())
                         # print(ntrials)
-                        # TODO 改变
+                        # TODO WARN: 这里直接覆盖了 task，导致只能 dft
                         # task = list(enumerate(md.load_dft_tasks()))[0][1]
                         task = list(enumerate(md.load_dft_test()))[0][1]
                         # tast = md.load_dft_tasks()
@@ -425,7 +425,6 @@ def _main(tasks_func, methods=None, saveas=None, ntasks=None,
                 pass
 
             if len(metrics_dicts):
-                # TODO save
                 pyn.save_dicts_as_data_frame(
                     metrics_dicts, save_dir='results/amm', name=saveas,
                     dedup_cols=independent_vars)

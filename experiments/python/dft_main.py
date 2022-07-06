@@ -1,8 +1,13 @@
 import math
-import numpy as np
-import math_util
 import os
+import time
+from pprint import pprint
+
+import numpy as np
+
+import math_util
 import matmul as mm
+from amm_methods import *
 
 
 class Transceiver:
@@ -35,7 +40,7 @@ class Transceiver:
         self.IDFTm = 1/self.Nifft * np.conj(self.DFTm)
 
     def Bit_create(self):
-        # 生成一帧信息比特/导频
+        '''生成一帧信息比特/导频'''
         Bitlen = self.qAry * self.Ncarrier * self.Symbol_num
         bitstream = np.random.randint(0, 2, (1, Bitlen))
         return bitstream
@@ -94,7 +99,7 @@ class Transceiver:
         Hest_DFTfilter = np.diag(np.squeeze(Hest_DFTfilter))
         ################################################################
         H_NMSE = 0
-        if self.matmul_method == 0:
+        if self.matmul_method != METHOD_EXACT:
             h_est_p = self.IDFT_i(np.transpose(Hest), self.Nifft, est=idft_est)
             h_DFTfilter_p = h_est_p
             Hest_DFTfilter_p = self.DFT_i(
@@ -111,16 +116,16 @@ class Transceiver:
         W = self.DFTm[0:xn.size]
         NMSE_dft = 0
         xp = np.dot(xn, W)
-        if self.matmul_method == 1:
-            # Exact
-            Xk = xp  # TODO
-        elif self.matmul_method == 0:
-            # Mithral
+        if self.matmul_method != METHOD_EXACT:
             xn = convert_complexToReal_X(xn)
             W = convert_complexToReal_W(W)
             Xk_tmp = mm.eval_matmul(est, xn, W)
             Xk = covert_realToComplex_Y(Xk_tmp)
             NMSE_dft = cal_NMSE(Xk_tmp, convert_complexToReal_Y(xp))
+        else:
+            # Exact
+            assert self.matmul_method == METHOD_EXACT, "Other methods not supported!"
+            Xk = xp  # TODO
         return Xk, NMSE_dft
 
     def IDFT(self, Xk, N, est=None):
@@ -128,16 +133,16 @@ class Transceiver:
         W = self.IDFTm[:, 0:20]  # 此处已经截取
         NMSE_idft = 0
         xp = np.dot(Xk, W)
-        if self.matmul_method == 1:
-            # Exact
-            xn = xp  # TODO
-        elif self.matmul_method == 0:
-            # Mithral
+        if self.matmul_method != METHOD_EXACT:
             Xk = convert_complexToReal_X(Xk)
             W = convert_complexToReal_W(W)
             xn_tmp = mm.eval_matmul(est, Xk, W)
             xn = covert_realToComplex_Y(xn_tmp)
             NMSE_idft = cal_NMSE(xn_tmp, convert_complexToReal_Y(xp))
+        else:
+            # Exact
+            assert self.matmul_method == METHOD_EXACT, "Other methods not supported!"
+            xn = xp  # TODO
         return xn, NMSE_idft
 
     def DFT_i(self, xn, N, est=None):
@@ -208,18 +213,20 @@ class Transceiver:
 
         dft_est = None
         idft_est = None
-        if self.matmul_method == 0:
-            # Mithral
-            dft_est = mm.estFactory(
-                X_path="DFT_X.npy", W_path="DFT_W.npy", Y_path="DFT_Y.npy", dir="dft")
-            idft_est = mm.estFactory(
-                X_path="IDFT_X.npy", W_path="IDFT_W.npy", Y_path="IDFT_Y.npy", dir="dft")
-
+        if self.matmul_method != METHOD_EXACT:
+            dft_est = mm.estFactory(methods=[self.matmul_method],
+                                    ncodebooks=self.params["ncodebooks"],
+                                    X_path="DFT_X.npy", W_path="DFT_W.npy", Y_path="DFT_Y.npy", dir="dft")
+            idft_est = mm.estFactory(methods=[self.matmul_method],
+                                    ncodebooks=self.params["ncodebooks"],
+                                     X_path="IDFT_X.npy", W_path="IDFT_W.npy", Y_path="IDFT_Y.npy", dir="dft")
+        else:
+            assert self.matmul_method == METHOD_EXACT, "Other methods not supported!"
         for i, SNR in enumerate(SNRs):
             sigma_2 = np.power(10, (-SNR/10))
             # sigma_2 = 0 # back-to-back
             ns = 0
-            print(SNR)
+            print("SNR: ", SNR)
             while FER[0][i] < ErrorFrame:
                 ns += 1
                 # 生成信息比特、调制
@@ -355,15 +362,38 @@ params = {
     'SNR': [0, 3, 6, 9, 12, 15, 18, 21],
     'ErrorFrame': 500,
     'Encode_method': None,
-    'matmul_method': 0  # 0-Mithral, 1-Exact
+    'ncodebooks': 32,
+    'matmul_method': METHOD_MITHRAL
 }
 
 if __name__ == '__main__':
+    _dir = os.path.dirname(os.path.abspath(__file__))
+    starttime = time.strftime("%Y%m%d-%H%M%S", time.localtime())
+    foutName = _dir + "/results/dft_main_" + starttime + ".txt"
+    with open(foutName, "x") as fout:
+        fout.write("start at %s\nparams:\n" % starttime)
+        pprint(params, fout)
+        fout.write("matmul_method: %s\n" % params["matmul_method"])
+
     myTransceiver = Transceiver(params)
     # myTransceiver.create_Traindata()
     BER, FER, NMSE_dft, NMSE_idft, H_NMSE = myTransceiver.FER()
-    print(BER)
-    print(FER)
-    print(NMSE_dft)
-    print(NMSE_idft)
-    print(H_NMSE)
+    print("BER", BER)
+    print("FER", FER)
+    print("NMSE_dft", NMSE_dft)
+    print("NMSE_idft", NMSE_idft)
+    print("H_NMSE", H_NMSE)
+
+    stoptime = time.strftime("%Y%m%d-%H%M%S", time.localtime())
+    with open(foutName, "a+") as fout:
+        fout.write("\nBER:\n")
+        np.savetxt(fout, BER, "%.4e")
+        fout.write("\nFER:\n")
+        np.savetxt(fout, FER, "%.4e")
+        fout.write("\nNMSE_dft:\n")
+        np.savetxt(fout, NMSE_dft, "%.4e")
+        fout.write("\nNMSE_idft:\n")
+        np.savetxt(fout, NMSE_idft, "%.4e")
+        fout.write("\nH_NMSE:\n")
+        np.savetxt(fout, H_NMSE, "%.4e")
+        fout.write("stop at %s\n" % stoptime)

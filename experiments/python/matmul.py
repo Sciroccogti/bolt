@@ -247,10 +247,9 @@ def _fitted_est_for_hparams(method_id, hparams_dict, X_train, W_train,
     return est
 
 
-def estFactory(methods=['Mithral'], ntasks=1,
+def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32,
                verbose=1, limit_ntasks=-1, tasks_all_same_shape=False,
-               X_path="", W_path="", Y_path="", dir=""):  # TODO uncomment below
-
+               X_path="", W_path="", Y_path="", dir=""):
     methods = methods.DEFAULT_METHODS if methods is None else methods
     if isinstance(methods, str):
         methods = [methods]
@@ -261,7 +260,7 @@ def estFactory(methods=['Mithral'], ntasks=1,
     # hparams_dict
     # nc: 1 2 4 8 16 32
     # lut: 2 4 -1
-    hparams_dict = {'ncodebooks': 32, 'lut_work_const': -1}
+    hparams_dict = {'ncodebooks': ncodebooks} # TODO 'lut_work_const': -1
     est = None
 
     if verbose > 0:
