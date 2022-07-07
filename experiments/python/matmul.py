@@ -247,7 +247,7 @@ def _fitted_est_for_hparams(method_id, hparams_dict, X_train, W_train,
     return est
 
 
-def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32,
+def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
                verbose=1, limit_ntasks=-1, tasks_all_same_shape=False,
                X_path="", W_path="", Y_path="", dir=""):
     methods = methods.DEFAULT_METHODS if methods is None else methods
@@ -260,7 +260,7 @@ def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32,
     # hparams_dict
     # nc: 1 2 4 8 16 32
     # lut: 2 4 -1
-    hparams_dict = {'ncodebooks': ncodebooks} # TODO 'lut_work_const': -1
+    hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids} # TODO 'lut_work_const': -1
     est = None
 
     if verbose > 0:
@@ -268,7 +268,7 @@ def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32,
         print("running method: ", method_id)
 
     # for hparams_dict in _hparams_for_method(method_id):
-    if verbose > 3:
+    if verbose > 2:
         print("got hparams: ")
         pprint.pprint(hparams_dict)
 
@@ -279,7 +279,7 @@ def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32,
         for i, task in enumerate(md.load_dft_train(X_path, W_path, Y_path, dir)):
             if i + 1 > limit_ntasks:
                 raise StopIteration()
-            if verbose > 1:
+            if verbose > 3:
                 print("-------- running task: {} ({}/{})".format(
                     task.name, i + 1, ntasks))
                 task.validate_shapes()  # fail fast if task is ill-formed

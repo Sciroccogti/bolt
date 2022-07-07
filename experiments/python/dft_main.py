@@ -214,8 +214,9 @@ class Transceiver:
         dft_est = None
         idft_est = None
         if self.matmul_method != METHOD_EXACT:
-            dft_est = mm.estFactory(methods=[self.matmul_method],
+            dft_est = mm.estFactory(methods=[self.matmul_method], verbose=3,
                                     ncodebooks=self.params["ncodebooks"],
+                                    ncentroids=self.params["ncentroids"],
                                     X_path="DFT_X.npy", W_path="DFT_W.npy", Y_path="DFT_Y.npy", dir="dft")
             idft_est = mm.estFactory(methods=[self.matmul_method],
                                     ncodebooks=self.params["ncodebooks"],
@@ -362,8 +363,9 @@ params = {
     'SNR': [0, 3, 6, 9, 12, 15, 18, 21],
     'ErrorFrame': 500,
     'Encode_method': None,
-    'ncodebooks': 32,
-    'matmul_method': METHOD_MITHRAL
+    'ncodebooks': 40,
+    'ncentroids': 4096,
+    'matmul_method': METHOD_PQ
 }
 
 if __name__ == '__main__':
