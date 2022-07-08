@@ -4,8 +4,6 @@ import time
 from pprint import pprint
 
 import numpy as np
-
-import math_util
 import matmul as mm
 from amm_methods import *
 
@@ -20,12 +18,12 @@ class Transceiver:
         self.Symbol_num = params['Symbol_num']
         self.matmul_method = params['matmul_method']
 
-        self.bitpolit = self.Bit_create()  # 列向量
-        self.Xpolit = np.zeros((1, self.Ncarrier), dtype=complex)
+        self.bitpilot = self.Bit_create()  # 列向量
+        self.Xpilot = np.zeros((1, self.Ncarrier), dtype=complex)
         for nf in range(self.Ncarrier):
-            self.Xpolit[0, nf] = self.Modulation(
-                self.bitpolit[0, 2 * nf:2 * nf + 2])
-        self.Xpolit = np.transpose(self.Xpolit)
+            self.Xpilot[0, nf] = self.Modulation(
+                self.bitpilot[0, 2 * nf:2 * nf + 2])
+        self.Xpilot = np.transpose(self.Xpilot)
         self.Create_DFTmatrix()
 
     def Create_DFTmatrix(self):
@@ -86,8 +84,8 @@ class Transceiver:
         H = np.diag(np.squeeze(H))
         return H
 
-    def Channel_est(self, Ypolit, dft_est, idft_est):
-        Hest = Ypolit/self.Xpolit
+    def Channel_est(self, Ypilot, dft_est, idft_est):
+        Hest = Ypilot/self.Xpilot
         # h_est = np.fft.ifft(np.transpose(Hest),self.Nifft)
         h_est, NMSE_idft = self.IDFT(
             np.transpose(Hest), self.Nifft, est=idft_est)
@@ -239,10 +237,10 @@ class Transceiver:
                 H = self.Channel_create()
                 noise = np.random.randn(
                     self.Ncarrier, 1)+1j * np.random.randn(self.Ncarrier, 1)
-                Ypolit = np.dot(H, self.Xpolit) + np.sqrt(sigma_2/2) * noise
+                Ypilot = np.dot(H, self.Xpilot) + np.sqrt(sigma_2/2) * noise
                 # Hest_DFT = H # 测试
                 Hest_DFT, nmse_dft, nmse_idft, h_nmse = self.Channel_est(
-                    Ypolit, dft_est=dft_est, idft_est=idft_est)
+                    Ypilot, dft_est=dft_est, idft_est=idft_est)
                 # 更新
                 NMSE_dft[0][i] += nmse_dft
                 NMSE_idft[0][i] += nmse_idft
@@ -292,8 +290,8 @@ class Transceiver:
             H = self.Channel_create()
             noise = np.random.randn(self.Ncarrier, 1) + \
                 1j * np.random.randn(self.Ncarrier, 1)
-            Ypolit = np.dot(H, self.Xpolit) + np.sqrt(sigma_2 / 2) * noise
-            Hest = Ypolit / self.Xpolit
+            Ypilot = np.dot(H, self.Xpilot) + np.sqrt(sigma_2 / 2) * noise
+            Hest = Ypilot / self.Xpilot
             Xk = np.transpose(Hest)
             IDFT_Xtrain[i] = Xk
             xn = np.dot(Xk, IDFT_W)
@@ -363,8 +361,8 @@ params = {
     'SNR': [0, 3, 6, 9, 12, 15, 18, 21],
     'ErrorFrame': 500,
     'Encode_method': None,
-    'ncodebooks': 40,
-    'ncentroids': 4096,
+    'ncodebooks': 32,
+    'ncentroids': 256,
     'matmul_method': METHOD_PQ
 }
 
