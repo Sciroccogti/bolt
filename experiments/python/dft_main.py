@@ -19,7 +19,7 @@ class Transceiver:
         self.matmul_method = params['matmul_method']
 
         self.bitpilot = self.Bit_create()  # 列向量
-        self.Xpilot = np.zeros((1, self.Ncarrier), dtype=complex)
+        self.Xpilot = np.zeros((1, self.Ncarrier), dtype=complex)  # 调制后的导频
         for nf in range(self.Ncarrier):
             self.Xpilot[0, nf] = self.Modulation(
                 self.bitpilot[0, 2 * nf:2 * nf + 2])
@@ -27,6 +27,7 @@ class Transceiver:
         self.Create_DFTmatrix()
 
     def Create_DFTmatrix(self):
+        '''Init DFTm'''
         n = np.arange(self.Nifft).reshape(1, self.Nifft)
         k = np.arange(self.Nifft).reshape(1, self.Nifft)
         Wn = np.exp(-1j * 2 * np.pi / self.Nifft)
@@ -217,7 +218,7 @@ class Transceiver:
                                     ncentroids=self.params["ncentroids"],
                                     X_path="DFT_X.npy", W_path="DFT_W.npy", Y_path="DFT_Y.npy", dir="dft")
             idft_est = mm.estFactory(methods=[self.matmul_method],
-                                    ncodebooks=self.params["ncodebooks"],
+                                     ncodebooks=self.params["ncodebooks"],
                                      X_path="IDFT_X.npy", W_path="IDFT_W.npy", Y_path="IDFT_Y.npy", dir="dft")
         else:
             assert self.matmul_method == METHOD_EXACT, "Other methods not supported!"

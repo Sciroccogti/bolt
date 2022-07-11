@@ -10,6 +10,7 @@ import amm
 import matmul_datasets as md
 import pyience as pyn
 import compress
+from amm_methods import *
 
 import sys
 from Logger import *
@@ -260,7 +261,18 @@ def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
     # hparams_dict
     # nc: 1 2 4 8 16 32
     # lut: 2 4 -1
-    hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids} # TODO 'lut_work_const': -1
+    if (METHOD_SCALAR_QUANTIZE in methods):
+        hparams_dict = {}
+    elif (METHOD_HASHJL in methods) or (METHOD_SVD in methods) or (METHOD_FD_AMM in methods):
+        hparams_dict = {'d': 2}
+    elif (METHOD_SPARSE_PCA in methods):
+        dvals = [1, 2, 4, 8, 16, 32, 64]
+        alpha_vals = (1. / 16384, .03125, .0625, .125, .25, .5, 1, 2, 4, 8)
+        hparams_dict = [{'d': d, 'alpha': alpha}
+                    for d in dvals for alpha in alpha_vals][0]
+    else:
+        hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids} # TODO 'lut_work_const': -1
+
     est = None
 
     if verbose > 0:
@@ -302,8 +314,7 @@ def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
                         task.X_train, task.W_train, task.Y_train)
                 except amm.InvalidParametersException as e:
                     # hparams don't make sense for task (eg, D < d)
-                    if verbose > 2:
-                        print(f"hparams apparently invalid: {e}")
+                    print(f"hparams apparently invalid: {e}")
                     est = None
                     if tasks_all_same_shape:
                         raise StopIteration()

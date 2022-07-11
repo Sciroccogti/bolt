@@ -10,7 +10,8 @@ params:
  'SNR': [0, 3, 6, 9, 12, 15, 18, 21],
  'Symbol_len': 128,
  'Symbol_num': 1,
- 'matmul_method': 'PQ-40',
+ 'matmul_method': 'PQ-codebook40',
+ 'ncentroids': 256,
  'ncodebooks': 40,
  'qAry': 2}
 matmul_method: PQ

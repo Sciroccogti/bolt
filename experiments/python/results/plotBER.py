@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-07-06 15:07:45
-@modified: 2022-07-06 16:03:05
+@modified: 2022-07-11 11:53:07
 '''
 
 import os
@@ -30,27 +30,31 @@ ax.yaxis.set_tick_params(direction='in', which='both')
 
 path = "./"
 files_ = os.listdir(path)
+files_.sort()
 colorCnt = 0
 for file in files_:
     match = None
-    if match == None:
-        match = re.match(r"\*.*?\.txt", file)
+    try:
+        if match == None:
+            match = re.match(r"\*.*?\.txt", file)
 
-    if match != None:
-        snr_ = [0, 3, 6, 9, 12, 15, 18, 21]
+        if match != None:
+            snr_ = [0, 3, 6, 9, 12, 15, 18, 21]
 
-        fin = open(path + file, "r")
-        lines_ = fin.readlines()
+            fin = open(path + file, "r")
+            lines_ = fin.readlines()
 
-        method = lines_[12].split("'")[3]
-        ncodebooks = int(
-            re.match(r" 'ncodebooks': ([0-9]+)", lines_[13]).group(1))
-        ber_ = [float(i) for i in lines_[18].split()]
-        fer_ = [float(i) for i in lines_[21].split()]
-        nmdr_DFT_ = [float(i) for i in lines_[24].split()]
-        nmse_IDFT_ = [float(i) for i in lines_[27].split()]
-        nmse_H_ = [float(i) for i in lines_[30].split()]
-        plt.plot(snr_, ber_, label=method, color=colors_[colorCnt], linestyle="-", marker="o")
-        colorCnt += 1
+            method = lines_[12].split("'")[3]
+            ncodebooks = int(
+                re.match(r" 'ncodebooks': ([0-9]+)", lines_[14]).group(1))
+            ber_ = [float(i) for i in lines_[19].split()]
+            fer_ = [float(i) for i in lines_[22].split()]
+            nmdr_DFT_ = [float(i) for i in lines_[25].split()]
+            nmse_IDFT_ = [float(i) for i in lines_[28].split()]
+            nmse_H_ = [float(i) for i in lines_[31].split()]
+            plt.plot(snr_, ber_, label=method, color=colors_[colorCnt], linestyle="-", marker="o")
+            colorCnt += 1
+    except Exception as e:
+        print(file + ": ", e)
 plt.legend()
 plt.show()

@@ -11,6 +11,7 @@ params:
  'Symbol_len': 128,
  'Symbol_num': 1,
  'matmul_method': 'MithralPQ',
+ 'ncentroids': 256,
  'ncodebooks': 32,
  'qAry': 2}
 matmul_method: MithralPQ
