@@ -269,9 +269,12 @@ def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
         dvals = [1, 2, 4, 8, 16, 32, 64]
         alpha_vals = (1. / 16384, .03125, .0625, .125, .25, .5, 1, 2, 4, 8)
         hparams_dict = [{'d': d, 'alpha': alpha}
-                    for d in dvals for alpha in alpha_vals][0]
+                        for d in dvals for alpha in alpha_vals][0]
+    elif (METHOD_MITHRAL in methods):
+        hparams_dict = {'ncodebooks': ncodebooks}
     else:
-        hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids} # TODO 'lut_work_const': -1
+        # TODO 'lut_work_const': -1
+        hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids}
 
     est = None
 
@@ -315,6 +318,8 @@ def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
                 except amm.InvalidParametersException as e:
                     # hparams don't make sense for task (eg, D < d)
                     print(f"hparams apparently invalid: {e}")
+                    if verbose > 2:
+                        print(f"hparams apparently invalid: {e}")
                     est = None
                     if tasks_all_same_shape:
                         raise StopIteration()
