@@ -1,6 +1,7 @@
 #!/bin/env/python
 
 import copy
+from math import inf
 import numpy as np
 from functools import reduce
 
@@ -8,7 +9,7 @@ import numba
 from sklearn.decomposition import PCA
 from sklearn import linear_model
 
-from . import subspaces as subs
+import subspaces as subs
 
 from joblib import Memory
 _memory = Memory('.', verbose=0)
@@ -762,7 +763,10 @@ def learn_multisplits(
             upper_val = (np.max(x) + np.max(use_split_vals)) / 2 - offset
             scale = 254. / upper_val
             if learn_quantize_params == 'int16':
-                scale = 2. ** int(np.log2(scale))
+                if scale == inf:
+                    scale = 2 ** 15 - 1
+                else:
+                    scale = 2. ** int(np.log2(scale))
 
             split.offset = offset
             split.scaleby = scale
