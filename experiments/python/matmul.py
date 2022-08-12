@@ -271,9 +271,8 @@ def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
         hparams_dict = [{'d': d, 'alpha': alpha}
                         for d in dvals for alpha in alpha_vals][0]
     elif (METHOD_MITHRAL in methods):
-        hparams_dict = {'ncodebooks': ncodebooks}
+        hparams_dict = {'ncodebooks': ncodebooks, 'lut_work_const': -1} # Mithral 的 ncentroids 自动生成
     else:
-        # TODO 'lut_work_const': -1
         hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids}
 
     est = None
@@ -310,6 +309,7 @@ def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
                 and (task.X_train.std() == prev_X_std)
                 and (task.Y_train.std() == prev_Y_std))
 
+            # can_reuse_est = False # TODO
             if not can_reuse_est:
                 try:
                     est = _fitted_est_for_hparams(

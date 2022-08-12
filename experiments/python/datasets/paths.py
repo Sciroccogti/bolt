@@ -2,7 +2,7 @@
 
 import os
 
-DATASETS_DIR = os.path.expanduser("~/Desktop/datasets/")
+DATASETS_DIR = os.path.expanduser("~/dataset/bolt")
 
 
 def to_path(*args):

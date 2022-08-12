@@ -408,8 +408,8 @@ def _main(tasks_func, methods=None, saveas=None, ntasks=None,
                             metrics['task_id'] = task.name
                             # metrics.update(hparams_dict)
                             metrics.update(est.get_params())
-                            print("got metrics: ")
-                            pprint.pprint(metrics)
+                            # print("got metrics: ")
+                            # pprint.pprint(metrics)
                             # pprint.pprint({k: metrics[k] for k in 'method task_id normalized_mse'.split()})
                             # print("{:.5f}".format(metrics['normalized_mse'])) # TODO uncomment above
                             metrics_dicts.append(metrics)

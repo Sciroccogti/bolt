@@ -43,7 +43,7 @@ class VQMatmul(amm.ApproxMatmul, abc.ABC):
             raise amm.InvalidParametersException(
                 'D < C: {} < {}'.format(D, self.ncodebooks))
         # A = X_train B = W_train Y = Y_train
-        self.enc.fit(A, B.T)
+        self.enc.fit(A, B.T) # 是 enc 的 fit，不是 VQMatmul 的 fit
 
     def set_A(self, A):
         self.A_enc = self.enc.encode_X(A)

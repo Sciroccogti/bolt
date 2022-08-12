@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-07-06 15:07:45
-@modified: 2022-08-12 21:13:03
+@modified: 2022-08-12 21:12:59
 '''
 
 import os
@@ -17,7 +17,7 @@ markers_ = ["o", "x", "s", "d", "+", "*", "v", "^", "D"]
 
 fig, ax = plt.subplots()
 plt.rcParams["font.sans-serif"] = ["Sarasa Mono SC Nerd"]
-plt.title(r"DFT-IDFT 的信道估计较精确乘法估计信道差距")
+plt.title(r"DFT-IDFT 的信道估计较真实信道差距")
 plt.xlabel(r"$SNR$")
 plt.ylabel(r"信道 $NMSE$")
 plt.yscale("log")
@@ -53,7 +53,8 @@ for file in files_:
             nmdr_DFT_ = [float(i) for i in lines_[25].split()]
             nmse_IDFT_ = [float(i) for i in lines_[28].split()]
             nmse_H_ = [float(i) for i in lines_[31].split()]
-            plt.plot(snr_, nmse_H_, label=method, color=colors_[colorCnt], linestyle="-", marker=markers_[colorCnt])
+            rawnmse_H_ = [float(i) for i in lines_[34].split()]
+            plt.plot(snr_, rawnmse_H_, label=method, color=colors_[colorCnt], linestyle="-", marker=markers_[colorCnt])
             colorCnt += 1
     except Exception as e:
         print(file + ": ", e)

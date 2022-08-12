@@ -208,6 +208,7 @@ class Transceiver:
         NMSE_dft = np.zeros((1, len(SNRs)))
         NMSE_idft = np.zeros((1, len(SNRs)))
         H_NMSE = np.zeros((1, len(SNRs)))
+        rawH_NMSE = np.zeros((1, len(SNRs)))
         ErrorFrame = self.params['ErrorFrame']
 
         dft_est = None
@@ -219,6 +220,7 @@ class Transceiver:
                                     X_path="DFT_X.npy", W_path="DFT_W.npy", Y_path="DFT_Y.npy", dir="dft")
             idft_est = mm.estFactory(methods=[self.matmul_method],
                                      ncodebooks=self.params["ncodebooks"],
+                                    ncentroids=self.params["ncentroids"],
                                      X_path="IDFT_X.npy", W_path="IDFT_W.npy", Y_path="IDFT_Y.npy", dir="dft")
         else:
             assert self.matmul_method == METHOD_EXACT, "Other methods not supported!"
@@ -242,10 +244,15 @@ class Transceiver:
                 # Hest_DFT = H # 测试
                 Hest_DFT, nmse_dft, nmse_idft, h_nmse = self.Channel_est(
                     Ypilot, dft_est=dft_est, idft_est=idft_est)
+
+                rawh_nmse = cal_NMSE(convert_complexToReal_Y(
+                    H), convert_complexToReal_Y(Hest_DFT))
+
                 # 更新
                 NMSE_dft[0][i] += nmse_dft
                 NMSE_idft[0][i] += nmse_idft
                 H_NMSE[0][i] += h_nmse
+                rawH_NMSE[0][i] += rawh_nmse
 
                 noise = np.random.randn(
                     self.Ncarrier, 1) + 1j * np.random.randn(self.Ncarrier, 1)
@@ -275,7 +282,8 @@ class Transceiver:
             NMSE_dft[0][i] /= ns
             NMSE_idft[0][i] /= ns
             H_NMSE[0][i] /= ns
-        return BER, FER, NMSE_dft, NMSE_idft, H_NMSE
+            rawH_NMSE[0][i] /= ns
+        return BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE
 
     def create_Traindata(self):
         sample = 25000
@@ -359,12 +367,12 @@ params = {
     'Symbol_num': 1,
     'L': 16,
     'PathGain': np.linspace(1, 0.1, 16),
-    'SNR': [0, 3, 6, 9, 12, 15, 18, 21],
+    'SNR': [-10, -7, -4, 0, 3, 6, 9, 12, 15, 18, 21],
     'ErrorFrame': 500,
     'Encode_method': None,
     'ncodebooks': 32,
     'ncentroids': 256,
-    'matmul_method': METHOD_PQ
+    'matmul_method': METHOD_SCALAR_QUANTIZE
 }
 
 if __name__ == '__main__':
@@ -378,12 +386,13 @@ if __name__ == '__main__':
 
     myTransceiver = Transceiver(params)
     # myTransceiver.create_Traindata()
-    BER, FER, NMSE_dft, NMSE_idft, H_NMSE = myTransceiver.FER()
+    BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE = myTransceiver.FER()
     print("BER", BER)
     print("FER", FER)
     print("NMSE_dft", NMSE_dft)
     print("NMSE_idft", NMSE_idft)
     print("H_NMSE", H_NMSE)
+    print("rawH_NMSE", rawH_NMSE)
 
     stoptime = time.strftime("%Y%m%d-%H%M%S", time.localtime())
     with open(foutName, "a+") as fout:
@@ -397,4 +406,6 @@ if __name__ == '__main__':
         np.savetxt(fout, NMSE_idft, "%.4e")
         fout.write("\nH_NMSE:\n")
         np.savetxt(fout, H_NMSE, "%.4e")
+        fout.write("\nrawH_NMSE:\n")
+        np.savetxt(fout, rawH_NMSE, "%.4e")
         fout.write("stop at %s\n" % stoptime)

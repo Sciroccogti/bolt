@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-07-06 15:07:45
-@modified: 2022-07-11 11:53:07
+@modified: 2022-08-12 21:12:00
 '''
 
 import os
@@ -12,7 +12,8 @@ from matplotlib import ticker
 import matplotlib.pyplot as plt
 
 
-colors_ = ["r", "g", "b", "orange", "c", "m", "steelblue", "k"]
+colors_ = ["r", "g", "b", "orange", "c", "m", "steelblue", "k", "y"]
+markers_ = ["o", "x", "s", "d", "+", "*", "v", "^", "D"]
 
 fig, ax = plt.subplots()
 plt.rcParams["font.sans-serif"] = ["Sarasa Mono SC Nerd"]
@@ -36,10 +37,10 @@ for file in files_:
     match = None
     try:
         if match == None:
-            match = re.match(r"\*.*?\.txt", file)
+            match = re.match(r"\*[0-9].*?\.txt", file)
 
         if match != None:
-            snr_ = [0, 3, 6, 9, 12, 15, 18, 21]
+            snr_ = [-10, -7, -4, 0, 3, 6, 9, 12, 15, 18, 21]
 
             fin = open(path + file, "r")
             lines_ = fin.readlines()
@@ -52,7 +53,7 @@ for file in files_:
             nmdr_DFT_ = [float(i) for i in lines_[25].split()]
             nmse_IDFT_ = [float(i) for i in lines_[28].split()]
             nmse_H_ = [float(i) for i in lines_[31].split()]
-            plt.plot(snr_, ber_, label=method, color=colors_[colorCnt], linestyle="-", marker="o")
+            plt.plot(snr_, ber_, label=method, color=colors_[colorCnt], linestyle="-", marker=markers_[colorCnt])
             colorCnt += 1
     except Exception as e:
         print(file + ": ", e)
