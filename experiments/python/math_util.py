@@ -33,3 +33,10 @@ def softmax(x):
         tmp = np.sum(x)  # 求元素和
         x /= tmp  # 求somftmax
     return x
+
+def relu(x):
+    """
+    relu 就是 max(x, 0)
+    """
+    zeros = np.zeros(x.shape)
+    return np.where(x > zeros, x, zeros)
