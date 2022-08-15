@@ -110,6 +110,31 @@ class Transceiver:
 
         return Hest_DFTfilter, NMSE_dft, NMSE_idft, H_NMSE
 
+    def Channel_Splitest(self, Ypilot, dft_est, idft_ests_, slice: int = 4):
+        Hest = Ypilot/self.Xpilot
+        # h_est = np.fft.ifft(np.transpose(Hest),self.Nifft)
+        h_est, NMSE_idft = self.IDFTSplit(
+            np.transpose(Hest), self.Nifft, ests_=idft_ests_, slice=slice)
+        h_DFTfilter = h_est
+        # h_DFTfilter = h_est[0][0:20] # 在self.IDFT中截取
+        # Hest_DFTfilter = np.fft.fft(h_DFTfilter,self.Nifft)
+        Hest_DFTfilter, NMSE_dft = self.DFT(
+            h_DFTfilter, self.Nifft, est=dft_est)
+        Hest_DFTfilter = np.diag(np.squeeze(Hest_DFTfilter))
+        ################################################################
+        H_NMSE = 0
+        if self.matmul_method != METHOD_EXACT:
+            h_est_p = self.IDFT_i(np.transpose(Hest), self.Nifft)
+            h_DFTfilter_p = h_est_p
+            Hest_DFTfilter_p = self.DFT_i(
+                h_DFTfilter_p, self.Nifft, est=dft_est)
+            Hest_DFTfilter_p = np.diag(np.squeeze(Hest_DFTfilter_p))
+
+            H_NMSE = cal_NMSE(convert_complexToReal_Y(
+                Hest_DFTfilter_p), convert_complexToReal_Y(Hest_DFTfilter))
+
+        return Hest_DFTfilter, NMSE_dft, NMSE_idft, H_NMSE
+
     def DFT(self, xn, N, est=None):
         # 代替fft
         W = self.DFTm[0:xn.size]
@@ -136,6 +161,32 @@ class Transceiver:
             Xk = convert_complexToReal_X(Xk)
             W = convert_complexToReal_W(W)
             xn_tmp = mm.eval_matmul(est, Xk, W)
+            xn = covert_realToComplex_Y(xn_tmp)
+            NMSE_idft = cal_NMSE(xn_tmp, convert_complexToReal_Y(xp))
+        else:
+            # Exact
+            assert self.matmul_method == METHOD_EXACT, "Other methods not supported!"
+            xn = xp  # TODO
+        return xn, NMSE_idft
+
+    def IDFTSplit(self, Xk, N, ests_: list = None, slice: int = 4):
+        """
+        代替ifft
+        [A1 A2 A3 A4] * [B1; B2; B3; B4] = [A1B1 + A2B2 + A3B3 + A4B4]
+        """
+        W = self.IDFTm[:, 0:20]  # 此处已经截取
+        NMSE_idft = 0
+        xp = np.dot(Xk, W)
+
+        sliceLen = Xk.shape[1] // slice
+        assert(Xk.shape[1] == 128)
+
+        if self.matmul_method != METHOD_EXACT:
+            xn_tmp = np.zeros((Xk.shape[0] * 2, W.shape[1]))
+            for i in range(slice):
+                XkSplit = convert_complexToReal_X(Xk[:, i * sliceLen: (i+1) * sliceLen - 1])
+                WSplit = convert_complexToReal_W(W[i * sliceLen: (i+1) * sliceLen - 1])
+                xn_tmp += mm.eval_matmul(ests_[i], XkSplit, WSplit)
             xn = covert_realToComplex_Y(xn_tmp)
             NMSE_idft = cal_NMSE(xn_tmp, convert_complexToReal_Y(xp))
         else:
@@ -220,7 +271,7 @@ class Transceiver:
                                     X_path="DFT_X.npy", W_path="DFT_W.npy", Y_path="DFT_Y.npy", dir="dft")
             idft_est = mm.estFactory(methods=[self.matmul_method],
                                      ncodebooks=self.params["ncodebooks"],
-                                    ncentroids=self.params["ncentroids"],
+                                     ncentroids=self.params["ncentroids"],
                                      X_path="IDFT_X.npy", W_path="IDFT_W.npy", Y_path="IDFT_Y.npy", dir="dft")
         else:
             assert self.matmul_method == METHOD_EXACT, "Other methods not supported!"
@@ -244,6 +295,94 @@ class Transceiver:
                 # Hest_DFT = H # 测试
                 Hest_DFT, nmse_dft, nmse_idft, h_nmse = self.Channel_est(
                     Ypilot, dft_est=dft_est, idft_est=idft_est)
+
+                rawh_nmse = cal_NMSE(convert_complexToReal_Y(
+                    H), convert_complexToReal_Y(Hest_DFT))
+
+                # 更新
+                NMSE_dft[0][i] += nmse_dft
+                NMSE_idft[0][i] += nmse_idft
+                H_NMSE[0][i] += h_nmse
+                rawH_NMSE[0][i] += rawh_nmse
+
+                noise = np.random.randn(
+                    self.Ncarrier, 1) + 1j * np.random.randn(self.Ncarrier, 1)
+                # 均衡、解调
+                Y = np.dot(H, np.transpose(X)) + np.sqrt(sigma_2/2) * noise
+                G = np.dot(np.conj(Hest_DFT.T), np.linalg.inv(
+                    Hest_DFT*np.conj(Hest_DFT.T)+sigma_2*np.eye(self.Ncarrier)))
+                Xest = np.dot(G, Y)
+                Xest = np.transpose(Xest)
+                rho = np.diag(np.dot(G, Hest_DFT))
+                LLR = np.zeros((1, BitStream.size))
+                for nf in range(self.Ncarrier):
+                    miu_k = rho[nf]
+                    epsilon_2 = miu_k - miu_k**2
+                    LLR[0][2*nf:2*nf +
+                           2] = self.QPSK_LLR(Xest[0][nf], miu_k, epsilon_2)
+                LLR = np.array([1 if x >= 0 else 0 for x in LLR[0]])
+                count_error = 0
+                for j in range(BitStream.size):
+                    if BitStream[0][j] != LLR[j]:
+                        count_error += 1
+                BER[0][i] += count_error
+                if count_error != 0:
+                    FER[0][i] += 1
+            BER[0][i] = BER[0][i] / ns / self.Ncarrier / self.qAry
+            FER[0][i] = FER[0][i] / ns
+            NMSE_dft[0][i] /= ns
+            NMSE_idft[0][i] /= ns
+            H_NMSE[0][i] /= ns
+            rawH_NMSE[0][i] /= ns
+        return BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE
+
+    def SplitFER(self, slice: int = 4):
+        """
+        把 IDFT 中的乘法改为分块矩阵乘法，以期提高精确度
+        """
+        SNRs = self.params['SNR']
+        BER = np.zeros((1, len(SNRs)))
+        FER = np.zeros((1, len(SNRs)))
+        NMSE_dft = np.zeros((1, len(SNRs)))
+        NMSE_idft = np.zeros((1, len(SNRs)))
+        H_NMSE = np.zeros((1, len(SNRs)))
+        rawH_NMSE = np.zeros((1, len(SNRs)))
+        ErrorFrame = self.params['ErrorFrame']
+
+        dft_est = None
+        idft_ests_ = []
+        if self.matmul_method != METHOD_EXACT:
+            dft_est = mm.estFactory(methods=[self.matmul_method], verbose=3,
+                                    ncodebooks=self.params["ncodebooks"],
+                                    ncentroids=self.params["ncentroids"],
+                                    X_path="DFT_X.npy", W_path="DFT_W.npy", Y_path="DFT_Y.npy", dir="dftSplit%d" % slice)
+            for i in range(slice):
+                idft_ests_.append(mm.estFactory(methods=[self.matmul_method],
+                                                ncodebooks=self.params["ncodebooks"],
+                                                ncentroids=self.params["ncentroids"],
+                                                X_path="IDFT_X%d.npy" % i, W_path="IDFT_W%d.npy" % i, Y_path="IDFT_Y%d.npy" % i, dir="dftSplit%d" % slice))
+        else:
+            assert self.matmul_method == METHOD_EXACT, "Other methods not supported!"
+        for i, SNR in enumerate(SNRs):
+            sigma_2 = np.power(10, (-SNR/10))
+            # sigma_2 = 0 # back-to-back
+            ns = 0
+            print("SNR: ", SNR)
+            while FER[0][i] < ErrorFrame:
+                ns += 1
+                # 生成信息比特、调制
+                BitStream = self.Bit_create()
+                X = np.zeros((1, self.Ncarrier), dtype=complex)
+                for nf in range(self.Ncarrier):
+                    X[0, nf] = self.Modulation(BitStream[0, 2 * nf:2 * nf + 2])
+                # 生成信道矩阵，DFT信道估计
+                H = self.Channel_create()
+                noise = np.random.randn(
+                    self.Ncarrier, 1)+1j * np.random.randn(self.Ncarrier, 1)
+                Ypilot = np.dot(H, self.Xpilot) + np.sqrt(sigma_2/2) * noise
+                # Hest_DFT = H # 测试
+                Hest_DFT, nmse_dft, nmse_idft, h_nmse = self.Channel_Splitest(
+                    Ypilot, dft_est=dft_est, idft_ests_=idft_ests_, slice=slice)
 
                 rawh_nmse = cal_NMSE(convert_complexToReal_Y(
                     H), convert_complexToReal_Y(Hest_DFT))
@@ -320,6 +459,50 @@ class Transceiver:
         save_mat(convert_complexToReal_Y(IDFT_Ytrain), "IDFT_Y.npy")
         save_mat(convert_complexToReal_W(IDFT_W), "IDFT_W.npy")
 
+    def create_SplitIDFTTraindata(self, slice: int = 4):
+        """
+        split IDFT from 2*128 x 128*20 to 2*32 x 32*20 (slice = 4 = 128/32)
+        """
+        sample = 25000
+        DFT_Xtrain = np.zeros((sample, 20), dtype=complex)
+        DFT_Ytrain = np.zeros((sample, 128), dtype=complex)
+        DFT_W = self.DFTm[0:20]  # 20*128
+
+        IDFT_Xtrain = np.zeros((sample, 128), dtype=complex)
+        IDFT_Ytrain = np.zeros((sample, 20), dtype=complex)
+        IDFT_W = self.IDFTm[:, 0:20]  # 128*20
+        sigma_2 = np.power(10, (-10 / 10))
+        for i in range(sample):
+            H = self.Channel_create()
+            noise = np.random.randn(self.Ncarrier, 1) + \
+                1j * np.random.randn(self.Ncarrier, 1)
+            Ypilot = np.dot(H, self.Xpilot) + np.sqrt(sigma_2 / 2) * noise
+            Hest = Ypilot / self.Xpilot
+            Xk = np.transpose(Hest)
+            IDFT_Xtrain[i] = Xk
+            xn = np.dot(Xk, IDFT_W)
+            IDFT_Ytrain[i] = xn
+            # label = np.fft.ifft(Xk,self.Nifft)
+
+            DFT_Xtrain[i] = xn
+            Xk1 = np.dot(xn, DFT_W)
+            DFT_Ytrain[i] = Xk1
+            # label1 = np.fft.fft(xn,self.Nifft)
+
+        save_mat(convert_complexToReal_X(DFT_Xtrain), "DFT_X.npy")
+        save_mat(convert_complexToReal_Y(DFT_Ytrain), "DFT_Y.npy")
+        save_mat(convert_complexToReal_W(DFT_W), "DFT_W.npy")
+
+        sliceLen = 128 // slice
+        assert(slice * sliceLen == 128)
+        for i in range(slice):
+            save_mat(convert_complexToReal_X(
+                IDFT_Xtrain[:, i * sliceLen: (i+1) * sliceLen - 1]), "IDFT_X%d.npy" % i)
+            save_mat(convert_complexToReal_Y(
+                IDFT_Ytrain[i * sliceLen: (i+1) * sliceLen - 1]), "IDFT_Y%d.npy" % i)
+            save_mat(convert_complexToReal_W(
+                IDFT_W[i * sliceLen: (i+1) * sliceLen - 1]), "IDFT_W%d.npy" % i)
+
 
 def save_mat(mat, fname):
     # fpath = os.path.join(NEW_DIR, fname)
@@ -370,9 +553,9 @@ params = {
     'SNR': [-10, -7, -4, 0, 3, 6, 9, 12, 15, 18, 21],
     'ErrorFrame': 500,
     'Encode_method': None,
-    'ncodebooks': 32,
+    'ncodebooks': 16,
     'ncentroids': 256,
-    'matmul_method': METHOD_SCALAR_QUANTIZE
+    'matmul_method': METHOD_MITHRAL
 }
 
 if __name__ == '__main__':
@@ -385,8 +568,8 @@ if __name__ == '__main__':
         fout.write("matmul_method: %s\n" % params["matmul_method"])
 
     myTransceiver = Transceiver(params)
-    # myTransceiver.create_Traindata()
-    BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE = myTransceiver.FER()
+    # myTransceiver.create_SplitIDFTTraindata(slice=4)
+    BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE = myTransceiver.SplitFER(8)
     print("BER", BER)
     print("FER", FER)
     print("NMSE_dft", NMSE_dft)
