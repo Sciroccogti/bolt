@@ -312,6 +312,7 @@ def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
             # can_reuse_est = False # TODO
             if not can_reuse_est:
                 try:
+                    task.W_train = np.atleast_2d(task.W_train)
                     est = _fitted_est_for_hparams(
                         method_id, hparams_dict,
                         task.X_train, task.W_train, task.Y_train)
