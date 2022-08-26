@@ -184,8 +184,8 @@ class Transceiver:
         if self.matmul_method != METHOD_EXACT:
             xn_tmp = np.zeros((Xk.shape[0] * 2, W.shape[1]))
             for i in range(slice):
-                XkSplit = convert_complexToReal_X(Xk[:, i * sliceLen: (i+1) * sliceLen - 1])
-                WSplit = convert_complexToReal_W(W[i * sliceLen: (i+1) * sliceLen - 1])
+                XkSplit = convert_complexToReal_X(Xk[:, i * sliceLen: (i+1) * sliceLen])
+                WSplit = convert_complexToReal_W(W[i * sliceLen: (i+1) * sliceLen])
                 xn_tmp += mm.eval_matmul(ests_[i], XkSplit, WSplit)
             xn = covert_realToComplex_Y(xn_tmp)
             NMSE_idft = cal_NMSE(xn_tmp, convert_complexToReal_Y(xp))
@@ -497,11 +497,11 @@ class Transceiver:
         assert(slice * sliceLen == 128)
         for i in range(slice):
             save_mat(convert_complexToReal_X(
-                IDFT_Xtrain[:, i * sliceLen: (i+1) * sliceLen - 1]), "IDFT_X%d.npy" % i)
+                IDFT_Xtrain[:, i * sliceLen: (i+1) * sliceLen]), "IDFT_X%d.npy" % i)
             save_mat(convert_complexToReal_Y(
-                IDFT_Ytrain[i * sliceLen: (i+1) * sliceLen - 1]), "IDFT_Y%d.npy" % i)
+                IDFT_Ytrain[i * sliceLen: (i+1) * sliceLen]), "IDFT_Y%d.npy" % i)
             save_mat(convert_complexToReal_W(
-                IDFT_W[i * sliceLen: (i+1) * sliceLen - 1]), "IDFT_W%d.npy" % i)
+                IDFT_W[i * sliceLen: (i+1) * sliceLen]), "IDFT_W%d.npy" % i)
 
 
 def save_mat(mat, fname):
@@ -569,7 +569,7 @@ if __name__ == '__main__':
 
     myTransceiver = Transceiver(params)
     # myTransceiver.create_SplitIDFTTraindata(slice=4)
-    BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE = myTransceiver.SplitFER(8)
+    BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE = myTransceiver.FER()
     print("BER", BER)
     print("FER", FER)
     print("NMSE_dft", NMSE_dft)
