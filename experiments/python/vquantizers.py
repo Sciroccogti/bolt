@@ -367,7 +367,7 @@ class PQEncoder(MultiCodebookEncoder):
 
     def __init__(self, ncodebooks, ncentroids=256,
                  elemwise_dist_func=dists_elemwise_dot,
-                 preproc='PQ', encode_algo=None, quantize_lut=False, # TODO
+                 preproc='PQ', encode_algo=None, quantize_lut=True, # TODO
                  upcast_every=-1, accumulate_how='sum',
                  **preproc_kwargs):
         super().__init__(

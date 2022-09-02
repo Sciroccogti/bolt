@@ -1,0 +1,36 @@
+start at 20220901-133509
+params:
+{'Encode_method': None,
+ 'ErrorFrame': 500,
+ 'L': 16,
+ 'Ncarrier': 128,
+ 'Nifft': 128,
+ 'PathGain': array([1.  , 0.94, 0.88, 0.82, 0.76, 0.7 , 0.64, 0.58, 0.52, 0.46, 0.4 ,
+       0.34, 0.28, 0.22, 0.16, 0.1 ]),
+ 'SNR': [0],
+ 'Symbol_len': 128,
+ 'Symbol_num': 1,
+ 'matmul_method': 'PQ',
+ 'ncentroids': 32768,
+ 'ncodebooks': 32,
+ 'qAry': 2}
+matmul_method: PQ
+
+BER:
+6.1734e-02
+
+FER:
+1.0000e+00
+
+NMSE_dft:
+1.4717e-02
+
+NMSE_idft:
+1.0464e-02
+
+H_NMSE:
+2.5623e-02
+
+rawH_NMSE:
+4.1206e-02
+stop at 20220901-141218

@@ -154,7 +154,7 @@ class Transceiver:
 
     def IDFT(self, Xk, N, est=None):
         # 代替ifft
-        W = self.IDFTm[:, 0:20]  # 此处已经截取
+        W = self.IDFTm[:, 0:16]  # 此处已经截取
         NMSE_idft = 0
         xp = np.dot(Xk, W)
         if self.matmul_method != METHOD_EXACT:
@@ -509,9 +509,10 @@ class Transceiver:
         BER = np.zeros((1, len(SNRs)))
         FER = np.zeros((1, len(SNRs)))
         NMSE_dft = np.zeros((1, len(SNRs)))
-        NMSE_idft = np.zeros((1, len(SNRs)))
+        NMSE_idfts = np.zeros((1, len(SNRs)))
         H_NMSE = np.zeros((1, len(SNRs)))
         rawH_NMSE = np.zeros((1, len(SNRs)))
+        h_ests = np.zeros((1, len(SNRs), self.params["L"]), dtype=np.complex128)
         ErrorFrame = self.params['ErrorFrame']
 
         dft_est = None
@@ -529,10 +530,9 @@ class Transceiver:
             assert self.matmul_method == METHOD_EXACT, "Other methods not supported!"
         for i, SNR in enumerate(SNRs):
             sigma_2 = np.power(10, (-SNR/10))
-            # sigma_2 = 0 # back-to-back
             ns = 0
             print("SNR: ", SNR)
-            while FER[0][i] < ErrorFrame:
+            while ns < ErrorFrame:
                 ns += 1
                 # 生成信息比特、调制
                 BitStream = self.Bit_create()
@@ -550,8 +550,25 @@ class Transceiver:
                 h_est, NMSE_idft = self.IDFT(
                     np.transpose(Hest), self.Nifft, est=idft_est)
 
-                print(h_est)
+                h_dists = []
+                for j in range(len(self.params["PathGain"])):
+                    # 计算 h_est 到各单位向量的欧式距，从而将其分类到对应径
+                    pg = np.zeros((self.params["L"]), dtype=np.complex128)
+                    pg[j] = 1
+                    h_dists.append(np.linalg.norm(h_est - pg))
+                pgIdx = np.argmin(h_dists) # 记录对应径的下标
 
+                if (np.argmax(self.params["PathGain"]) != pgIdx): # 初始 PathGain 的最大值不在 pgIdx
+                    FER[0][i] += 1
+
+                h_ests[0][i] += h_est[0]
+                NMSE_idfts[0][i] += NMSE_idft
+            
+            h_ests[0][i] /= ns
+            FER[0][i] /= ns
+            NMSE_idfts[0][i] /= ns
+
+        return FER, NMSE_idfts
 
 def save_mat(mat, fname):
     # fpath = os.path.join(NEW_DIR, fname)
@@ -599,12 +616,12 @@ params = {
     'Symbol_num': 1,
     'L': 16,
     'PathGain': np.array([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
-    'SNR': [-10, -7, -4, 0, 3, 6, 9, 12, 15, 18, 21],
+    'SNR': [21],
     'ErrorFrame': 500,
     'Encode_method': None,
-    'ncodebooks': 16,
-    'ncentroids': 256,
-    'matmul_method': METHOD_MITHRAL
+    'ncodebooks': 32,
+    'ncentroids': 4096,
+    'matmul_method': METHOD_PQ
 }
 
 if __name__ == '__main__':
@@ -618,26 +635,26 @@ if __name__ == '__main__':
 
     myTransceiver = Transceiver(params)
     # myTransceiver.create_SplitIDFTTraindata(slice=4)
-    BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE = myTransceiver.pathDetect()
-    print("BER", BER)
+    FER, NMSE_idft = myTransceiver.pathDetect()
+    # print("BER", BER)
     print("FER", FER)
-    print("NMSE_dft", NMSE_dft)
+    # print("NMSE_dft", NMSE_dft)
     print("NMSE_idft", NMSE_idft)
-    print("H_NMSE", H_NMSE)
-    print("rawH_NMSE", rawH_NMSE)
+    # print("H_NMSE", H_NMSE)
+    # print("rawH_NMSE", rawH_NMSE)
 
     stoptime = time.strftime("%Y%m%d-%H%M%S", time.localtime())
     with open(foutName, "a+") as fout:
-        fout.write("\nBER:\n")
-        np.savetxt(fout, BER, "%.4e")
+        # fout.write("\nBER:\n")
+        # np.savetxt(fout, BER, "%.4e")
         fout.write("\nFER:\n")
         np.savetxt(fout, FER, "%.4e")
-        fout.write("\nNMSE_dft:\n")
-        np.savetxt(fout, NMSE_dft, "%.4e")
+        # fout.write("\nNMSE_dft:\n")
+        # np.savetxt(fout, NMSE_dft, "%.4e")
         fout.write("\nNMSE_idft:\n")
         np.savetxt(fout, NMSE_idft, "%.4e")
-        fout.write("\nH_NMSE:\n")
-        np.savetxt(fout, H_NMSE, "%.4e")
-        fout.write("\nrawH_NMSE:\n")
-        np.savetxt(fout, rawH_NMSE, "%.4e")
+        # fout.write("\nH_NMSE:\n")
+        # np.savetxt(fout, H_NMSE, "%.4e")
+        # fout.write("\nrawH_NMSE:\n")
+        # np.savetxt(fout, rawH_NMSE, "%.4e")
         fout.write("stop at %s\n" % stoptime)
