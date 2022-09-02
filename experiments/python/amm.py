@@ -159,7 +159,11 @@ class QuantizedMatmul(ApproxMatmul):
         A_off = np.tile(self.a_offsets, (1, D))
         B_off = np.tile(self.b_offsets, (D, 1))
 
-        return ret + (A_off @ B) + (A @ B_off) - (A_off @ B_off)
+        # 原输出：
+        # return ret + (A_off @ B) + (A @ B_off) - (A_off @ B_off)
+        
+        # 完全剔除原始矩阵的输出：
+        return ret + (A_off @ (B_off + self.B * 1. / self.b_scales)) + ((A_off + self.A * 1. / self.a_scales) @ B_off) - (A_off @ B_off)
 
     def set_A(self, A):
         # unsigned quantization; we *could* learn the offsets and scales
@@ -515,7 +519,7 @@ def _fitted_sparse_pca(X, d, unscaled_alpha, **kwargs):
     N, D = X.shape
     alpha = unscaled_alpha * np.var(X - X.mean(axis=0)) * N / D
     verbose = 1
-    pca = SparsePCA(n_components=d, alpha=alpha, normalize_components=True,
+    pca = SparsePCA(n_components=d, alpha=alpha,
                     method='lars', U_init=U, V_init=V, max_iter=10,
                     ridge_alpha=max(1, len(X) * X.std() * 10),
                     # ridge_alpha=1e8,
