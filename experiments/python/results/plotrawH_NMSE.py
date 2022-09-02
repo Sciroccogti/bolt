@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-07-06 15:07:45
-@modified: 2022-08-12 21:12:59
+@modified: 2022-08-15 20:25:25
 '''
 
 import os
@@ -37,7 +37,7 @@ for file in files_:
     match = None
     try:
         if match == None:
-            match = re.match(r"\*[0-9].*?\.txt", file)
+            match = re.match(r"\*[0-5].*?\.txt", file)
 
         if match != None:
             snr_ = [-10, -7, -4, 0, 3, 6, 9, 12, 15, 18, 21]
