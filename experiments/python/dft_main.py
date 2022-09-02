@@ -504,6 +504,55 @@ class Transceiver:
                 IDFT_W[i * sliceLen: (i+1) * sliceLen]), "IDFT_W%d.npy" % i)
 
 
+    def pathDetect(self):
+        SNRs = self.params['SNR']
+        BER = np.zeros((1, len(SNRs)))
+        FER = np.zeros((1, len(SNRs)))
+        NMSE_dft = np.zeros((1, len(SNRs)))
+        NMSE_idft = np.zeros((1, len(SNRs)))
+        H_NMSE = np.zeros((1, len(SNRs)))
+        rawH_NMSE = np.zeros((1, len(SNRs)))
+        ErrorFrame = self.params['ErrorFrame']
+
+        dft_est = None
+        idft_est = None
+        if self.matmul_method != METHOD_EXACT:
+            dft_est = mm.estFactory(methods=[self.matmul_method], verbose=3,
+                                    ncodebooks=self.params["ncodebooks"],
+                                    ncentroids=self.params["ncentroids"],
+                                    X_path="DFT_X.npy", W_path="DFT_W.npy", Y_path="DFT_Y.npy", dir="dft")
+            idft_est = mm.estFactory(methods=[self.matmul_method],
+                                     ncodebooks=self.params["ncodebooks"],
+                                     ncentroids=self.params["ncentroids"],
+                                     X_path="IDFT_X.npy", W_path="IDFT_W.npy", Y_path="IDFT_Y.npy", dir="dft")
+        else:
+            assert self.matmul_method == METHOD_EXACT, "Other methods not supported!"
+        for i, SNR in enumerate(SNRs):
+            sigma_2 = np.power(10, (-SNR/10))
+            # sigma_2 = 0 # back-to-back
+            ns = 0
+            print("SNR: ", SNR)
+            while FER[0][i] < ErrorFrame:
+                ns += 1
+                # 生成信息比特、调制
+                BitStream = self.Bit_create()
+                X = np.zeros((1, self.Ncarrier), dtype=complex)
+                for nf in range(self.Ncarrier):
+                    X[0, nf] = self.Modulation(BitStream[0, 2 * nf:2 * nf + 2])
+                # 生成信道矩阵，DFT信道估计
+                H = self.Channel_create()
+                noise = np.random.randn(
+                    self.Ncarrier, 1)+1j * np.random.randn(self.Ncarrier, 1)
+                Ypilot = np.dot(H, self.Xpilot) + np.sqrt(sigma_2/2) * noise
+                
+                Hest = Ypilot/self.Xpilot
+                # h_est = np.fft.ifft(np.transpose(Hest),self.Nifft)
+                h_est, NMSE_idft = self.IDFT(
+                    np.transpose(Hest), self.Nifft, est=idft_est)
+
+                print(h_est)
+
+
 def save_mat(mat, fname):
     # fpath = os.path.join(NEW_DIR, fname)
     np.save(fname, mat)
@@ -549,7 +598,7 @@ params = {
     'Symbol_len': 128,
     'Symbol_num': 1,
     'L': 16,
-    'PathGain': np.linspace(1, 0.1, 16),
+    'PathGain': np.array([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
     'SNR': [-10, -7, -4, 0, 3, 6, 9, 12, 15, 18, 21],
     'ErrorFrame': 500,
     'Encode_method': None,
@@ -569,7 +618,7 @@ if __name__ == '__main__':
 
     myTransceiver = Transceiver(params)
     # myTransceiver.create_SplitIDFTTraindata(slice=4)
-    BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE = myTransceiver.FER()
+    BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE = myTransceiver.pathDetect()
     print("BER", BER)
     print("FER", FER)
     print("NMSE_dft", NMSE_dft)
