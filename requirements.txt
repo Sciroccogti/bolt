@@ -1,0 +1,9 @@
+numpy
+scikit-learn
+Cython
+pytest
+numba
+matplotlib
+pandas
+zstandard
+seaborn
