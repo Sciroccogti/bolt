@@ -10,7 +10,7 @@ params:
  'SNR': [-10, -7, -4, 0, 3, 6, 9, 12, 15, 18, 21],
  'Symbol_len': 128,
  'Symbol_num': 1,
- 'matmul_method': 'PQ',
+ 'matmul_method': 'PQ-4096-exact idft',
  'ncentroids': 4096,
  'ncodebooks': 32,
  'qAry': 2}
