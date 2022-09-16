@@ -36,9 +36,11 @@ for snr in snrs_:
 #     y_out_last = mu.relu(y_out_matmul + bias.T) # MADDNESS替换后当前层输出，即+bias并激活函数后的结果
 #     x_test = y_out_last
 # '''
-    _dir = os.path.dirname(os.path.abspath(__file__))
+    dir = os.path.dirname(os.path.abspath(__file__))
+    _dir = 'E:\\hdr\\研一\\华为-深度学习\\tutorialDJY\\bolt-master\\bolt-master\\experiments\\python'
     print(_dir)
-    est3 = mm.estFactory(X_path="x.npy", W_path="w.npy", Y_path="y.npy", dir= os.path.join("..\\python\\data\\train\\", snr), methods=[method])
+    est3 = mm.estFactory(X_path="x.npy", W_path="w.npy", Y_path="y.npy", dir='E:\\hdr\\研一\\华为-深度学习\\tutorialDJY\\bolt-master\\bolt-master\\experiments\\assets\\ldpc\\'+snr, methods=[method])
+    # est3 = mm.estFactory(X_path="x.npy", W_path="w.npy", Y_path="y.npy", dir= os.path.join("..\\python\\data\\train\\", snr), methods=[method])
     x_test = np.load(_dir + "/LDPC_decoder_NET_testdata/" + snr + "input.npy")
     w_test = np.load(_dir + "/LDPC_decoder_NET_testdata/"  + snr + "weight.npy")
     bias = np.load(_dir + "/LDPC_decoder_NET_testdata/"+ snr + "bias.npy")
@@ -48,4 +50,4 @@ for snr in snrs_:
     # np.save("LDPC_decoder_NET_testdata/" + snr + "nomul_matmul_yout_matmul", y_out_matmul)
     # np.save("LDPC_decoder_NET_testdata/" + snr + "nomul_matmul_yout_last", y_out_last)
 
-    io.savemat(_dir + "/data/" + method + "nc16@1_output1_threshold0.3_Tr15_SNR%s_ot.mat" % (snr[:-3]), {"NN_output_buffer": y_out_last})
+    io.savemat(dir + "/data/" + method + "nc16@1_output1_threshold0.3_Tr15_SNR%s_ot.mat" % (snr[:-3]), {"NN_output_buffer": y_out_last})
