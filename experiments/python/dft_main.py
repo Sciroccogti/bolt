@@ -154,7 +154,7 @@ class Transceiver:
 
     def IDFT(self, Xk, N, est=None):
         # 代替ifft
-        W = self.IDFTm[:, 0:20]  # 此处已经截取
+        W = self.IDFTm[:, 0:16]  # 此处已经截取
         NMSE_idft = 0
         xp = np.dot(Xk, W)
         if self.matmul_method != METHOD_EXACT:
@@ -504,6 +504,72 @@ class Transceiver:
                 IDFT_W[i * sliceLen: (i+1) * sliceLen]), "IDFT_W%d.npy" % i)
 
 
+    def pathDetect(self):
+        SNRs = self.params['SNR']
+        BER = np.zeros((1, len(SNRs)))
+        FER = np.zeros((1, len(SNRs)))
+        NMSE_dft = np.zeros((1, len(SNRs)))
+        NMSE_idfts = np.zeros((1, len(SNRs)))
+        H_NMSE = np.zeros((1, len(SNRs)))
+        rawH_NMSE = np.zeros((1, len(SNRs)))
+        h_ests = np.zeros((1, len(SNRs), self.params["L"]), dtype=np.complex128)
+        ErrorFrame = self.params['ErrorFrame']
+
+        dft_est = None
+        idft_est = None
+        if self.matmul_method != METHOD_EXACT:
+            dft_est = mm.estFactory(methods=[self.matmul_method], verbose=3,
+                                    ncodebooks=self.params["ncodebooks"],
+                                    ncentroids=self.params["ncentroids"],
+                                    X_path="DFT_X.npy", W_path="DFT_W.npy", Y_path="DFT_Y.npy", dir="dft")
+            idft_est = mm.estFactory(methods=[self.matmul_method],
+                                     ncodebooks=self.params["ncodebooks"],
+                                     ncentroids=self.params["ncentroids"],
+                                     X_path="IDFT_X.npy", W_path="IDFT_W.npy", Y_path="IDFT_Y.npy", dir="dft")
+        else:
+            assert self.matmul_method == METHOD_EXACT, "Other methods not supported!"
+        for i, SNR in enumerate(SNRs):
+            sigma_2 = np.power(10, (-SNR/10))
+            ns = 0
+            print("SNR: ", SNR)
+            while ns < ErrorFrame:
+                ns += 1
+                # 生成信息比特、调制
+                BitStream = self.Bit_create()
+                X = np.zeros((1, self.Ncarrier), dtype=complex)
+                for nf in range(self.Ncarrier):
+                    X[0, nf] = self.Modulation(BitStream[0, 2 * nf:2 * nf + 2])
+                # 生成信道矩阵，DFT信道估计
+                H = self.Channel_create()
+                noise = np.random.randn(
+                    self.Ncarrier, 1)+1j * np.random.randn(self.Ncarrier, 1)
+                Ypilot = np.dot(H, self.Xpilot) + np.sqrt(sigma_2/2) * noise
+                
+                Hest = Ypilot/self.Xpilot
+                # h_est = np.fft.ifft(np.transpose(Hest),self.Nifft)
+                h_est, NMSE_idft = self.IDFT(
+                    np.transpose(Hest), self.Nifft, est=idft_est)
+
+                h_dists = []
+                for j in range(len(self.params["PathGain"])):
+                    # 计算 h_est 到各单位向量的欧式距，从而将其分类到对应径
+                    pg = np.zeros((self.params["L"]), dtype=np.complex128)
+                    pg[j] = 1
+                    h_dists.append(np.linalg.norm(h_est - pg))
+                pgIdx = np.argmin(h_dists) # 记录对应径的下标
+
+                if (np.argmax(self.params["PathGain"]) != pgIdx): # 初始 PathGain 的最大值不在 pgIdx
+                    FER[0][i] += 1
+
+                h_ests[0][i] += h_est[0]
+                NMSE_idfts[0][i] += NMSE_idft
+            
+            h_ests[0][i] /= ns
+            FER[0][i] /= ns
+            NMSE_idfts[0][i] /= ns
+
+        return FER, NMSE_idfts
+
 def save_mat(mat, fname):
     # fpath = os.path.join(NEW_DIR, fname)
     np.save(fname, mat)
@@ -549,13 +615,13 @@ params = {
     'Symbol_len': 128,
     'Symbol_num': 1,
     'L': 16,
-    'PathGain': np.linspace(1, 0.1, 16),
-    'SNR': [-10, -7, -4, 0, 3, 6, 9, 12, 15, 18, 21],
+    'PathGain': np.array([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+    'SNR': [21],
     'ErrorFrame': 500,
     'Encode_method': None,
-    'ncodebooks': 16,
-    'ncentroids': 256,
-    'matmul_method': METHOD_MITHRAL
+    'ncodebooks': 32,
+    'ncentroids': 4096,
+    'matmul_method': METHOD_PQ
 }
 
 if __name__ == '__main__':
@@ -569,26 +635,26 @@ if __name__ == '__main__':
 
     myTransceiver = Transceiver(params)
     # myTransceiver.create_SplitIDFTTraindata(slice=4)
-    BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE = myTransceiver.FER()
-    print("BER", BER)
+    FER, NMSE_idft = myTransceiver.pathDetect()
+    # print("BER", BER)
     print("FER", FER)
-    print("NMSE_dft", NMSE_dft)
+    # print("NMSE_dft", NMSE_dft)
     print("NMSE_idft", NMSE_idft)
-    print("H_NMSE", H_NMSE)
-    print("rawH_NMSE", rawH_NMSE)
+    # print("H_NMSE", H_NMSE)
+    # print("rawH_NMSE", rawH_NMSE)
 
     stoptime = time.strftime("%Y%m%d-%H%M%S", time.localtime())
     with open(foutName, "a+") as fout:
-        fout.write("\nBER:\n")
-        np.savetxt(fout, BER, "%.4e")
+        # fout.write("\nBER:\n")
+        # np.savetxt(fout, BER, "%.4e")
         fout.write("\nFER:\n")
         np.savetxt(fout, FER, "%.4e")
-        fout.write("\nNMSE_dft:\n")
-        np.savetxt(fout, NMSE_dft, "%.4e")
+        # fout.write("\nNMSE_dft:\n")
+        # np.savetxt(fout, NMSE_dft, "%.4e")
         fout.write("\nNMSE_idft:\n")
         np.savetxt(fout, NMSE_idft, "%.4e")
-        fout.write("\nH_NMSE:\n")
-        np.savetxt(fout, H_NMSE, "%.4e")
-        fout.write("\nrawH_NMSE:\n")
-        np.savetxt(fout, rawH_NMSE, "%.4e")
+        # fout.write("\nH_NMSE:\n")
+        # np.savetxt(fout, H_NMSE, "%.4e")
+        # fout.write("\nrawH_NMSE:\n")
+        # np.savetxt(fout, rawH_NMSE, "%.4e")
         fout.write("stop at %s\n" % stoptime)

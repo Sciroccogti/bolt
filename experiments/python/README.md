@@ -113,5 +113,17 @@ W:(16*2)*128 = 32*128
    测试集位置： bolt-master/experiments/python/LDPC_decoder_NET_testdata
    ```
 
-   
+### 自编码器优化星座点
+
+[NVIDIA/sionna](https://nvlabs.github.io/sionna/examples/Autoencoder.html) 自编码器样例
+
+![](README.assets/sionna.png)
+
+通过将上图中 Autoencoder 整体训练，得到优化后的星座点分布和解码器参数。
+
+本程序将尝试替换解码器的后两层
+
+使用方法：
+1. `pip3 install sionna`
+2. `python3 boltConventional.py`
 

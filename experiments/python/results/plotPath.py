@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-07-06 15:07:45
-@modified: 2022-09-07 11:34:08
+@modified: 2022-09-07 13:48:52
 '''
 
 import os
@@ -19,7 +19,7 @@ fig, ax = plt.subplots()
 plt.rcParams["font.sans-serif"] = ["Sarasa Mono SC Nerd"]
 # plt.title(r"DFT-IDFT 的信道估计误比特率")
 plt.xlabel(r"$SNR$")
-plt.ylabel(r"$BER$")
+plt.ylabel(r"$FER$")
 plt.yscale("log")
 ax.yaxis.set_minor_locator(ticker.LogLocator(base=10, subs='all', numticks=10))
 ax.yaxis.set_minor_formatter(ticker.NullFormatter())
