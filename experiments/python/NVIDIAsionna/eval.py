@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-09-08 14:55:02
-@modified: 2022-09-08 17:32:23
+@modified: 2022-09-15 13:49:40
 '''
 
 import pickle
@@ -11,17 +11,17 @@ import pickle
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras import Model
-from tensorflow.keras.layers import Dense, Layer
-
 from sionna.channel import AWGN
 from sionna.fec.ldpc.decoding import LDPC5GDecoder
 from sionna.fec.ldpc.encoding import LDPC5GEncoder
 from sionna.mapping import Constellation, Demapper, Mapper
 from sionna.utils import (BinarySource, ebnodb2no, expand_to_rank, insert_dims,
                           log10, sim_ber)
-from vars import *
-from conventional import E2ESystemConventionalTraining
+from tensorflow.keras import Model
+from tensorflow.keras.layers import Dense, Layer
+
+from .conventional import E2ESystemConventionalTraining, load_weights
+from .vars import *
 
 
 class Baseline(Model):
@@ -82,14 +82,6 @@ class Baseline(Model):
 
 # Utility function to load and set weights of a model
 
-
-def load_weights(model, model_weights_path):
-    model(1, tf.constant(10.0, tf.float32))
-    with open(model_weights_path, 'rb') as f:
-        weights = pickle.load(f)
-    model.set_weights(weights)
-
-
 if __name__ == "__main__":
     # Range of SNRs over which the systems are evaluated
     ebno_dbs = np.arange(ebno_db_min,  # Min SNR for evaluation
@@ -99,9 +91,9 @@ if __name__ == "__main__":
     # Dictionnary storing the results
     BLER = {}
 
-    model_baseline = Baseline()
-    _,bler = sim_ber(model_baseline, ebno_dbs, batch_size=128, num_target_block_errors=1000, max_mc_iter=10000)
-    BLER['baseline'] = bler.numpy()
+    # model_baseline = Baseline()
+    # _,bler = sim_ber(model_baseline, ebno_dbs, batch_size=128, num_target_block_errors=1000, max_mc_iter=10000)
+    # BLER['baseline'] = bler.numpy()
 
     model_conventional = E2ESystemConventionalTraining(training=False)
     load_weights(model_conventional, model_weights_path_conventional_training)

@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-09-08 14:47:41
-@modified: 2022-09-08 17:34:24
+@modified: 2022-09-15 15:28:38
 '''
 
 import tensorflow as tf
@@ -12,7 +12,7 @@ import tensorflow as tf
 # SNR range for evaluation and training [dB]
 ###############################################
 ebno_db_min = 5.0
-ebno_db_max = 8.0
+ebno_db_max = 7.5
 
 ###############################################
 # Modulation and coding configuration

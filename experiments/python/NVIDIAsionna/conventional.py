@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-09-08 14:46:11
-@modified: 2022-09-08 14:58:41
+@modified: 2022-09-14 21:29:02
 '''
 
 import pickle
@@ -11,14 +11,14 @@ import pickle
 import tensorflow as tf
 from tensorflow.keras import Model
 
-from demapper import NeuralDemapper
+from .demapper import NeuralDemapper
 from sionna.channel import AWGN
 from sionna.fec.ldpc.decoding import LDPC5GDecoder
 from sionna.fec.ldpc.encoding import LDPC5GEncoder
 from sionna.mapping import Constellation, Demapper, Mapper
 from sionna.utils import (BinarySource, ebnodb2no, expand_to_rank, insert_dims,
                           log10, sim_ber)
-from vars import *
+from .vars import *
 
 
 class E2ESystemConventionalTraining(Model):
@@ -130,3 +130,10 @@ def save_weights(model, model_weights_path):
     weights = model.get_weights()
     with open(model_weights_path, 'wb') as f:
         pickle.dump(weights, f)
+
+
+def load_weights(model, model_weights_path):
+    model(1, tf.constant(10.0, tf.float32))
+    with open(model_weights_path, 'rb') as f:
+        weights = pickle.load(f)
+    model.set_weights(weights)
