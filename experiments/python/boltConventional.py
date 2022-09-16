@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief
 @date 2022-09-11 14:46:11
-@modified: 2022-09-16 15:44:10
+@modified: 2022-09-16 16:25:32
 '''
 
 import pickle
@@ -11,26 +11,25 @@ import pickle
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
-from sionna.channel import AWGN
-from sionna.fec.ldpc.decoding import LDPC5GDecoder
-from sionna.fec.ldpc.encoding import LDPC5GEncoder
-from sionna.mapping import Constellation, Demapper, Mapper
 from sionna.utils import (BinarySource, ebnodb2no, expand_to_rank, insert_dims,
                           log10, sim_ber)
 from tensorflow.keras import Model
 
 import amm_methods
-from math_util import relu
 from matmul import estFactory, eval_matmul
 from matmul_datasets import MatmulTask
 from NVIDIAsionna.conventional import (E2ESystemConventionalTraining,
                                        load_weights)
-from NVIDIAsionna.demapper import NeuralDemapper
 from NVIDIAsionna.eval import Baseline
 from NVIDIAsionna.vars import *
 
 
 class E2EBoltConventionalTraining(Model):
+    """
+    该 class 构造时使用了 E2ESystemConventionalTraining 来初始化整个系统，
+    仅在 call 时替换了 demapper，因此需要在构造时将权重读入到 E2ESystemConventionalTraining
+    模型中，而不是构造后将权重读入到自身
+    """
 
     def __init__(self, training: bool, model_weights_path_conventional_training: str, method: str):
         super().__init__()
