@@ -249,9 +249,10 @@ def _fitted_est_for_hparams(method_id, hparams_dict, X_train, W_train,
 
 
 def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
-               verbose=1, limit_ntasks=-1, tasks_all_same_shape=False,
+               verbose=1, limit_ntasks=-1, tasks_all_same_shape=False, tasks=None,
                X_path="", W_path="", Y_path="", dir=""):
     methods = methods.DEFAULT_METHODS if methods is None else methods
+    tasks = md.load_dft_train(X_path, W_path, Y_path, dir) if tasks is None else tasks
     if isinstance(methods, str):
         methods = [methods]
     if limit_ntasks is None or limit_ntasks < 1:
@@ -271,7 +272,8 @@ def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
         hparams_dict = [{'d': d, 'alpha': alpha}
                         for d in dvals for alpha in alpha_vals][0]
     elif (METHOD_MITHRAL in methods):
-        hparams_dict = {'ncodebooks': ncodebooks, 'lut_work_const': -1} # Mithral 的 ncentroids 自动生成
+        hparams_dict = {'ncodebooks': ncodebooks,
+                        'lut_work_const': -1}  # Mithral 的 ncentroids 自动生成
     else:
         hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids}
 
@@ -290,7 +292,7 @@ def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
         prev_X_shape, prev_Y_shape = None, None
         prev_X_std, prev_Y_std = None, None
         # est = None
-        for i, task in enumerate(md.load_dft_train(X_path, W_path, Y_path, dir)):
+        for i, task in enumerate(tasks):
             if i + 1 > limit_ntasks:
                 raise StopIteration()
             if verbose > 3:
@@ -342,7 +344,10 @@ def eval_matmul(est, X_test=None, W_test=None):
     # task = list(enumerate(md.load_dft_test()))[0][1]
     # task = list(enumerate(md.construct_dft_test(X_test, W_test))[0][1])
     # tast = md.load_dft_tasks()
-
+    try:
+        X_test = X_test.numpy()
+    except:
+        pass
     est.reset_for_new_task()
     est.set_B(W_test)
     Y_hat = est.predict(X_test, W_test)
