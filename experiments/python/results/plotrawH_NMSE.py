@@ -3,13 +3,14 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-07-06 15:07:45
-@modified: 2022-08-15 20:25:25
+@modified: 2022-09-21 10:43:58
 '''
 
 import os
 import re
 from matplotlib import ticker
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 colors_ = ["r", "g", "b", "orange", "c", "m", "steelblue", "k", "y"]
@@ -28,6 +29,7 @@ ax.grid(True, which="minor", ls="--")
 ax.xaxis.set_tick_params(direction='in', which='both')  # 刻度线向内
 ax.yaxis.set_tick_params(direction='in', which='both')
 
+snr_ = [-10, -7, -4, 0, 3, 6, 9, 12, 15, 18, 21]
 
 path = "./"
 files_ = os.listdir(path)
@@ -37,10 +39,9 @@ for file in files_:
     match = None
     try:
         if match == None:
-            match = re.match(r"\*[0-5].*?\.txt", file)
+            match = re.match(r"\+[0-9][a-z,A-Z].*?\.txt", file)
 
         if match != None:
-            snr_ = [-10, -7, -4, 0, 3, 6, 9, 12, 15, 18, 21]
 
             fin = open(path + file, "r")
             lines_ = fin.readlines()
@@ -58,5 +59,8 @@ for file in files_:
             colorCnt += 1
     except Exception as e:
         print(file + ": ", e)
+
+# rawnmse_H_ = [np.NaN, np.NaN, np.NaN, 4.1206e-02, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, 2.4429e-02]
+# plt.plot(snr_, rawnmse_H_, label="PQ-32768", color=colors_[colorCnt], linestyle="-", marker=markers_[colorCnt])
 plt.legend()
 plt.show()

@@ -1,0 +1,23 @@
+start at 20220902-153929
+params:
+{'Encode_method': None,
+ 'ErrorFrame': 500,
+ 'L': 16,
+ 'Ncarrier': 128,
+ 'Nifft': 128,
+ 'PathGain': array([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+ 'SNR': [-10, -7, -4, 0, 3, 6, 9, 12, 15, 18, 21],
+ 'Symbol_len': 128,
+ 'Symbol_num': 1,
+ 'matmul_method': 'Exact',
+ 'ncentroids': 4096,
+ 'ncodebooks': 32,
+ 'qAry': 2}
+matmul_method: Exact
+
+FER:
+2.1800e-01 1.0400e-01 5.8000e-02 2.0000e-02 8.0000e-03 6.0000e-03 4.0000e-03 0.0000e+00 0.0000e+00 2.0000e-03 0.0000e+00
+
+NMSE_idft:
+0.0000e+00 0.0000e+00 0.0000e+00 0.0000e+00 0.0000e+00 0.0000e+00 0.0000e+00 0.0000e+00 0.0000e+00 0.0000e+00 0.0000e+00
+stop at 20220902-153934
