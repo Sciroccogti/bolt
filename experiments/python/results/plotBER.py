@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-07-06 15:07:45
-@modified: 2022-09-07 11:34:08
+@modified: 2022-09-21 10:47:13
 '''
 
 import os
@@ -17,7 +17,7 @@ markers_ = ["o", "x", "s", "d", "+", "*", "v", "^", "D"]
 
 fig, ax = plt.subplots()
 plt.rcParams["font.sans-serif"] = ["Sarasa Mono SC Nerd"]
-# plt.title(r"DFT-IDFT 的信道估计误比特率")
+plt.title(r"DFT-IDFT 的信道估计误比特率")
 plt.xlabel(r"$SNR$")
 plt.ylabel(r"$BER$")
 plt.yscale("log")
@@ -37,7 +37,7 @@ for file in files_:
     match = None
     try:
         if match == None:
-            match = re.match(r"\*[0-9][0-9].*?\.txt", file)
+            match = re.match(r"\+[0-9][a-z,A-Z].*?\.txt", file)
 
         if match != None:
             snr_ = [-10, -7, -4, 0, 3, 6, 9, 12, 15, 18, 21]
@@ -45,10 +45,10 @@ for file in files_:
             fin = open(path + file, "r")
             lines_ = fin.readlines()
 
-            method = lines_[11].split("'")[3]
+            method = lines_[12].split("'")[3]
             # ncodebooks = int(
             #     re.match(r" 'ncodebooks': ([0-9]+)", lines_[14]).group(1))
-            ber_ = [float(i) for i in lines_[18].split()]
+            ber_ = [float(i) for i in lines_[19].split()]
             # fer_ = [float(i) for i in lines_[22].split()]
             # nmdr_DFT_ = [float(i) for i in lines_[25].split()]
             # nmse_IDFT_ = [float(i) for i in lines_[28].split()]
