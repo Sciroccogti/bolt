@@ -153,7 +153,7 @@ def _learn_best_quantization(luts):
 class MultiCodebookEncoder(abc.ABC):
 
     def __init__(self, ncodebooks, ncentroids=256,
-                 quantize_lut=False, upcast_every=-1, accumulate_how='sum'):
+                 quantize_lut=True, upcast_every=-1, accumulate_how='sum'):
         self.ncodebooks = ncodebooks
         self.ncentroids = ncentroids
         self.quantize_lut = quantize_lut
@@ -204,6 +204,10 @@ class MultiCodebookEncoder(abc.ABC):
             # compute luts for all the queries
             # luts = [self.encode_Q(q, quantize=False) for q in Q]
             luts = self.encode_Q(Q, quantize=False)
+            # TODO 
+            # print(type(luts))
+            # print(luts)
+            # np.save('/home/hdr/pq/res/lutPQfc1_fb64_cb64_ct128.npy', luts) 
             # luts = np.vstack(luts)
             # print("ncodebooks: ", self.ncodebooks)
             # print("luts shape: ", luts.shape)
@@ -367,7 +371,7 @@ class PQEncoder(MultiCodebookEncoder):
 
     def __init__(self, ncodebooks, ncentroids=256,
                  elemwise_dist_func=dists_elemwise_dot,
-                 preproc='PQ', encode_algo=None, quantize_lut=False, # TODO
+                 preproc='PQ', encode_algo=None, quantize_lut=True, # TODO
                  upcast_every=-1, accumulate_how='sum',
                  **preproc_kwargs):
         super().__init__(
