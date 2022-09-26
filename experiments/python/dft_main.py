@@ -532,7 +532,7 @@ class Transceiver:
             sigma_2 = np.power(10, (-SNR/10))
             ns = 0
             print("SNR: ", SNR)
-            while ns < ErrorFrame:
+            while FER[0][i] < ErrorFrame:
                 ns += 1
                 # 生成信息比特、调制
                 BitStream = self.Bit_create()
@@ -546,7 +546,7 @@ class Transceiver:
                 Ypilot = np.dot(H, self.Xpilot) + np.sqrt(sigma_2/2) * noise
                 
                 Hest = Ypilot/self.Xpilot
-                # h_est = np.fft.ifft(np.transpose(Hest),self.Nifft)
+                # h_est = np.fft.ifft(np.transpose(Hest), self.Nifft)
                 h_est, NMSE_idft = self.IDFT(
                     np.transpose(Hest), self.Nifft, est=idft_est)
 
@@ -555,7 +555,7 @@ class Transceiver:
                     # 计算 h_est 到各单位向量的欧式距，从而将其分类到对应径
                     pg = np.zeros((self.params["L"]), dtype=np.complex128)
                     pg[j] = 1
-                    h_dists.append(np.linalg.norm(h_est - pg))
+                    h_dists.append(np.linalg.norm(np.abs(h_est) - pg))
                 pgIdx = np.argmin(h_dists) # 记录对应径的下标
 
                 if (np.argmax(self.params["PathGain"]) != pgIdx): # 初始 PathGain 的最大值不在 pgIdx
@@ -616,12 +616,13 @@ params = {
     'Symbol_num': 1,
     'L': 16,
     'PathGain': np.array([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
-    'SNR': [21],
+    # 'PathGain': np.linspace(1, 0.1, 16),
+    'SNR': [-10, -7, -4, 0, 3, 6, 9, 12, 15, 18, 21],
     'ErrorFrame': 500,
     'Encode_method': None,
     'ncodebooks': 32,
     'ncentroids': 4096,
-    'matmul_method': METHOD_PQ
+    'matmul_method': METHOD_MITHRAL
 }
 
 if __name__ == '__main__':
@@ -635,6 +636,7 @@ if __name__ == '__main__':
 
     myTransceiver = Transceiver(params)
     # myTransceiver.create_SplitIDFTTraindata(slice=4)
+    # BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE = myTransceiver.FER()
     FER, NMSE_idft = myTransceiver.pathDetect()
     # print("BER", BER)
     print("FER", FER)

@@ -181,7 +181,7 @@ def kmeans(X, k, max_iter=16, init='kmc2', return_sse=False):
     rowsums = X.sum(axis=1)
     nonzero_mask = rowsums != 0
     nnz_rows = np.sum(nonzero_mask)
-    if nnz_rows < k:
+    if nnz_rows < k: # 非零行数比质心数还小
         print("X.shape: ", X.shape)
         print("k: ", k)
         print("nnz_rows: ", nnz_rows)
