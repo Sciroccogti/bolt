@@ -207,7 +207,7 @@ class MultiCodebookEncoder(abc.ABC):
             # TODO 
             # print(type(luts))
             # print(luts)
-            # np.save('/home/hdr/pq/res/lutPQfc1_fb64_cb64_ct128.npy', luts) 
+            # np.save('/data/hdr/pq/res/lutPQfc1_fb64_cb64_ct128.npy', luts) 
             # luts = np.vstack(luts)
             # print("ncodebooks: ", self.ncodebooks)
             # print("luts shape: ", luts.shape)
