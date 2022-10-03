@@ -134,6 +134,7 @@ W:(16*2)*128 = 32*128
 
 使用方法：
 1. `pip3 install sionna`
-2. `cd experiments/python/NVIDIAsionna && python3 train.py`
-3. `cd .. && python3 boltConventional.py`
+2. `cd experiments/python`
+3. `python3 -m NVIDIAsionna.train` 训练神经网络
+4. `python3 boltConventional.py` 测试
 

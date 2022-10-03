@@ -3,15 +3,15 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-09-08 14:50:22
-@modified: 2022-09-08 15:37:43
+@modified: 2022-10-03 14:58:28
 '''
 
 import tensorflow as tf
 
-from conventional import (E2ESystemConventionalTraining, conventional_training,
+from .conventional import (E2ESystemConventionalTraining, conventional_training,
                           save_weights)
 from sionna.mapping import Constellation, Demapper, Mapper
-from vars import *
+from .vars import *
 
 gpus = tf.config.list_physical_devices('GPU')
 print('Number of GPUs available :', len(gpus))
