@@ -1,7 +1,10 @@
 *.npy
 *.csv
+*.svg
 dft_main_*.txt
 Figure*.txt
+awgn_autoencoder_weights_conventional_training
+awgn_autoencoder_results
 
 # ================================================================ Python
 

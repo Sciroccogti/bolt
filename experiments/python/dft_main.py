@@ -577,7 +577,7 @@ class Transceiver:
             sigma_2 = np.power(10, (-SNR/10))
             ns = 0
             print("SNR: ", SNR)
-            while ns < ErrorFrame:
+            while FER[0][i] < ErrorFrame:
                 ns += 1
                 # 生成信息比特、调制
                 BitStream = self.Bit_create()
@@ -660,7 +660,8 @@ params = {
     'Symbol_len': 128,
     'Symbol_num': 1,
     'L': 16,
-    'PathGain': np.linspace(1, 0.1, 16),
+    'PathGain': np.array([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+    # 'PathGain': np.linspace(1, 0.1, 16),
     'SNR': [-10, -7, -4, 0, 3, 6, 9, 12, 15, 18, 21],
     'ErrorFrame': 500,
     'Encode_method': None,
