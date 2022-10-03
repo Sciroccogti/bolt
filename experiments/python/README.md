@@ -136,5 +136,6 @@ W:(16*2)*128 = 32*128
 1. `pip3 install sionna`
 2. `cd experiments/python`
 3. `python3 -m NVIDIAsionna.train` 训练神经网络
-4. `python3 boltConventional.py` 测试
+3. `python3 -m NVIDIAsionna.eval` 测试神经网络
+4. `python3 boltConventional.py` 测试加速矩阵乘法替换
 
