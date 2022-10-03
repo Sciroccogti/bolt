@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-09-08 14:47:41
-@modified: 2022-09-15 15:28:38
+@modified: 2022-09-28 11:14:22
 '''
 
 import tensorflow as tf
@@ -12,7 +12,7 @@ import tensorflow as tf
 # SNR range for evaluation and training [dB]
 ###############################################
 ebno_db_min = 5.0
-ebno_db_max = 7.5
+ebno_db_max = 8.0
 
 ###############################################
 # Modulation and coding configuration
@@ -33,7 +33,7 @@ num_training_iterations_conventional = 10000
 # Number of training iterations with RL-based training for the alternating training phase and fine-tuning of the receiver phase
 num_training_iterations_rl_alt = 7000
 num_training_iterations_rl_finetuning = 3000
-training_batch_size = tf.constant(128, tf.int32)  # Training batch size
+training_batch_size = tf.constant(256, tf.int32)  # Training batch size
 # Variance of the perturbation used for RL-based training of the transmitter
 rl_perturbation_var = 0.01
 # Filename to save the autoencoder weights once conventional training is done

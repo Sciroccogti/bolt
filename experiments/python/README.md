@@ -123,7 +123,17 @@ W:(16*2)*128 = 32*128
 
 本程序将尝试替换解码器的后两层
 
+程序中
+- `baseline` 是指用方形 QAM 非神经网络解调
+- `conventional` 是指用训练后的星座和神经网络进行解调
+- `boltConventional` 是指用训练后的星座和用加速矩阵乘法替换后的神经网络进行解调
+
+[NVIDIAsionna/train.py](./NVIDIAsionna/train.py) 是训练函数，需要事先运行它来训练获得网络参数并存在 `./NVIDIAsionna/awgn_autoencoder_weights_conventional_training`；
+可以运行 [NVIDIAsionna/eval.py](./NVIDIAsionna/eval.py) 来进行工具集提供的测试，会绘制 BLER 曲线；
+最后，运行 [boltConventional.py](./boltConventional.py) 来测试加速矩阵乘法替换后的性能，也会绘制 BLER 曲线。
+
 使用方法：
 1. `pip3 install sionna`
-2. `python3 boltConventional.py`
+2. `cd experiments/python/NVIDIAsionna && python3 train.py`
+3. `cd .. && python3 boltConventional.py`
 

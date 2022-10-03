@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief
 @date 2022-09-11 14:46:11
-@modified: 2022-09-26 21:11:39
+@modified: 2022-09-28 11:12:29
 '''
 
 import pickle
@@ -47,18 +47,18 @@ class E2EBoltConventionalTraining(Model):
         no = ebnodb2no(ebno_db, num_bits_per_symbol, coderate)
         no = expand_to_rank(no, 2)
         b = model_conventional._binary_source(
-            [training_batch_size, k])  # (128, 750)
-        c = model_conventional._encoder(b)  # (128, 1500)
-        x = model_conventional._mapper(c)  # (128, 250)
-        y = model_conventional._channel([x, no])  # (128, 250)
+            [training_batch_size, k])  # (training_batch_size, 750)
+        c = model_conventional._encoder(b)  # (training_batch_size, 1500)
+        x = model_conventional._mapper(c)  # (training_batch_size, 250)
+        y = model_conventional._channel([x, no])  # (training_batch_size, 250)
 
-        llr = model_conventional._demapper([y, no])  # (128, 250, 6)
-        llr = tf.reshape(llr, [training_batch_size, n])  # (128, 1500)
+        llr = model_conventional._demapper([y, no])  # (training_batch_size, 250, 6)
+        llr = tf.reshape(llr, [training_batch_size, n])  # (training_batch_size, 1500)
 
         no_db = log10(no)
         no_db = tf.tile(no_db, [1, num_symbols_per_codeword])
         z = tf.stack([tf.math.real(y), tf.math.imag(y), no_db],
-                     axis=2)  # (128, 250, 3)
+                     axis=2)  # (training_batch_size, 250, 3)
         layer1out = z @ self.weights_[1]  # 第一层乘法输出
 
         # self.est1 = estFactory(methods=[amm_methods.METHOD_MITHRAL], tasks=[
@@ -190,11 +190,11 @@ if __name__ == "__main__":
     # Dictionnary storing the results
     BLER = {}
 
-    model_bolt = E2EBoltConventionalTraining(training=False, model_weights_path_conventional_training="./NVIDIAsionna/" +
-                                             model_weights_path_conventional_training, method=amm_methods.METHOD_MITHRAL)
-    _, bler = sim_ber(model_bolt, ebno_dbs, batch_size=1024,
-                      num_target_block_errors=20, max_mc_iter=2000)
-    BLER['autoencoder-maddness'] = bler.numpy()
+    # model_bolt = E2EBoltConventionalTraining(training=False, model_weights_path_conventional_training="./NVIDIAsionna/" +
+    #                                          model_weights_path_conventional_training, method=amm_methods.METHOD_MITHRAL)
+    # _, bler = sim_ber(model_bolt, ebno_dbs, batch_size=1024,
+    #                   num_target_block_errors=20, max_mc_iter=2000)
+    # BLER['autoencoder-maddness'] = bler.numpy()
 
     model_bolt = E2EBoltConventionalTraining(training=False, model_weights_path_conventional_training="./NVIDIAsionna/" +
                                              model_weights_path_conventional_training, method=amm_methods.METHOD_PQ)
