@@ -4,8 +4,14 @@ import time
 from pprint import pprint
 
 import numpy as np
+import tensorflow as tf
+from sionna.fec.ldpc.decoding import LDPC5GDecoder, LDPC5GEncoder
+# from tensorflow.python.ops.numpy_ops import np_config
+
 import matmul as mm
 from amm_methods import *
+
+# np_config.enable_numpy_behavior() # enable tensor.size() for tensorflow
 
 
 class Transceiver:
@@ -17,8 +23,10 @@ class Transceiver:
         self.Symbol_len = params['Symbol_len']
         self.Symbol_num = params['Symbol_num']
         self.matmul_method = params['matmul_method']
+        self.ldpc_rate = params['ldpc_rate']
 
-        self.bitpilot = self.Bit_create()  # 列向量
+        self.bitpilot = self.Bit_create(
+            self.qAry * self.Ncarrier * self.Symbol_num)  # 列向量
         self.Xpilot = np.zeros((1, self.Ncarrier), dtype=complex)  # 调制后的导频
         for nf in range(self.Ncarrier):
             self.Xpilot[0, nf] = self.Modulation(
@@ -38,10 +46,9 @@ class Transceiver:
                 self.DFTm[i][j] = np.power(Wn, nk[i][j])
         self.IDFTm = 1/self.Nifft * np.conj(self.DFTm)
 
-    def Bit_create(self):
+    def Bit_create(self, length: int):
         '''生成一帧信息比特/导频'''
-        Bitlen = self.qAry * self.Ncarrier * self.Symbol_num
-        bitstream = np.random.randint(0, 2, (1, Bitlen))
+        bitstream = np.random.randint(0, 2, (1, length))
         return bitstream
 
     def Encoder(self):
@@ -184,8 +191,10 @@ class Transceiver:
         if self.matmul_method != METHOD_EXACT:
             xn_tmp = np.zeros((Xk.shape[0] * 2, W.shape[1]))
             for i in range(slice):
-                XkSplit = convert_complexToReal_X(Xk[:, i * sliceLen: (i+1) * sliceLen])
-                WSplit = convert_complexToReal_W(W[i * sliceLen: (i+1) * sliceLen])
+                XkSplit = convert_complexToReal_X(
+                    Xk[:, i * sliceLen: (i+1) * sliceLen])
+                WSplit = convert_complexToReal_W(
+                    W[i * sliceLen: (i+1) * sliceLen])
                 xn_tmp += mm.eval_matmul(ests_[i], XkSplit, WSplit)
             xn = covert_realToComplex_Y(xn_tmp)
             NMSE_idft = cal_NMSE(xn_tmp, convert_complexToReal_Y(xp))
@@ -261,11 +270,14 @@ class Transceiver:
         H_NMSE = np.zeros((1, len(SNRs)))
         rawH_NMSE = np.zeros((1, len(SNRs)))
         ErrorFrame = self.params['ErrorFrame']
+        Bitlen = self.qAry * self.Ncarrier * self.Symbol_num
+        encoder = LDPC5GEncoder(Bitlen * self.ldpc_rate, Bitlen, tf.int64)
+        decoder = LDPC5GDecoder(encoder=encoder, num_iter=20, hard_out=True)
 
         dft_est = None
         idft_est = None
         if self.matmul_method != METHOD_EXACT:
-            dft_est = mm.estFactory(methods=[METHOD_EXACT], verbose=3,
+            dft_est = mm.estFactory(methods=[self.matmul_method], verbose=3,
                                     ncodebooks=self.params["ncodebooks"],
                                     ncentroids=self.params["ncentroids"],
                                     X_path="DFT_X.npy", W_path="DFT_W.npy", Y_path="DFT_Y.npy", dir="dft")
@@ -283,7 +295,8 @@ class Transceiver:
             while FER[0][i] < ErrorFrame:
                 ns += 1
                 # 生成信息比特、调制
-                BitStream = self.Bit_create()
+                InfoStream = self.Bit_create(int(Bitlen * self.ldpc_rate))
+                BitStream = encoder(InfoStream).numpy()
                 X = np.zeros((1, self.Ncarrier), dtype=complex)
                 for nf in range(self.Ncarrier):
                     X[0, nf] = self.Modulation(BitStream[0, 2 * nf:2 * nf + 2])
@@ -320,10 +333,11 @@ class Transceiver:
                     epsilon_2 = miu_k - miu_k**2
                     LLR[0][2*nf:2*nf +
                            2] = self.QPSK_LLR(Xest[0][nf], miu_k, epsilon_2)
-                LLR = np.array([1 if x >= 0 else 0 for x in LLR[0]])
+                # LLRhard = np.array([1 if x >= 0 else 0 for x in LLR[0]])
+                LLR = decoder(LLR)
                 count_error = 0
-                for j in range(BitStream.size):
-                    if BitStream[0][j] != LLR[j]:
+                for j in range(InfoStream.size):
+                    if InfoStream[0][j] != LLR[0][j]:
                         count_error += 1
                 BER[0][i] += count_error
                 if count_error != 0:
@@ -339,6 +353,7 @@ class Transceiver:
     def SplitFER(self, slice: int = 4):
         """
         把 IDFT 中的乘法改为分块矩阵乘法，以期提高精确度
+        效果与增加码本数完全一致
         """
         SNRs = self.params['SNR']
         BER = np.zeros((1, len(SNRs)))
@@ -503,7 +518,6 @@ class Transceiver:
             save_mat(convert_complexToReal_W(
                 IDFT_W[i * sliceLen: (i+1) * sliceLen]), "IDFT_W%d.npy" % i)
 
-
     def create_SplitBothTraindata(self, slice: int = 4):
         """
         split IDFT from 2*128 x 128*20 to 2*32 x 32*20 (slice = 4 = 128/32)
@@ -557,7 +571,8 @@ class Transceiver:
         NMSE_idfts = np.zeros((1, len(SNRs)))
         H_NMSE = np.zeros((1, len(SNRs)))
         rawH_NMSE = np.zeros((1, len(SNRs)))
-        h_ests = np.zeros((1, len(SNRs), self.params["L"]), dtype=np.complex128)
+        h_ests = np.zeros(
+            (1, len(SNRs), self.params["L"]), dtype=np.complex128)
         ErrorFrame = self.params['ErrorFrame']
 
         dft_est = None
@@ -589,7 +604,7 @@ class Transceiver:
                 noise = np.random.randn(
                     self.Ncarrier, 1)+1j * np.random.randn(self.Ncarrier, 1)
                 Ypilot = np.dot(H, self.Xpilot) + np.sqrt(sigma_2/2) * noise
-                
+
                 Hest = Ypilot/self.Xpilot
                 # h_est = np.fft.ifft(np.transpose(Hest), self.Nifft)
                 h_est, NMSE_idft = self.IDFT(
@@ -601,19 +616,21 @@ class Transceiver:
                     pg = np.zeros((self.params["L"]), dtype=np.complex128)
                     pg[j] = 1
                     h_dists.append(np.linalg.norm(np.abs(h_est) - pg))
-                pgIdx = np.argmin(h_dists) # 记录对应径的下标
+                pgIdx = np.argmin(h_dists)  # 记录对应径的下标
 
-                if (np.argmax(self.params["PathGain"]) != pgIdx): # 初始 PathGain 的最大值不在 pgIdx
+                # 初始 PathGain 的最大值不在 pgIdx
+                if (np.argmax(self.params["PathGain"]) != pgIdx):
                     FER[0][i] += 1
 
                 h_ests[0][i] += h_est[0]
                 NMSE_idfts[0][i] += NMSE_idft
-            
+
             h_ests[0][i] /= ns
             FER[0][i] /= ns
             NMSE_idfts[0][i] /= ns
 
         return FER, NMSE_idfts
+
 
 def save_mat(mat, fname):
     # fpath = os.path.join(NEW_DIR, fname)
@@ -659,15 +676,16 @@ params = {
     'qAry': 2,
     'Symbol_len': 128,
     'Symbol_num': 1,
+    'ldpc_rate': 0.5,
     'L': 16,
     'PathGain': np.array([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
     # 'PathGain': np.linspace(1, 0.1, 16),
-    'SNR': [-10, -7, -4, 0, 3, 6, 9, 12, 15, 18, 21],
+    'SNR': [21],
     'ErrorFrame': 500,
     'Encode_method': None,
-    'ncodebooks': 32,
-    'ncentroids': 4096,
-    'matmul_method': METHOD_MITHRAL
+    'ncodebooks': 256,
+    'ncentroids': 16,
+    'matmul_method': METHOD_EXACT
 }
 
 if __name__ == '__main__':
@@ -680,15 +698,14 @@ if __name__ == '__main__':
         fout.write("matmul_method: %s\n" % params["matmul_method"])
 
     myTransceiver = Transceiver(params)
-    doPathDetect = False # 是否是检测径
-    doTrain = False # 是否是生成训练集
+    doPathDetect = False  # 是否是检测径
+    doTrain = False  # 是否是生成训练集
 
     if doTrain:
         # myTransceiver.create_Traindata()
         myTransceiver.create_SplitIDFTTraindata(slice=4)
     elif not doPathDetect:
-        # BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE = myTransceiver.FER()
-        BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE = myTransceiver.SplitFER(8)
+        BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE = myTransceiver.FER()
         print("BER", BER)
         print("FER", FER)
         print("NMSE_dft", NMSE_dft)
@@ -711,8 +728,9 @@ if __name__ == '__main__':
             fout.write("\nrawH_NMSE:\n")
             np.savetxt(fout, rawH_NMSE, "%.4e")
             fout.write("stop at %s\n" % stoptime)
-    else: # pathDetect
-        params["PathGain"] = np.array([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    else:  # pathDetect
+        params["PathGain"] = np.array(
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
         FER, NMSE_idft = myTransceiver.pathDetect()
         print("FER", FER)
         print("NMSE_idft", NMSE_idft)
