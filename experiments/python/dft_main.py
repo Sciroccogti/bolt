@@ -270,14 +270,15 @@ class Transceiver:
         H_NMSE = np.zeros((1, len(SNRs)))
         rawH_NMSE = np.zeros((1, len(SNRs)))
         ErrorFrame = self.params['ErrorFrame']
+        TestFrame = self.params['TestFrame']
         Bitlen = self.qAry * self.Ncarrier * self.Symbol_num
-        encoder = LDPC5GEncoder(Bitlen * self.ldpc_rate, Bitlen, tf.int64)
+        encoder = LDPC5GEncoder(Bitlen * self.ldpc_rate, Bitlen, dtype=tf.int64)
         decoder = LDPC5GDecoder(encoder=encoder, num_iter=20, hard_out=True)
 
         dft_est = None
         idft_est = None
         if self.matmul_method != METHOD_EXACT:
-            dft_est = mm.estFactory(methods=[self.matmul_method], verbose=3,
+            dft_est = mm.estFactory(methods=[METHOD_EXACT], verbose=3, # TODO: change to matmul_method
                                     ncodebooks=self.params["ncodebooks"],
                                     ncentroids=self.params["ncentroids"],
                                     X_path="DFT_X.npy", W_path="DFT_W.npy", Y_path="DFT_Y.npy", dir="dft")
@@ -292,7 +293,7 @@ class Transceiver:
             # sigma_2 = 0 # back-to-back
             ns = 0
             print("SNR: ", SNR)
-            while FER[0][i] < ErrorFrame:
+            while FER[0][i] < ErrorFrame or ns < TestFrame:
                 ns += 1
                 # 生成信息比特、调制
                 InfoStream = self.Bit_create(int(Bitlen * self.ldpc_rate))
@@ -363,6 +364,7 @@ class Transceiver:
         H_NMSE = np.zeros((1, len(SNRs)))
         rawH_NMSE = np.zeros((1, len(SNRs)))
         ErrorFrame = self.params['ErrorFrame']
+        TestFrame = self.params['TestFrame']
 
         dft_est = None
         idft_ests_ = []
@@ -383,7 +385,7 @@ class Transceiver:
             # sigma_2 = 0 # back-to-back
             ns = 0
             print("SNR: ", SNR)
-            while FER[0][i] < ErrorFrame:
+            while FER[0][i] < ErrorFrame or ns < TestFrame:
                 ns += 1
                 # 生成信息比特、调制
                 BitStream = self.Bit_create()
@@ -574,6 +576,7 @@ class Transceiver:
         h_ests = np.zeros(
             (1, len(SNRs), self.params["L"]), dtype=np.complex128)
         ErrorFrame = self.params['ErrorFrame']
+        TestFrame = self.params['TestFrame']
 
         dft_est = None
         idft_est = None
@@ -592,7 +595,7 @@ class Transceiver:
             sigma_2 = np.power(10, (-SNR/10))
             ns = 0
             print("SNR: ", SNR)
-            while FER[0][i] < ErrorFrame:
+            while FER[0][i] < ErrorFrame or ns < TestFrame:
                 ns += 1
                 # 生成信息比特、调制
                 BitStream = self.Bit_create()
@@ -678,14 +681,15 @@ params = {
     'Symbol_num': 1,
     'ldpc_rate': 0.5,
     'L': 16,
-    'PathGain': np.array([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
-    # 'PathGain': np.linspace(1, 0.1, 16),
+    # 'PathGain': np.array([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+    'PathGain': np.linspace(1, 0.1, 16),
     'SNR': [21],
-    'ErrorFrame': 500,
+    'ErrorFrame': 20,
+    'TestFrame': 1000,
     'Encode_method': None,
     'ncodebooks': 256,
     'ncentroids': 16,
-    'matmul_method': METHOD_EXACT
+    'matmul_method': METHOD_MITHRAL
 }
 
 if __name__ == '__main__':
