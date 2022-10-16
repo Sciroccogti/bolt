@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief
 @date 2022-09-11 14:46:11
-@modified: 2022-09-28 11:12:29
+@modified: 2022-10-16 13:48:06
 '''
 
 import pickle
@@ -190,19 +190,19 @@ if __name__ == "__main__":
     # Dictionnary storing the results
     BLER = {}
 
-    # model_bolt = E2EBoltConventionalTraining(training=False, model_weights_path_conventional_training="./NVIDIAsionna/" +
-    #                                          model_weights_path_conventional_training, method=amm_methods.METHOD_MITHRAL)
-    # _, bler = sim_ber(model_bolt, ebno_dbs, batch_size=1024,
-    #                   num_target_block_errors=20, max_mc_iter=2000)
-    # BLER['autoencoder-maddness'] = bler.numpy()
+    model_bolt = E2EBoltConventionalTraining(training=False, model_weights_path_conventional_training=
+                                             model_weights_path_conventional_training, method=amm_methods.METHOD_MITHRAL)
+    _, bler = sim_ber(model_bolt, ebno_dbs, batch_size=1024,
+                      num_target_block_errors=20, max_mc_iter=2000)
+    BLER['autoencoder-maddness'] = bler.numpy()
 
-    model_bolt = E2EBoltConventionalTraining(training=False, model_weights_path_conventional_training="./NVIDIAsionna/" +
+    model_bolt = E2EBoltConventionalTraining(training=False, model_weights_path_conventional_training=
                                              model_weights_path_conventional_training, method=amm_methods.METHOD_PQ)
     _, bler = sim_ber(model_bolt, ebno_dbs, batch_size=1024,
                       num_target_block_errors=20, max_mc_iter=2000)
     BLER['autoencoder-PQ'] = bler.numpy()
 
-    model_exact = E2EBoltConventionalTraining(training=False, model_weights_path_conventional_training="./NVIDIAsionna/" +
+    model_exact = E2EBoltConventionalTraining(training=False, model_weights_path_conventional_training=
                                              model_weights_path_conventional_training, method=amm_methods.METHOD_EXACT)
     _, bler = sim_ber(model_exact, ebno_dbs, batch_size=1024,
                       num_target_block_errors=20, max_mc_iter=2000)
@@ -214,8 +214,7 @@ if __name__ == "__main__":
     BLER['baseline'] = bler.numpy()
 
     model_conventional = E2ESystemConventionalTraining(training=False)
-    load_weights(model_conventional, "./NVIDIAsionna/" +
-                 model_weights_path_conventional_training)
+    load_weights(model_conventional, model_weights_path_conventional_training)
     _, bler = sim_ber(model_conventional, ebno_dbs, batch_size=1024,
                       num_target_block_errors=20, max_mc_iter=2000)
     BLER['autoencoder-conv'] = bler.numpy()
