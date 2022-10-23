@@ -2,6 +2,7 @@ import math
 import os
 import time
 from pprint import pprint
+from tqdm import trange, tqdm
 
 import numpy as np
 import tensorflow as tf
@@ -293,8 +294,10 @@ class Transceiver:
             # sigma_2 = 0 # back-to-back
             ns = 0
             print("SNR: ", SNR)
-            while FER[0][i] < ErrorFrame or ns < TestFrame:
-                ns += 1
+            bar = tqdm(range(TestFrame))
+            for ns in bar:
+                bar.set_description_str("%.2fdB" % SNR)
+                bar.set_postfix_str("FER: %.2e" % (FER[0][i] / ns))
                 # 生成信息比特、调制
                 InfoStream = self.Bit_create(int(Bitlen * self.ldpc_rate))
                 BitStream = encoder(InfoStream).numpy()
@@ -343,6 +346,8 @@ class Transceiver:
                 BER[0][i] += count_error
                 if count_error != 0:
                     FER[0][i] += 1
+                if FER[0][i] >= ErrorFrame:
+                    break
             BER[0][i] = BER[0][i] / ns / self.Ncarrier / self.qAry
             FER[0][i] = FER[0][i] / ns
             NMSE_dft[0][i] /= ns
@@ -441,7 +446,7 @@ class Transceiver:
             rawH_NMSE[0][i] /= ns
         return BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE
 
-    def create_Traindata(self):
+    def create_Traindata(self, SNR):
         sample = 25000
         DFT_Xtrain = np.zeros((sample, 20), dtype=complex)
         DFT_Ytrain = np.zeros((sample, 128), dtype=complex)
@@ -450,7 +455,7 @@ class Transceiver:
         IDFT_Xtrain = np.zeros((sample, 128), dtype=complex)
         IDFT_Ytrain = np.zeros((sample, 20), dtype=complex)
         IDFT_W = self.IDFTm[:, 0:20]  # 128*20
-        sigma_2 = np.power(10, (-10 / 10))
+        sigma_2 = np.power(10, (SNR / 10))
         for i in range(sample):
             H = self.Channel_create()
             noise = np.random.randn(self.Ncarrier, 1) + \
@@ -683,11 +688,11 @@ params = {
     'L': 16,
     # 'PathGain': np.array([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
     'PathGain': np.linspace(1, 0.1, 16),
-    'SNR': [21],
+    'SNR': np.linspace(-20, 10, 13),
     'ErrorFrame': 20,
-    'TestFrame': 1000,
+    'TestFrame': 5000,
     'Encode_method': None,
-    'ncodebooks': 256,
+    'ncodebooks': 64,
     'ncentroids': 16,
     'matmul_method': METHOD_MITHRAL
 }
@@ -706,8 +711,7 @@ if __name__ == '__main__':
     doTrain = False  # 是否是生成训练集
 
     if doTrain:
-        # myTransceiver.create_Traindata()
-        myTransceiver.create_SplitIDFTTraindata(slice=4)
+        myTransceiver.create_Traindata(0)
     elif not doPathDetect:
         BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE = myTransceiver.FER()
         print("BER", BER)
