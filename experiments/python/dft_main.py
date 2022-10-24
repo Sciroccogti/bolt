@@ -1,16 +1,22 @@
+import json
 import math
 import os
+from random import Random
+import re
 import time
 from pprint import pprint
-from tqdm import trange, tqdm
+from unittest import result
 
 import numpy as np
 import tensorflow as tf
 from sionna.fec.ldpc.decoding import LDPC5GDecoder, LDPC5GEncoder
-# from tensorflow.python.ops.numpy_ops import np_config
+from tqdm import tqdm, trange
 
 import matmul as mm
 from amm_methods import *
+
+# from tensorflow.python.ops.numpy_ops import np_config
+
 
 # np_config.enable_numpy_behavior() # enable tensor.size() for tensorflow
 
@@ -262,7 +268,7 @@ class Transceiver:
         #  解码，暂无
         return
 
-    def FER(self):
+    def FER(self, outputPath: str):
         SNRs = self.params['SNR']
         BER = np.zeros((1, len(SNRs)))
         FER = np.zeros((1, len(SNRs)))
@@ -354,6 +360,26 @@ class Transceiver:
             NMSE_idft[0][i] /= ns
             H_NMSE[0][i] /= ns
             rawH_NMSE[0][i] /= ns
+
+            results_ = {}
+            with open(foutName, "r") as fin:
+                results_ = json.load(fin)
+            with open(outputPath, "w") as fout:
+                if "BER" not in results_:
+                    results_["BER"] = []
+                    results_["FER"] = []
+                    results_["NMSE_dft"] = []
+                    results_["NMSE_idft"] = []
+                    results_["H_NMSE"] = []
+                    results_["rawH_NMSE"] = []
+                results_["BER"].append(BER[0][i])
+                results_["FER"].append(FER[0][i])
+                results_["NMSE_dft"].append(NMSE_dft[0][i])
+                results_["NMSE_idft"].append(NMSE_idft[0][i])
+                results_["H_NMSE"].append(H_NMSE[0][i])
+                results_["rawH_NMSE"].append(rawH_NMSE[0][i])
+                json.dump(results_, fout, indent=2)
+
         return BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE
 
     def SplitFER(self, slice: int = 4):
@@ -687,8 +713,8 @@ params = {
     'ldpc_rate': 0.5,
     'L': 16,
     # 'PathGain': np.array([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
-    'PathGain': np.linspace(1, 0.1, 16),
-    'SNR': np.linspace(-20, 10, 13),
+    'PathGain': np.linspace(1, 0.1, 16).tolist(),
+    'SNR': np.linspace(-20, 10, 13).tolist(),
     'ErrorFrame': 20,
     'TestFrame': 5000,
     'Encode_method': None,
@@ -700,11 +726,12 @@ params = {
 if __name__ == '__main__':
     _dir = os.path.dirname(os.path.abspath(__file__))
     starttime = time.strftime("%Y%m%d-%H%M%S", time.localtime())
-    foutName = _dir + "/results/dft_main_" + starttime + ".txt"
+    foutName = _dir + "/results/dft_main_" + starttime + ".json"
+    results_ = {}
     with open(foutName, "x") as fout:
-        fout.write("start at %s\nparams:\n" % starttime)
-        pprint(params, fout)
-        fout.write("matmul_method: %s\n" % params["matmul_method"])
+        results_["start_time"] = starttime
+        results_["params"] = params
+        json.dump(results_, fout, indent=2)
 
     myTransceiver = Transceiver(params)
     doPathDetect = False  # 是否是检测径
@@ -713,7 +740,7 @@ if __name__ == '__main__':
     if doTrain:
         myTransceiver.create_Traindata(0)
     elif not doPathDetect:
-        BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE = myTransceiver.FER()
+        BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE = myTransceiver.FER(foutName)
         print("BER", BER)
         print("FER", FER)
         print("NMSE_dft", NMSE_dft)
@@ -722,20 +749,23 @@ if __name__ == '__main__':
         print("rawH_NMSE", rawH_NMSE)
 
         stoptime = time.strftime("%Y%m%d-%H%M%S", time.localtime())
-        with open(foutName, "a+") as fout:
-            fout.write("\nBER:\n")
-            np.savetxt(fout, BER, "%.4e")
-            fout.write("\nFER:\n")
-            np.savetxt(fout, FER, "%.4e")
-            fout.write("\nNMSE_dft:\n")
-            np.savetxt(fout, NMSE_dft, "%.4e")
-            fout.write("\nNMSE_idft:\n")
-            np.savetxt(fout, NMSE_idft, "%.4e")
-            fout.write("\nH_NMSE:\n")
-            np.savetxt(fout, H_NMSE, "%.4e")
-            fout.write("\nrawH_NMSE:\n")
-            np.savetxt(fout, rawH_NMSE, "%.4e")
-            fout.write("stop at %s\n" % stoptime)
+        with open(foutName, "r") as fin:
+            results_ = json.load(fin)
+            # fout.write("\nBER:\n")
+            # np.savetxt(fout, BER, "%.4e")
+            # fout.write("\nFER:\n")
+            # np.savetxt(fout, FER, "%.4e")
+            # fout.write("\nNMSE_dft:\n")
+            # np.savetxt(fout, NMSE_dft, "%.4e")
+            # fout.write("\nNMSE_idft:\n")
+            # np.savetxt(fout, NMSE_idft, "%.4e")
+            # fout.write("\nH_NMSE:\n")
+            # np.savetxt(fout, H_NMSE, "%.4e")
+            # fout.write("\nrawH_NMSE:\n")
+            # np.savetxt(fout, rawH_NMSE, "%.4e")
+        with open(foutName, "w") as fout:
+            results_["stop_time"] = stoptime
+            json.dump(results_, fout, indent=2)
     else:  # pathDetect
         params["PathGain"] = np.array(
             [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
