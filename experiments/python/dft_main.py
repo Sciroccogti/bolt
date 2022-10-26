@@ -754,7 +754,7 @@ if __name__ == '__main__':
         print("rawH_NMSE", rawH_NMSE)
 
         stoptime = time.strftime("%Y%m%d-%H%M%S", time.localtime())
-        with open(foutName, "w") as fout:
+        with open(foutName, "a+") as fout:
             writer = csv.writer(fout)
             writer.writerow(["stop_time", stoptime])
     else:  # pathDetect
