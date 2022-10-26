@@ -271,7 +271,7 @@ def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
         alpha_vals = (1. / 16384, .03125, .0625, .125, .25, .5, 1, 2, 4, 8)
         hparams_dict = [{'d': d, 'alpha': alpha}
                         for d in dvals for alpha in alpha_vals][0]
-    elif (METHOD_MITHRAL in methods):
+    elif (METHOD_MITHRAL in methods) or (METHOD_PLUTO in methods):
         hparams_dict = {'ncodebooks': ncodebooks,
                         'lut_work_const': -1}  # Mithral 的 ncentroids 自动生成
     else:

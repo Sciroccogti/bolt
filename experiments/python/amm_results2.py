@@ -327,7 +327,15 @@ def _join_with_mithral_times(df, timing_dtype='f32'):
     time_df = mithral_amm_timings()
     if timing_dtype is not None:
         time_df = time_df.loc[time_df['dtype'].str.strip() == timing_dtype]
-    df = df.loc[df['method'].str.lower().str.startswith('mithral')]
+
+    # print(df.loc[df['method'].str.lower().str.startswith('vingilote')][['ncodebooks', 'lut_work_const']])
+    df = df.loc[
+        df['method'].str.lower().str.startswith('mithral')
+        | 
+        df['method'].str.lower().str.startswith('vingilote')
+        |
+        df['method'].str.lower().str.startswith('pluto')
+    ]
     df['ncodebooks'] = df['ncodebooks'].astype(np.int)
 
     # time_df.reset_index(inplace=True, drop=True)
@@ -352,6 +360,15 @@ def _join_with_mithral_times(df, timing_dtype='f32'):
     df.loc[is_mithral_pq, 'lut_work_const'] = 1
     df_mpq = df.loc[is_mithral_pq].copy()
 
+    is_vingilote = (
+        df['method'].str.lower().str.startswith('vingilote')
+        |
+        df['method'].str.lower().str.startswith('pluto')
+    )
+
+    df.loc[is_vingilote, 'lut_work_const'] = 1
+    df_vingilote = df.loc[is_vingilote].copy()
+
     # there shouldn't be rows that violated this, but there are (probably
     # from early runs that haven't been overwritten yet)
     df = df.loc[df['lut_work_const'].values <= df['ncodebooks'].values]
@@ -359,8 +376,12 @@ def _join_with_mithral_times(df, timing_dtype='f32'):
     # now add in extra rows for mithral with no lut computation (which is
     # assumed to use dense luts because no reason not to) vs mithral
     # with dense lut computation as part of the timing
-    is_any_mithral = df['method'].str.lower().str.startswith('mithral')
-    is_mithral = is_any_mithral & (~is_mithral_pq)
+    is_any_mithral = (
+        df['method'].str.lower().str.startswith('mithral')
+        #|
+        #df['method'].str.lower().str.startswith('vingilote')
+    )
+    is_mithral = is_any_mithral & (~is_mithral_pq) & (~is_vingilote)
     is_dense = df['lut_work_const'] == -1
     df_mithral_dense = df.loc[is_mithral & is_dense].copy()
     dummy_lutconst = -2
@@ -545,15 +566,20 @@ def _join_with_sparse_sketch_times(df, sparse_pareto=True):
 def _clean_method_names_amm(df):
     key = 'method' if 'method' in df else 'algo'
     if 'lutconst' in df:
+        is_vingilote = (
+            (df['method'] == 'Vingilote')
+            |
+            (df['method'] == 'Pluto')
+        )
+        df.loc[(df['lutconst'] == -2) & ~is_vingilote , key] = 'MADDNESS Dense'
 
-        df.loc[df['lutconst'] == -2, key] = 'MADDNESS Dense'
         is_lutconst_neg1 = df['lutconst'] == -1
         is_mithral_pq = df['method'] == 'MithralPQ'
-        df.loc[is_lutconst_neg1 & is_mithral_pq, key] = 'MADDNESS-PQ'
-        df.loc[is_lutconst_neg1 & ~is_mithral_pq, key] = 'MADDNESS'
-        df.loc[df['lutconst'] == 1, key] = 'MADDNESS, L = 1'
-        df.loc[df['lutconst'] == 2, key] = 'MADDNESS, L = 2'
-        df.loc[df['lutconst'] == 4, key] = 'MADDNESS, L = 4'
+        df.loc[is_lutconst_neg1 & is_mithral_pq & ~is_vingilote, key] = 'MADDNESS-PQ'
+        df.loc[is_lutconst_neg1 & ~is_mithral_pq & ~is_vingilote, key] = 'MADDNESS'
+        df.loc[(df['lutconst'] == 1) & ~is_vingilote, key] = 'MADDNESS, L = 1'
+        df.loc[(df['lutconst'] == 2) & ~is_vingilote, key] = 'MADDNESS, L = 2'
+        df.loc[(df['lutconst'] == 4) & ~is_vingilote, key] = 'MADDNESS, L = 4'
 
         # df.loc[df['lutconst'] == -2, key] = 'Mithral Dense'
         # is_lutconst_neg1 = df['lutconst'] == -1
@@ -576,13 +602,10 @@ def _clean_method_names_amm(df):
 
 
 def _clean_metrics_amm(df):
+    df_exact = df.loc[df['method'] == 'Exact']
+    print(df_exact)
     df = df.rename({'acc_amm': 'Accuracy'}, axis=1)
-
-    # if 'time' not in df.columns:
-    mask = df['time'].isna()
-    # df.loc['time', mask] = ((df['t0'] + df['t1'] + df['t2'] + df['t3'] + df['t4']).values / 5.)[mask]
-    times = (df['t0'] + df['t1'] + df['t2'] + df['t3'] + df['t4']) / 5.
-    df.loc[mask, 'time'] = times.values[mask]
+    df['time'] = (df['t0'] + df['t1'] + df['t2'] + df['t3'] + df['t4']) / 5.
     df['Throughput'] = 1e3 * df['N'] * df['M'] / df['time']
 
     # create ops column that sums number of multiplies + lookups
@@ -598,7 +621,7 @@ def _clean_metrics_amm(df):
     # df['nor']
     # df_exact = df.loc[df['method'] == 'Brute Force']
     df_exact = df.loc[df['method'] == 'Exact']
-    # print("df_exact\n", df_exact)
+    print("df_exact\n", df_exact)
     if 'task_id' in df.columns:
         nuniq_tasks = len(df['task_id'].unique())
     else:
@@ -784,13 +807,9 @@ def main():
 
     # df = cifar10_amm()
     # df = cifar100_amm()
-    df = caltech_amm(filt='dog5x5')
-    # df = caltech_amm(filt='sobel')
-    print(sorted(df['method'].unique()))
-    # # df = df.loc[df['method'].isin(['Brute Force', 'Mithral', 'SparsePCA'])]
-    # df = df.loc[df['method'].isin(['Exact', 'ScalarQuantize', 'MADDNESS', 'SparsePCA'])]
-    # df = df.sort_values(['method', 'Speedup'], axis=0)
-    # print(df['method Speedup Accuracy'.split()])
+    df = df.loc[df['method'].isin(['Brute Force', 'Mithral', 'SparsePCA'])]
+    df = df.sort_values(['method', 'Speedup'], axis=0)
+    print(df['method Speedup Accuracy'.split()])
 
 
 if __name__ == '__main__':

@@ -270,8 +270,7 @@ class OldMithralPQ(PQMatmul):
         nlookups = N * M * self.ncodebooks
         return {amm.KEY_NMULTIPLIES: nmuls, KEY_NLOOKUPS: nlookups}
 
-
-class MithralMatmul(VQMatmul):
+class VingiloteMatmul(VQMatmul):
 
     def __init__(self, ncodebooks, lut_work_const=-1):
         self.lut_work_const = lut_work_const
@@ -289,8 +288,202 @@ class MithralMatmul(VQMatmul):
     #     super().fit(self, A, B, Y=Y)
 
     def _create_encoder(self, ncodebooks):
-        return vq.MithralEncoder(
+        return vq.VingiloteEncoder(
             ncodebooks=ncodebooks, lut_work_const=self.lut_work_const)
+
+    def get_params(self):
+        return {'ncodebooks': self.ncodebooks,
+                'lut_work_const': self.lut_work_const}
+
+    def get_speed_metrics(self, A, B, fixedA=False, fixedB=False):
+        N, D = A.shape
+        D, M = B.shape
+        # data encoding and LUT costs
+        nmuls = 0
+        nmuls += 0 if fixedA else N * D  # offset + scale before quantize
+        nmuls_per_codebook_per_output = self.ncentroids * D
+        nmuls_per_output = nmuls_per_codebook_per_output * self.ncodebooks
+        nmuls += 0 if fixedB else nmuls_per_output * M
+        # lookups given encoded data + luts
+        nlookups = N * M * self.ncodebooks
+        return {amm.KEY_NMULTIPLIES: nmuls, KEY_NLOOKUPS: nlookups}
+
+    def set_B(self, B):
+        self.luts, self.offset, self.scale = self.enc.encode_Q(B.T)
+
+    def __call__(self, A, B):
+        if self.A_enc is None:
+            self.set_A(A)
+            # ***
+            # self.set_A(A) just does this:
+            # self.A_enc = self.enc.encode_X(A)
+            # ***
+
+        if self.luts is None:
+            # set_B:
+            # sets self.luts, self.offset, self.scale
+            # uses self.enc.centroids
+            self.set_B(B)
+        return self.enc.dists_enc(self.A_enc, self.luts,
+                                  offset=self.offset, scale=self.scale)
+
+
+class PlutoMatmul(VQMatmul):
+
+    def __init__(
+        self,
+        ncodebooks,
+        activation=None,
+        nonzeros_heuristic="pq",
+        objective="mse",
+        accumulate_how="mean",
+        lut_work_const=-1,
+    ):
+        self.activation = activation
+        self.nonzeros_heuristic = nonzeros_heuristic
+        self.objective = objective
+        self.accumulate_how = accumulate_how
+        self.lut_work_const = lut_work_const
+        if (lut_work_const is not None) and (lut_work_const > 0) and (
+                lut_work_const > ncodebooks):
+            raise amm.InvalidParametersException(
+                "lut_work_const > ncodebooks: {} > {}".format(
+                    lut_work_const, ncodebooks))
+        super().__init__(ncodebooks=ncodebooks, ncentroids=16)
+
+    # def _get_ncentroids(self):
+    #     return 16
+
+    # def fit(self, A, B, Y=None):
+    #     super().fit(self, A, B, Y=Y)
+
+    def reset_for_new_task(self):
+        self.A_enc = None
+        # XXX - also self.B = None?
+        # No! this must be called at each call of forward-pass
+
+    def _create_encoder(self, ncodebooks):
+        pluto_enc = vq.PlutoEncoder(
+            ncodebooks=ncodebooks,
+            activation=self.activation,
+            nonzeros_heuristic=self.nonzeros_heuristic,
+            objective=self.objective,
+            accumulate_how=self.accumulate_how,
+            lut_work_const=self.lut_work_const,
+        )
+        return pluto_enc
+
+    def get_params(self):
+        activation_str = 'None'
+        if self.activation is not None:
+            if hasattr(self.activation, '__name__'):
+                activation_str = self.activation.__name__
+            else:
+                activation_str = str(self.activation)
+        return {'ncodebooks': self.ncodebooks,
+                'lut_work_const': self.lut_work_const,
+                'activation': activation_str,
+                'nonzeros_heuristic': self.nonzeros_heuristic,
+                'objective': self.objective}
+
+    def get_speed_metrics(self, A, B, fixedA=False, fixedB=False):
+        N, D = A.shape
+        D, M = B.shape
+        # data encoding and LUT costs
+        nmuls = 0
+        nmuls += 0 if fixedA else N * D  # offset + scale before quantize
+        nmuls_per_codebook_per_output = self.ncentroids * D
+        nmuls_per_output = nmuls_per_codebook_per_output * self.ncodebooks
+        nmuls += 0 if fixedB else nmuls_per_output * M
+        # lookups given encoded data + luts
+        nlookups = N * M * self.ncodebooks
+        return {amm.KEY_NMULTIPLIES: nmuls, KEY_NLOOKUPS: nlookups}
+
+    def fit(self, A, B, Y=None, output=None, bias=None):
+        """
+
+        Args:
+            A: left of shape (N, D)
+            B: right of shape (D, M)
+            Y: desired A @ B if not None -- see ApproxMatmul -- ignored
+            bias: shape broadcasts when adding A @ B + bias
+        """
+        # TODO use bias with nonlinearity
+        _, D = A.shape
+        if D < self.ncodebooks:
+            raise amm.InvalidParametersException(
+                'D < C: {} < {}'.format(D, self.ncodebooks))
+
+        # self.enc.fit sets self.enc.splits_lists and self.enc.centroids
+        # self.enc.fit also calls clusterize.learn_pluto
+        self.luts, self.offset, self.scale = self.enc.fit(
+            A, B.T, output=output, bias=bias)
+        self.stddevB0 = np.std(B, axis=0)
+        self.stddevB1 = np.std(B, axis=1)
+
+    def set_B(self, B):
+        # TODO: use stddev and shape to verify with less memory
+        assert np.array_equal(self.stddevB0, np.stddev(B, axis=0))
+        assert np.array_equal(self.stddevB1, np.stddev(B, axis=1))
+
+    def __call__(self, A, B):
+        if self.A_enc is None:
+            # sets self.A_enc, uses self.enc.splits_lists and self.enc.offsets
+            self.A_enc = self.enc.encode_X(A)
+
+        if not np.array_equal(self.stddevB0, np.std(B, axis=0)):
+            # TODO: use stddev and shape to verify with less memory
+            raise ValueError("Pluto luts cannot be transferred to new B.")
+        if not np.array_equal(self.stddevB1, np.std(B, axis=1)):
+            # TODO: use stddev and shape to verify with less memory
+            raise ValueError("Pluto luts cannot be transferred to new B.")
+
+        if self.luts is None:
+            raise ValueError("Pluto luts must be pre-learned.")
+
+        # MultiCodebookEncoder.dists_enc looks at:
+        #   - quantize_lut
+        #   - total_lut_offset
+        #   - scale_by
+        #   - upcast_every
+        #   - accumulate_how
+        #   - ncodebooks
+        output = self.enc.dists_enc(
+            self.A_enc,
+            self.luts,
+            offset=self.offset,
+            scale=self.scale,
+        )
+        #rint(f"A.shape:{A.shape} B.shape:{B.shape} out.shape:{output.shape}")
+        return output
+
+
+
+class MithralMatmul(VQMatmul):
+
+    def __init__(self, ncodebooks, nonzeros_heuristic="pq", lut_work_const=-1):
+        self.nonzeros_heuristic = nonzeros_heuristic
+        self.lut_work_const = lut_work_const
+        if (lut_work_const is not None) and (lut_work_const > 0) and (
+                lut_work_const > ncodebooks):
+            raise amm.InvalidParametersException(
+                "lut_work_const > ncodebooks: {} > {}".format(
+                    lut_work_const, ncodebooks))
+        super().__init__(ncodebooks=ncodebooks, ncentroids=16)
+
+    # def _get_ncentroids(self):
+    #     return 16
+
+    # def fit(self, A, B, Y=None):
+    #     super().fit(self, A, B, Y=Y)
+
+    def _create_encoder(self, ncodebooks):
+        mithral_enc = vq.MithralEncoder(
+            ncodebooks=ncodebooks,
+            nonzeros_heuristic=self.nonzeros_heuristic,
+            lut_work_const=self.lut_work_const,
+        )
+        return mithral_enc
 
     def get_params(self):
         return {'ncodebooks': self.ncodebooks,

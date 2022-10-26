@@ -90,6 +90,17 @@ def _hparams_for_method(method_id):
                 for const in lut_work_consts:
                     params.append({'ncodebooks': m, 'lut_work_const': const})
             return params
+        if method_id == methods.METHOD_PLUTO:
+            params = []
+            for m in mvals:
+                for nzh in ["pq", "r2", "opq"]:
+                    for obj in ["mse-sklearn","mse", "kld"]:
+                        params.append({
+                            'ncodebooks': m,
+                            'nonzeros_heuristic': nzh,
+                            'objective': obj,
+                        })
+            return params
 
         return [{'ncodebooks': m} for m in mvals]
     if method_id in [methods.METHOD_EXACT, methods.METHOD_SCALAR_QUANTIZE]:
@@ -408,8 +419,9 @@ def _main(tasks_func, methods=None, saveas=None, ntasks=None,
                             metrics['task_id'] = task.name
                             # metrics.update(hparams_dict)
                             metrics.update(est.get_params())
-                            # print("got metrics: ")
-                            # pprint.pprint(metrics)
+                            if method_id in ("Vingilote", "Mithral", "Pluto"):
+                                print("got metrics: ")
+                                pprint.pprint(metrics)
                             # pprint.pprint({k: metrics[k] for k in 'method task_id normalized_mse'.split()})
                             # print("{:.5f}".format(metrics['normalized_mse'])) # TODO uncomment above
                             metrics_dicts.append(metrics)
