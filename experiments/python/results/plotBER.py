@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-07-06 15:07:45
-@modified: 2022-10-13 12:22:46
+@modified: 2022-10-25 12:40:55
 '''
 
 import os
@@ -28,6 +28,8 @@ ax.grid(True, which="minor", ls="--")
 ax.xaxis.set_tick_params(direction='in', which='both')  # 刻度线向内
 ax.yaxis.set_tick_params(direction='in', which='both')
 
+# plt.ylim(bottom=1)
+plt.xlim([-10, 10])
 
 path = "./"
 files_ = os.listdir(path)
