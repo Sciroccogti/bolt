@@ -351,7 +351,7 @@ class Transceiver:
                     FER[0][i] += 1
                 if FER[0][i] >= ErrorFrame:
                     break
-            BER[0][i] /= (ns + 1) * self.Ncarrier * self.qAry
+            BER[0][i] /= (ns + 1) * self.Ncarrier * self.qAry * self.ldpc_rate
             FER[0][i] /= (ns + 1)
             NMSE_dft[0][i] /= (ns + 1)
             NMSE_idft[0][i] /= (ns + 1)
