@@ -7,3 +7,5 @@ matplotlib
 pandas
 zstandard
 seaborn
+fastcluster
+pytorch-minimize
