@@ -653,6 +653,8 @@ def learn_multisplits(
     buckets = [Bucket(sumX=X.sum(axis=0), sumX2=(X * X).sum(axis=0),
                point_ids=np.arange(N))]
     total_loss = sum([bucket.loss for bucket in buckets])
+    
+    print("learnmultisplits跑了")
 
     if verbose > 0:
         print("================================")
@@ -1368,6 +1370,8 @@ def _learn_mithral_initialization(X, ncodebooks,
     N, D = X.shape
     ncentroids_per_codebook = 16
 
+    print("_learn_mithral_initialization跑了  ")
+    
     X = X.astype(np.float32)
     X_res = X.copy()
     X_orig = X
@@ -1432,6 +1436,7 @@ def learn_mithral(X, ncodebooks, return_buckets=False,
     ncentroids_per_codebook = 16
     X_orig = X.astype(np.float32)
 
+    print("learn_mithral跑了")
     X_res0, all_splits0, all_centroids0, all_buckets0 = \
         _learn_mithral_initialization(X, ncodebooks, pq_perm_algo='start')
 
