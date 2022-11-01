@@ -275,9 +275,10 @@ class Transceiver:
         ErrorFrame = self.params['ErrorFrame']
         TestFrame = self.params['TestFrame']
         Bitlen = self.qAry * self.Ncarrier * self.Symbol_num
-        encoder = LDPC5GEncoder(Bitlen * self.ldpc_rate,
-                                Bitlen, dtype=tf.int64)
-        decoder = LDPC5GDecoder(encoder=encoder, num_iter=20, hard_out=True)
+        if self.ldpc_rate < 1:
+            encoder = LDPC5GEncoder(Bitlen * self.ldpc_rate,
+                                    Bitlen, dtype=tf.int64)
+            decoder = LDPC5GDecoder(encoder=encoder, num_iter=20, hard_out=True)
 
         dft_est = None
         idft_est = None
@@ -303,7 +304,10 @@ class Transceiver:
                 bar.set_postfix_str("FER: %.2e" % (FER[0][i] / ns))
                 # 生成信息比特、调制
                 InfoStream = self.Bit_create(int(Bitlen * self.ldpc_rate))
-                BitStream = encoder(InfoStream).numpy()
+                if self.ldpc_rate < 1:
+                    BitStream = encoder(InfoStream).numpy()
+                else:
+                    BitStream = InfoStream
                 X = np.zeros((1, self.Ncarrier), dtype=complex)
                 for nf in range(self.Ncarrier):
                     X[0, nf] = self.Modulation(BitStream[0, 2 * nf:2 * nf + 2])
@@ -340,8 +344,10 @@ class Transceiver:
                     epsilon_2 = miu_k - miu_k**2
                     LLR[0][2*nf:2*nf +
                            2] = self.QPSK_LLR(Xest[0][nf], miu_k, epsilon_2)
-                # LLRhard = np.array([1 if x >= 0 else 0 for x in LLR[0]])
-                LLR = decoder(LLR)
+                if self.ldpc_rate < 1:
+                    LLR = decoder(LLR)
+                else:
+                    LLR = np.array([[1 if x >= 0 else 0 for x in LLR[0]]])
                 count_error = 0
                 for j in range(InfoStream.size):
                     if InfoStream[0][j] != LLR[0][j]:
@@ -705,6 +711,7 @@ params = {
     'ldpc_rate': 0.5,
     'L': 16,
     # 'PathGain': np.array([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+    # 'PathGain': [0.7432358676242078,0.9453056768750847,0.03936564739705284,0.04485075815177875,0.7474396724970536,0.24430572962343622,0.8110458033559482,0.8293422474904226,0.39356716943821934,0.8027501479321497,0.27315030042606303,0.18789834683016238,0.3941687035467426,0.6888936766683286,0.2435882240357481,0.0008258433002652499],
     'PathGain': np.linspace(1, 0.1, 16).tolist(),
     'SNR': np.linspace(-20, 10, 13).tolist(),
     'ErrorFrame': 20,
