@@ -117,13 +117,10 @@ docs/
 # XCode UI state
 *.xcuserdatad*
 
-<<<<<<< HEAD
 # Visual Studio
 
 .vs
 
-=======
->>>>>>> main
 # ================================================================ Other
 
 # Experiment Output
