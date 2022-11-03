@@ -6,6 +6,8 @@ import numpy as np
 import vquantizers as vq
 import amm
 
+import torch
+
 KEY_NLOOKUPS = 'nlookups'
 
 
@@ -333,7 +335,7 @@ class PlutoMatmul(VQMatmul):
     def __init__(
         self,
         ncodebooks,
-        activation=None,
+        activation=torch.nn.functional.relu,
         nonzeros_heuristic="pq",
         objective="mse",
         accumulate_how="mean",
@@ -423,8 +425,8 @@ class PlutoMatmul(VQMatmul):
 
     def set_B(self, B):
         # TODO: use stddev and shape to verify with less memory
-        assert np.array_equal(self.stddevB0, np.stddev(B, axis=0))
-        assert np.array_equal(self.stddevB1, np.stddev(B, axis=1))
+        assert np.array_equal(self.stddevB0, np.std(B, axis=0))
+        assert np.array_equal(self.stddevB1, np.std(B, axis=1))
 
     def __call__(self, A, B):
         if self.A_enc is None:
