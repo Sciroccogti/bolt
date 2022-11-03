@@ -13,7 +13,7 @@ params:
  'Symbol_num': 1,
  'TestFrame': 2000,
  'ldpc_rate': 0.5,
- 'matmul_method': 'Exact',
+ 'matmul_method': 'Exact-LDPC',
  'ncentroids': 16,
  'ncodebooks': 256,
  'qAry': 2}

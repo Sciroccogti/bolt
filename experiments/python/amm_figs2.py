@@ -498,12 +498,8 @@ my_colors_list = my_colors_list[:5] + (new_yellow,) + my_colors_list[6:]
 #                         'Rademacher', 'RandGauss', 'OrthoGauss')
 DEFAULT_PLOT_METHODS = (
     'MADDNESS', 'MADDNESS-PQ', 'Exact', 'ScalarQuantize', 'Bolt',
-    # 'MADDNESS', 'Exact', 'ScalarQuantize', 'Bolt',
-    # 'FastJL', 'HashJL', 'PCA', 'RandGauss', 'SparsePCA')
-    'FastJL', 'HashJL', 'PCA', 'SparsePCA')
-    # 'FastJL', 'HashJL', 'PCA', 'SparsePCA')
-    # 'MADDNESS', 'MADDNESS-PQ', 'Exact', 'Bolt',
-    # 'FastJL', 'HashJL', 'PCA', 'RandGauss', 'SparsePCA')
+    'FastJL', 'HashJL', 'PCA', 'RandGauss', 'SparsePCA',
+    'Vingilote', 'Pluto')
 
 
 def lineplot(data, ax, x_metric, y_metric, units=None, scatter=False,
@@ -562,6 +558,7 @@ def lineplot(data, ax, x_metric, y_metric, units=None, scatter=False,
         #     palette=my_colors_list, ax=ax)
         return
     kwargs.setdefault('ci', 'sd')
+    # data = data.reset_index()
     sb.lineplot(data=data, x=x_metric, y=y_metric, hue='method',
                 # style='method', style_order=order[::-1], hue_order=order[::-1],
                 style='method', style_order=order, hue_order=order,
@@ -576,7 +573,9 @@ def lineplot(data, ax, x_metric, y_metric, units=None, scatter=False,
 # def cifar_fig(save=False, x_metric='Throughput', y_metric='Accuracy'):
 def cifar_fig(save=False, x_metric='Speedup', y_metric='Accuracy'):
     df10 = res.cifar10_amm()
+    # print(df10[df10['method'].isin(['Vingilote', 'MADDNESS', 'Pluto'])][['Accuracy','method',y_metric]])
     df100 = res.cifar100_amm()
+    # print(df100[df100['method'].isin(['Vingilote', 'MADDNESS', 'Pluto'])][['Accuracy','method',y_metric]])
     sb.set_context('poster')
     # fig, axes = plt.subplots(2, 1, figsize=(11, 13.5), sharex=True)
     # fig, axes = plt.subplots(2, 1, figsize=(11, 10), sharex=True)
@@ -607,7 +606,7 @@ def cifar_fig(save=False, x_metric='Speedup', y_metric='Accuracy'):
     axes[1].set_title('CIFAR-100', family=USE_FONT)
 
     handles, labels = axes[0].get_legend_handles_labels()
-    handles, labels = handles[1:], labels[1:]  # rm 'Method' title
+    #handles, labels = handles[1:], labels[1:]  # rm 'Method' title
     # axes[0].legend(handles, labels, fontsize='small')
     # axes[1].legend(handles, labels, fontsize='small')
     # plt.figlegend(handles, labels, loc='lower center', ncol=1)

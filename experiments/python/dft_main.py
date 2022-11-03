@@ -1,15 +1,18 @@
+import csv
 import math
 import os
 import time
-from pprint import pprint
 
 import numpy as np
 import tensorflow as tf
 from sionna.fec.ldpc.decoding import LDPC5GDecoder, LDPC5GEncoder
-# from tensorflow.python.ops.numpy_ops import np_config
+from tqdm import tqdm
 
 import matmul as mm
 from amm_methods import *
+
+# from tensorflow.python.ops.numpy_ops import np_config
+
 
 # np_config.enable_numpy_behavior() # enable tensor.size() for tensorflow
 
@@ -261,7 +264,7 @@ class Transceiver:
         #  解码，暂无
         return
 
-    def FER(self):
+    def FER(self, outputPath: str):
         SNRs = self.params['SNR']
         BER = np.zeros((1, len(SNRs)))
         FER = np.zeros((1, len(SNRs)))
@@ -272,13 +275,15 @@ class Transceiver:
         ErrorFrame = self.params['ErrorFrame']
         TestFrame = self.params['TestFrame']
         Bitlen = self.qAry * self.Ncarrier * self.Symbol_num
-        encoder = LDPC5GEncoder(Bitlen * self.ldpc_rate, Bitlen, dtype=tf.int64)
-        decoder = LDPC5GDecoder(encoder=encoder, num_iter=20, hard_out=True)
+        if self.ldpc_rate < 1:
+            encoder = LDPC5GEncoder(Bitlen * self.ldpc_rate,
+                                    Bitlen, dtype=tf.int64)
+            decoder = LDPC5GDecoder(encoder=encoder, num_iter=20, hard_out=True)
 
         dft_est = None
         idft_est = None
         if self.matmul_method != METHOD_EXACT:
-            dft_est = mm.estFactory(methods=[METHOD_EXACT], verbose=3, # TODO: change to matmul_method
+            dft_est = mm.estFactory(methods=[METHOD_EXACT], verbose=3,  # TODO: change to matmul_method
                                     ncodebooks=self.params["ncodebooks"],
                                     ncentroids=self.params["ncentroids"],
                                     X_path="DFT_X.npy", W_path="DFT_W.npy", Y_path="DFT_Y.npy", dir="dft")
@@ -293,11 +298,16 @@ class Transceiver:
             # sigma_2 = 0 # back-to-back
             ns = 0
             print("SNR: ", SNR)
-            while FER[0][i] < ErrorFrame or ns < TestFrame:
-                ns += 1
+            bar = tqdm(range(TestFrame))
+            for ns in bar:
+                bar.set_description_str("%.2fdB" % SNR)
+                bar.set_postfix_str("FER: %.2e" % (FER[0][i] / ns))
                 # 生成信息比特、调制
                 InfoStream = self.Bit_create(int(Bitlen * self.ldpc_rate))
-                BitStream = encoder(InfoStream).numpy()
+                if self.ldpc_rate < 1:
+                    BitStream = encoder(InfoStream).numpy()
+                else:
+                    BitStream = InfoStream
                 X = np.zeros((1, self.Ncarrier), dtype=complex)
                 for nf in range(self.Ncarrier):
                     X[0, nf] = self.Modulation(BitStream[0, 2 * nf:2 * nf + 2])
@@ -334,8 +344,10 @@ class Transceiver:
                     epsilon_2 = miu_k - miu_k**2
                     LLR[0][2*nf:2*nf +
                            2] = self.QPSK_LLR(Xest[0][nf], miu_k, epsilon_2)
-                # LLRhard = np.array([1 if x >= 0 else 0 for x in LLR[0]])
-                LLR = decoder(LLR)
+                if self.ldpc_rate < 1:
+                    LLR = decoder(LLR)
+                else:
+                    LLR = np.array([[1 if x >= 0 else 0 for x in LLR[0]]])
                 count_error = 0
                 for j in range(InfoStream.size):
                     if InfoStream[0][j] != LLR[0][j]:
@@ -343,15 +355,23 @@ class Transceiver:
                 BER[0][i] += count_error
                 if count_error != 0:
                     FER[0][i] += 1
-            BER[0][i] = BER[0][i] / ns / self.Ncarrier / self.qAry
-            FER[0][i] = FER[0][i] / ns
-            NMSE_dft[0][i] /= ns
-            NMSE_idft[0][i] /= ns
-            H_NMSE[0][i] /= ns
-            rawH_NMSE[0][i] /= ns
+                if FER[0][i] >= ErrorFrame:
+                    break
+            BER[0][i] /= (ns + 1) * self.Ncarrier * self.qAry * self.ldpc_rate
+            FER[0][i] /= (ns + 1)
+            NMSE_dft[0][i] /= (ns + 1)
+            NMSE_idft[0][i] /= (ns + 1)
+            H_NMSE[0][i] /= (ns + 1)
+            rawH_NMSE[0][i] /= (ns + 1)
+
+            with open(outputPath, "a+") as fout:
+                writer = csv.writer(fout)
+                writer.writerow([SNR, BER[0][i], FER[0][i], NMSE_dft[0][i],
+                                 NMSE_idft[0][i], H_NMSE[0][i], rawH_NMSE[0][i]])
+
         return BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE
 
-    def SplitFER(self, slice: int = 4):
+    def SplitFER(self, outputPath: str, slice: int = 4):
         """
         把 IDFT 中的乘法改为分块矩阵乘法，以期提高精确度
         效果与增加码本数完全一致
@@ -433,15 +453,20 @@ class Transceiver:
                 BER[0][i] += count_error
                 if count_error != 0:
                     FER[0][i] += 1
-            BER[0][i] = BER[0][i] / ns / self.Ncarrier / self.qAry
-            FER[0][i] = FER[0][i] / ns
-            NMSE_dft[0][i] /= ns
-            NMSE_idft[0][i] /= ns
-            H_NMSE[0][i] /= ns
-            rawH_NMSE[0][i] /= ns
+            BER[0][i] /= (ns + 1) * self.Ncarrier * self.qAry
+            FER[0][i] /= (ns + 1)
+            NMSE_dft[0][i] /= (ns + 1)
+            NMSE_idft[0][i] /= (ns + 1)
+            H_NMSE[0][i] /= (ns + 1)
+            rawH_NMSE[0][i] /= (ns + 1)
+
+            with open(outputPath, "a+") as fout:
+                writer = csv.writer(fout)
+                writer.writerow([SNR, BER[0][i], FER[0][i], NMSE_dft[0][i],
+                                 NMSE_idft[0][i], H_NMSE[0][i], rawH_NMSE[0][i]])
         return BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE
 
-    def create_Traindata(self):
+    def create_Traindata(self, SNR):
         sample = 25000
         DFT_Xtrain = np.zeros((sample, 20), dtype=complex)
         DFT_Ytrain = np.zeros((sample, 128), dtype=complex)
@@ -450,7 +475,7 @@ class Transceiver:
         IDFT_Xtrain = np.zeros((sample, 128), dtype=complex)
         IDFT_Ytrain = np.zeros((sample, 20), dtype=complex)
         IDFT_W = self.IDFTm[:, 0:20]  # 128*20
-        sigma_2 = np.power(10, (-10 / 10))
+        sigma_2 = np.power(10, (SNR / 10))
         for i in range(sample):
             H = self.Channel_create()
             noise = np.random.randn(self.Ncarrier, 1) + \
@@ -565,7 +590,7 @@ class Transceiver:
             save_mat(convert_complexToReal_W(
                 IDFT_W[i * sliceLen: (i+1) * sliceLen]), "IDFT_W%d.npy" % i)
 
-    def pathDetect(self):
+    def pathDetect(self, outputPath: str):
         SNRs = self.params['SNR']
         BER = np.zeros((1, len(SNRs)))
         FER = np.zeros((1, len(SNRs)))
@@ -628,9 +653,13 @@ class Transceiver:
                 h_ests[0][i] += h_est[0]
                 NMSE_idfts[0][i] += NMSE_idft
 
-            h_ests[0][i] /= ns
-            FER[0][i] /= ns
-            NMSE_idfts[0][i] /= ns
+            h_ests[0][i] /= (ns + 1)
+            FER[0][i] /= (ns + 1)
+            NMSE_idfts[0][i] /= (ns + 1)
+
+            with open(outputPath, "a+") as fout:
+                writer = csv.writer(fout)
+                writer.writerow([SNR, h_ests[0][i], FER[0][i], NMSE_dft[0][i]])
 
         return FER, NMSE_idfts
 
@@ -682,12 +711,13 @@ params = {
     'ldpc_rate': 0.5,
     'L': 16,
     # 'PathGain': np.array([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
-    'PathGain': np.linspace(1, 0.1, 16),
-    'SNR': [21],
+    # 'PathGain': [0.7432358676242078,0.9453056768750847,0.03936564739705284,0.04485075815177875,0.7474396724970536,0.24430572962343622,0.8110458033559482,0.8293422474904226,0.39356716943821934,0.8027501479321497,0.27315030042606303,0.18789834683016238,0.3941687035467426,0.6888936766683286,0.2435882240357481,0.0008258433002652499],
+    'PathGain': np.linspace(1, 0.1, 16).tolist(),
+    'SNR': np.linspace(-20, 10, 13).tolist(),
     'ErrorFrame': 20,
-    'TestFrame': 1000,
+    'TestFrame': 5000,
     'Encode_method': None,
-    'ncodebooks': 256,
+    'ncodebooks': 64,
     'ncentroids': 16,
     'matmul_method': METHOD_MITHRAL
 }
@@ -695,21 +725,34 @@ params = {
 if __name__ == '__main__':
     _dir = os.path.dirname(os.path.abspath(__file__))
     starttime = time.strftime("%Y%m%d-%H%M%S", time.localtime())
-    foutName = _dir + "/results/dft_main_" + starttime + ".txt"
-    with open(foutName, "x") as fout:
-        fout.write("start at %s\nparams:\n" % starttime)
-        pprint(params, fout)
-        fout.write("matmul_method: %s\n" % params["matmul_method"])
+    foutName = _dir + "/results/dft_main_" + starttime + ".csv"
 
-    myTransceiver = Transceiver(params)
     doPathDetect = False  # 是否是检测径
     doTrain = False  # 是否是生成训练集
 
+    if doPathDetect:
+        results_ = ["h_ests", "FER", "NMSE_dft"]
+    else:
+        results_ = ["BER", "FER", "NMSE_dft",
+                    "NMSE_idft", "H_NMSE", "rawH_NMSE"]
+
+    with open(foutName, "x", newline="") as fout:
+        writer = csv.writer(fout)
+        writer.writerow(["start_time", starttime])
+        for key, value in params.items():
+            if type(value) == list:
+                writer.writerow([key] + value)
+            else:
+                writer.writerow([key, value])
+        writer.writerow(["SNR"] + results_)
+
+    myTransceiver = Transceiver(params)
+
     if doTrain:
-        # myTransceiver.create_Traindata()
-        myTransceiver.create_SplitIDFTTraindata(slice=4)
+        myTransceiver.create_Traindata(0)
     elif not doPathDetect:
-        BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE = myTransceiver.FER()
+        BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE = myTransceiver.FER(
+            foutName)
         print("BER", BER)
         print("FER", FER)
         print("NMSE_dft", NMSE_dft)
@@ -719,19 +762,8 @@ if __name__ == '__main__':
 
         stoptime = time.strftime("%Y%m%d-%H%M%S", time.localtime())
         with open(foutName, "a+") as fout:
-            fout.write("\nBER:\n")
-            np.savetxt(fout, BER, "%.4e")
-            fout.write("\nFER:\n")
-            np.savetxt(fout, FER, "%.4e")
-            fout.write("\nNMSE_dft:\n")
-            np.savetxt(fout, NMSE_dft, "%.4e")
-            fout.write("\nNMSE_idft:\n")
-            np.savetxt(fout, NMSE_idft, "%.4e")
-            fout.write("\nH_NMSE:\n")
-            np.savetxt(fout, H_NMSE, "%.4e")
-            fout.write("\nrawH_NMSE:\n")
-            np.savetxt(fout, rawH_NMSE, "%.4e")
-            fout.write("stop at %s\n" % stoptime)
+            writer = csv.writer(fout)
+            writer.writerow(["stop_time", stoptime])
     else:  # pathDetect
         params["PathGain"] = np.array(
             [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
@@ -741,8 +773,5 @@ if __name__ == '__main__':
 
         stoptime = time.strftime("%Y%m%d-%H%M%S", time.localtime())
         with open(foutName, "a+") as fout:
-            fout.write("\nFER:\n")
-            np.savetxt(fout, FER, "%.4e")
-            fout.write("\nNMSE_idft:\n")
-            np.savetxt(fout, NMSE_idft, "%.4e")
-            fout.write("stop at %s\n" % stoptime)
+            writer = csv.writer(fout)
+            writer.writerow(["stop_time", stoptime])

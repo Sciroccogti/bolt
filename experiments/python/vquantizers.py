@@ -223,21 +223,38 @@ class MultiCodebookEncoder(abc.ABC):
 
     def dists_enc(self, X_enc, Q_luts, unquantize=True,
                   offset=None, scale=None):
-        X_enc = np.ascontiguousarray(X_enc)
+        # for A(N x D) and B(D x M), C codebooks, K=16 buckets
+        X_enc = np.ascontiguousarray(X_enc) # has shape (N x C) with values in [0, K-1]
+        # Q_luts has shape (M x C x K)
+        #rint(Q_luts.shape)
 
         if unquantize:
             offset = self.total_lut_offset if offset is None else offset
             scale = self.scale_by if scale is None else scale
 
-        all_dists = np.empty((len(Q_luts), len(X_enc)), dtype=np.float32)
+        all_dists = np.empty((len(Q_luts), len(X_enc)), dtype=np.float32) # (M x N)
         for i, lut in enumerate(Q_luts):
-            centroid_dists = lut.ravel()[X_enc.ravel()]
-            dists = centroid_dists.reshape(X_enc.shape)
+            # i is in range(0, M-1), lut has shape (C x K)
+            """
+            print(f"lut.shape:{lut.shape}  lut.ravel().shape:{lut.ravel().shape}")
+            print(f"X_enc.shape:{X_enc.shape}  X_enc.ravel().shape:{X_enc.ravel().shape}")
+            print(f"X_enc.ravel().max():{X_enc.ravel().max()}")
+            print("haha")
+            """
+            centroid_dists = lut.ravel()[X_enc.ravel()]  # shape (NC,)
+            dists = centroid_dists.reshape(X_enc.shape)  # shape (N x C)
             if self.upcast_every < 2 or not self.quantize_lut:
-                dists = dists.sum(axis=-1)
+                dists = dists.sum(axis=-1)  # shape (N,)
             else:
                 dists = dists.reshape(dists.shape[0], -1, self.upcast_every)
-                if self.accumulate_how == 'sum':
+                if False:
+                    # setting acc_how=sum does really badly
+                    # setting quantize_lut = False improves by 1% vs acc_how=mean
+                    # also running this improves by 1% vs acc_how=mean
+                    # thus, we know that clipping in acc_how=sum is its problem.
+                    dists = dists.sum(2)
+                    dists = dists.sum(axis=-1)
+                elif self.accumulate_how == 'sum':
                     # sum upcast_every vals, then clip to mirror saturating
                     # unsigned addition, then sum without saturation (like u16)
                     dists = dists.sum(2)
@@ -472,6 +489,7 @@ class PQEncoder(MultiCodebookEncoder):
         else:
             idxs = pq._encode_X_pq(X, codebooks=self.centroids)
 
+        # self.offsets is set in MultiCodebookEncoder.__init__
         return idxs + self.offsets  # offsets let us index into raveled dists
 
 
@@ -553,9 +571,12 @@ def _mithral_quantize_luts(luts, lut_work_const, force_power_of_2=True):
     # gaps[np.argmax(gaps)] = 0  # use 2nd highest
     gap = np.max(gaps)
     if force_power_of_2:
-        exponent = np.ceil(np.log2(gap))
-        scale = 2 ** int(-exponent)  # scale is a power of 2, so can just shift
-        scale *= (255.5 - 1e-10)  # so max val is at most 255
+        if gap == 0.0:
+            scale = 1e-10
+        else:
+            exponent = np.ceil(np.log2(gap))
+            scale = 2 ** int(-exponent)  # scale is a power of 2, so can just shift
+            scale *= (255.5 - 1e-10)  # so max val is at most 255
     else:
         scale = (255.5 - 1e-10) / gap
 
@@ -582,6 +603,51 @@ def _mithral_quantize_luts(luts, lut_work_const, force_power_of_2=True):
 
 class MithralEncoder(MultiCodebookEncoder):
 
+    def __init__(self, ncodebooks, nonzeros_heuristic='pq',lut_work_const=-1):
+        super().__init__(
+            ncodebooks=ncodebooks, ncentroids=16,
+            # quantize_lut=True, upcast_every=64,
+            # quantize_lut=True, upcast_every=32,
+            quantize_lut=True, upcast_every=16,
+            # quantize_lut=True, upcast_every=8,
+            # quantize_lut=True, upcast_every=4,
+            # quantize_lut=True, upcast_every=2,
+            # quantize_lut=True, upcast_every=1,
+            accumulate_how='mean')
+        self.nonzeros_heuristic = nonzeros_heuristic
+        self.lut_work_const = lut_work_const
+
+    def name(self):
+        return "{}_{}".format('mithral', super().name())
+
+    def params(self):
+        return {'ncodebooks': self.ncodebooks,
+                'lut_work_const': self.lut_work_const}
+
+    def fit(self, X, Q=None):
+        self.splits_lists, self.centroids = clusterize.learn_mithral(
+            X, self.ncodebooks, lut_work_const=self.lut_work_const,
+            nonzeros_heuristic=self.nonzeros_heuristic)
+        # self._learn_lut_quantization(X, Q)
+
+    def encode_X(self, X):
+        idxs = clusterize.mithral_encode(X, self.splits_lists)
+        return idxs + self.offsets
+
+    def encode_Q(self, Q, quantize=True):
+        Q = np.atleast_2d(Q)
+        luts = np.zeros((Q.shape[0], self.ncodebooks, self.ncentroids))
+        for i, q in enumerate(Q):
+            luts[i] = clusterize.mithral_lut(q, self.centroids)
+        if self.quantize_lut:
+            luts, offset, scale = _mithral_quantize_luts(luts, self.lut_work_const)
+            return luts, offset, scale
+
+        return luts, 0, 1
+
+
+class VingiloteEncoder(MultiCodebookEncoder):
+
     def __init__(self, ncodebooks, lut_work_const=-1):
         super().__init__(
             ncodebooks=ncodebooks, ncentroids=16,
@@ -603,8 +669,9 @@ class MithralEncoder(MultiCodebookEncoder):
                 'lut_work_const': self.lut_work_const}
 
     def fit(self, X, Q=None):
-        self.splits_lists, self.centroids = clusterize.learn_mithral(
-            X, self.ncodebooks, lut_work_const=self.lut_work_const)
+        # Q = B.T, where A is (N, D) and B is (D, M). So Q is (M, D)
+        self.splits_lists, self.centroids = clusterize.learn_vingilote(
+            X, Q, self.ncodebooks)
         # self._learn_lut_quantization(X, Q)
 
     def encode_X(self, X):
@@ -621,6 +688,65 @@ class MithralEncoder(MultiCodebookEncoder):
             return luts, offset, scale
 
         return luts, 0, 1
+
+
+class PlutoEncoder(MultiCodebookEncoder):
+
+    def __init__(
+        self,
+        ncodebooks,
+        activation=None,
+        nonzeros_heuristic='pq',
+        objective='mse',
+        accumulate_how='mean',
+        lut_work_const=-1,
+    ):
+        super().__init__(
+            ncodebooks=ncodebooks, ncentroids=16,
+            # quantize_lut=True, upcast_every=64,
+            # quantize_lut=True, upcast_every=32,
+            quantize_lut=True, upcast_every=16,
+            # quantize_lut=True, upcast_every=8,
+            # quantize_lut=True, upcast_every=4,
+            # quantize_lut=True, upcast_every=2,
+            # quantize_lut=True, upcast_every=1,
+            accumulate_how=accumulate_how)
+        self.activation = activation
+        self.nonzeros_heuristic = nonzeros_heuristic
+        self.objective = objective
+        self.lut_work_const = lut_work_const
+
+    def name(self):
+        return "{}_{}".format('pluto', super().name())
+
+    def params(self):
+        return {'ncodebooks': self.ncodebooks,
+                'lut_work_const': self.lut_work_const}
+
+    def fit(self, X, Q, output=None, bias=None):
+        # Q = B.T, where A is (N, D) and B is (D, M). So Q is (M, D)
+        self.splits_lists, self.centroids, luts = clusterize.learn_pluto(
+            X, Q, self.ncodebooks, self.activation, output, bias, 
+            nonzeros_heuristic=self.nonzeros_heuristic, objective=self.objective,
+            verbose=0)
+        # self._learn_lut_quantization(X, Q)
+
+        """
+        Q = np.atleast_2d(Q)
+        luts = np.zeros((Q.shape[0], self.ncodebooks, self.ncentroids))
+        for i, q in enumerate(Q):
+            luts[i] = clusterize.mithral_lut(q, self.centroids) # reshapes
+        """
+
+        if self.quantize_lut:
+            luts, offset, scale = _mithral_quantize_luts(luts, self.lut_work_const)
+            return luts, offset, scale
+
+        return luts, 0, 1
+
+    def encode_X(self, X):
+        idxs = clusterize.mithral_encode(X, self.splits_lists)
+        return idxs + self.offsets
 
 
 def main():

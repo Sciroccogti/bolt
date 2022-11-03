@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-07-06 15:07:45
-@modified: 2022-09-21 10:43:58
+@modified: 2022-10-13 12:25:22
 '''
 
 import os
@@ -29,7 +29,7 @@ ax.grid(True, which="minor", ls="--")
 ax.xaxis.set_tick_params(direction='in', which='both')  # 刻度线向内
 ax.yaxis.set_tick_params(direction='in', which='both')
 
-snr_ = [-10, -7, -4, 0, 3, 6, 9, 12, 15, 18, 21]
+snr_ = [-20. , -17.5, -15. , -12.5, -10. ,  -7.5,  -5. ,  -2.5,   0. , 2.5,   5. ,   7.5,  10.]
 
 path = "./"
 files_ = os.listdir(path)
@@ -39,22 +39,22 @@ for file in files_:
     match = None
     try:
         if match == None:
-            match = re.match(r"\+[0-9][a-z,A-Z].*?\.txt", file)
+            match = re.match(r"\+\+[0-9][a-z,A-Z].*?\.txt", file)
 
         if match != None:
 
             fin = open(path + file, "r")
             lines_ = fin.readlines()
 
-            method = lines_[12].split("'")[3]
-            ncodebooks = int(
-                re.match(r" 'ncodebooks': ([0-9]+)", lines_[14]).group(1))
-            ber_ = [float(i) for i in lines_[19].split()]
-            fer_ = [float(i) for i in lines_[22].split()]
-            nmdr_DFT_ = [float(i) for i in lines_[25].split()]
-            nmse_IDFT_ = [float(i) for i in lines_[28].split()]
-            nmse_H_ = [float(i) for i in lines_[31].split()]
-            rawnmse_H_ = [float(i) for i in lines_[34].split()]
+            method = lines_[15].split("'")[3]
+            # ncodebooks = int(
+            #     re.match(r" 'ncodebooks': ([0-9]+)", lines_[14]).group(1))
+            # ber_ = [float(i) for i in lines_[19].split()]
+            # fer_ = [float(i) for i in lines_[22].split()]
+            # nmdr_DFT_ = [float(i) for i in lines_[25].split()]
+            # nmse_IDFT_ = [float(i) for i in lines_[28].split()]
+            # nmse_H_ = [float(i) for i in lines_[31].split()]
+            rawnmse_H_ = [float(i) for i in lines_[37].split()]
             plt.plot(snr_, rawnmse_H_, label=method, color=colors_[colorCnt], linestyle="-", marker=markers_[colorCnt])
             colorCnt += 1
     except Exception as e:

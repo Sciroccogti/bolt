@@ -85,7 +85,7 @@ def _knn(X, Q, k=1000, print_every=5, block_sz=128):
         truth[start:end, :] = _knn(X, rows, k=k, block_sz=block_sz)
 
         if b % print_every == 0:
-            print("computing top k for query block " \
+            print("computing top k for query block "
                   "{} (queries {}-{})...".format(b, start, end))
 
     assert np.all(truth != -999)
@@ -131,17 +131,20 @@ def test_time_space_savings():  # mostly to verify readme code
     nqueries = 20
     X, Q = _load_digits_X_Q(nqueries)
 
-    enc = bolt.Encoder(accuracy='lowest', reduction=bolt.Reductions.DOT_PRODUCT)
+    enc = bolt.Encoder(accuracy='lowest',
+                       reduction=bolt.Reductions.DOT_PRODUCT)
     enc.fit(X)
 
     # massive space savings
-    print("original space usage: {}B".format(X.nbytes))  # 1777 * 64 * 8B = 909KB
+    print("original space usage: {}B".format(
+        X.nbytes))  # 1777 * 64 * 8B = 909KB
     print("bolt space usage: {}B".format(enc.nbytes))  # 1777 * 2B = 3.55KB
 
     # massive time savings (~10x here, but often >100x on larger datasets
     # with less Python overhead; see the Bolt paper)
     t_np = timeit.Timer(lambda: [np.dot(X, q) for q in Q]).timeit(5)  # ~8ms
-    t_bolt = timeit.Timer(lambda: [enc.transform(q) for q in Q]).timeit(5)  # ~800us
+    t_bolt = timeit.Timer(lambda: [enc.transform(q)
+                          for q in Q]).timeit(5)  # ~800us
     print("Numpy / BLAS time, Bolt time: {:.3f}ms, {:.3f}ms".format(
         t_np * 1000, t_bolt * 1000))
 
@@ -207,7 +210,8 @@ def test_basic():
 
     # ------------------------------------------------ squared l2
 
-    enc = bolt.Encoder(accuracy='low', reduction=bolt.Reductions.SQUARED_EUCLIDEAN)
+    enc = bolt.Encoder(
+        accuracy='low', reduction=bolt.Reductions.SQUARED_EUCLIDEAN)
     enc.fit(X)
 
     l2_corrs = np.empty(len(Q))
@@ -303,5 +307,95 @@ def test_basic():
     # print(bolt_knn[:5])
 
 
+def test_nanopq():
+    import nanopq
+    np.set_printoptions(formatter={'float_kind': _fmt_float})
+    nqueries = 20
+    X, Q = _load_digits_X_Q(nqueries=nqueries)
+    X = X.astype(np.float32)
+    enc = nanopq.PQ(M=16, Ks=16)  # Ks: ncodeword
+    enc = enc.fit(X)
+    X_code = enc.encode(X)
+
+    dot_corrs = np.empty(nqueries)
+    for i, q in enumerate(Q):
+        dots_true = np.dot(X, q)
+        dots_nanopq = np.dot(enc.decode(X_code), q)
+        dot_corrs[i] = _corr(dots_true, dots_nanopq)
+
+    mean_dot = np.mean(dot_corrs)
+    std_dot = np.std(dot_corrs)
+    assert mean_dot > .95
+    print("--> NANOPQ dot product correlation: {} +/- {}".format(mean_dot, std_dot))
+
+    enc = bolt.Encoder(accuracy='low', reduction=bolt.Reductions.DOT_PRODUCT)
+    enc.fit(X)
+
+    dot_corrs = np.empty(nqueries)
+    for i, q in enumerate(Q):
+        dots_true = np.dot(X, q)
+        dots_bolt = enc.transform(q)
+        dot_corrs[i] = _corr(dots_true, dots_bolt)
+
+    mean_dot = np.mean(dot_corrs)
+    std_dot = np.std(dot_corrs)
+    assert mean_dot > .95
+    print("--> BOLT dot product correlation: {} +/- {}".format(mean_dot, std_dot))
+
+
+def test_nanopq_time_space_savings():  # mostly to verify readme code
+    import nanopq
+    np.set_printoptions(formatter={'float_kind': _fmt_float})
+
+    nqueries = 20
+    X, Q = _load_digits_X_Q(nqueries)
+    X = X.astype(np.float32)
+
+    enc = nanopq.PQ(M=16, Ks=16)  # Ks: ncodeword
+    enc = enc.fit(X)
+    X_code = enc.encode(X)
+
+    # enc = bolt.Encoder(accuracy='lowest',
+    #                    reduction=bolt.Reductions.DOT_PRODUCT)
+    # enc.fit(X)
+
+    # massive space savings
+    print("original space usage: {}B".format(
+        X.nbytes))  # 1777 * 64 * 8B = 909KB
+    print("NANOPQ space usage: {}B".format(
+        X_code.nbytes))  # 1777 * 2B = 3.55KB
+
+    # massive time savings (~10x here, but often >100x on larger datasets
+    # with less Python overhead; see the Bolt paper)
+    t_np = timeit.Timer(lambda: [np.dot(X, q) for q in Q]).timeit(5)  # ~8ms
+    t_bolt = timeit.Timer(lambda: [np.dot(enc.decode(X_code), q)
+                          for q in Q]).timeit(5)  # ~800us
+    print("Numpy / BLAS time, NANOPQ time: {:.3f}ms, {:.3f}ms".format(
+        t_np * 1000, t_bolt * 1000))
+
+
+def getTable(C: int, K: int, B: np.ndarray, codewords: np.array, Ds: int) -> np.array:
+    _, M = B.shape
+    Table = np.zeros((C, K, M))
+    for c in range(C):
+        for m in range(C):
+            for k in range(K):
+                for d in range(Ds):
+                    Table[c, k, m] += codewords[c, k, d] * B[c * Ds + d, m]
+
+    return Table
+
+
+def match(encode_A: np.array, Table: np.array) -> np.array:
+    N, _ = encode_A.shape
+    C, K, M = Table.shape
+    ret = np.zeros((N, M))
+    for n in range(N):
+        for m in range(M):
+            for c in range(C):
+                ret[n, m] += Table[c][encode_A[m, c], m]
+    return ret
+
+
 if __name__ == '__main__':
-    test_basic()
+    test_nanopq_time_space_savings()
