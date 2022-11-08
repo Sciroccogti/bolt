@@ -1773,7 +1773,7 @@ def _learn_mithral_initialization(X, ncodebooks,
     return X_res, all_splits, all_centroids, all_buckets
 
 
-@_memory.cache
+# @_memory.cache
 def learn_pluto(
     X, Q, ncodebooks, activation, output, bias, **kwargs,
 ):
