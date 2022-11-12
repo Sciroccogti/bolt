@@ -994,6 +994,7 @@ def encoded_pluto(
         bias = torch.tensor(0.)
     else:
         bias = torch.from_numpy(bias)
+    print("encoded_pluto bias:", bias)
  
     P_0_np = all_centroids.reshape(X_bin.shape[1], X_orig.shape[1])
     P_0 = torch.from_numpy(P_0_np)
@@ -1023,6 +1024,7 @@ def encoded_pluto(
         T_star = T_0_np + T_delta
         return T_star
 
+    print("encoded_pluto activation:", activation)
     if activation is None:
         activation = identity
 
@@ -1777,6 +1779,7 @@ def _learn_mithral_initialization(X, ncodebooks,
 def learn_pluto(
     X, Q, ncodebooks, activation, output, bias, **kwargs,
 ):
+    print("learn_pluto activation:", activation)
     objective = kwargs["objective"]
     kwargs.pop("objective", None)
     Q = np.atleast_2d(Q)

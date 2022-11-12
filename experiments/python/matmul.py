@@ -250,9 +250,9 @@ def _fitted_est_for_hparams(method_id, hparams_dict, X_train, W_train,
 
 def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
                verbose=1, limit_ntasks=-1, tasks_all_same_shape=False, tasks=None,
-               X_path="", W_path="", Y_path="", dir=""):
+               X_path="", W_path="", Y_path="", bias_path="", dir=""):
     methods = methods.DEFAULT_METHODS if methods is None else methods
-    tasks = md.load_dft_train(X_path, W_path, Y_path, dir) if tasks is None else tasks
+    tasks = md.load_dft_train(X_path, W_path, Y_path, dir, bias_path) if tasks is None else tasks
     if isinstance(methods, str):
         methods = [methods]
     if limit_ntasks is None or limit_ntasks < 1:
@@ -315,9 +315,14 @@ def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
             if not can_reuse_est:
                 try:
                     task.W_train = np.atleast_2d(task.W_train)
-                    est = _fitted_est_for_hparams(
-                        method_id, hparams_dict,
-                        task.X_train, task.W_train, task.Y_train)
+                    if bias_path!="":
+                        est = _fitted_est_for_hparams(
+                            method_id, hparams_dict,
+                            task.X_train, task.W_train, task.Y_train, bias=task.bias)
+                    else:
+                        est = _fitted_est_for_hparams(
+                            method_id, hparams_dict,
+                            task.X_train, task.W_train, task.Y_train)
                 except amm.InvalidParametersException as e:
                     # hparams don't make sense for task (eg, D < d)
                     print(f"hparams apparently invalid: {e}")

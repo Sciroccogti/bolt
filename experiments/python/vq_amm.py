@@ -410,6 +410,11 @@ class PlutoMatmul(VQMatmul):
             Y: desired A @ B if not None -- see ApproxMatmul -- ignored
             bias: shape broadcasts when adding A @ B + bias
         """
+        print(Y.shape)
+        print(bias.shape)
+        # print(output.shape)
+        print(type(Y))
+        # print(type(output))
         # TODO use bias with nonlinearity
         _, D = A.shape
         if D < self.ncodebooks:
@@ -419,7 +424,7 @@ class PlutoMatmul(VQMatmul):
         # self.enc.fit sets self.enc.splits_lists and self.enc.centroids
         # self.enc.fit also calls clusterize.learn_pluto
         self.luts, self.offset, self.scale = self.enc.fit(
-            A, B.T, output=output, bias=bias)
+            A, B.T, output=output, bias=bias)#, activation = self.activation)
         self.stddevB0 = np.std(B, axis=0)
         self.stddevB1 = np.std(B, axis=1)
 
