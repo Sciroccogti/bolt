@@ -6,7 +6,6 @@ import numpy as np
 from functools import reduce
 
 import fastcluster
-import nanopq
 import numba
 import scipy.optimize as spop
 import torch
@@ -1035,7 +1034,7 @@ def encoded_pluto(
         cosine_target = torch.ones(X_orig.shape[0])
     #rint(f"encoded_pluto A:{X_orig.shape} B:{B.shape} G:{G.shape} P:{P_0.shape} B:{B.shape}")
     def pluto_obj(T_cur):
-        pred_act = activation(G @ T_cur + bias)
+        pred_act = activation(G.double() @ T_cur + bias.double())
         if objective == "mse":
             AB_err_loss = torch.sum(torch.square(pred_act - orig_act))
         elif objective == "kld":
@@ -1689,14 +1688,14 @@ def group_X_cols_opq(X, ncodebooks):
 
 
 @_memory.cache
-def _learn_mithral_initialization(X, ncodebooks,
+def _learn_mithral_initialization(X, ncodebooks, ncentroids: int=16,
                                   pq_perm_algo='start', nonzeros_heuristic='pq', **kwargs):
     heuristics = ('pq', 'pca', 'disjoint_pca', 'r2', 'opq')
     assert nonzeros_heuristic in heuristics
     print(f'_learn_mithral_initialization heuristic {nonzeros_heuristic}')
 
     N, D = X.shape
-    ncentroids_per_codebook = 16
+    ncentroids_per_codebook = ncentroids
 
     X = X.astype(np.float32)
     X_res = X.copy()
@@ -1750,7 +1749,7 @@ def _learn_mithral_initialization(X, ncodebooks,
         #print(np.corrcoef(X_orig[:,idxs], rowvar=False))
         # learn codebook to soak current residuals
         multisplits, _, buckets = learn_multisplits(
-            use_X_res, X_orig=use_X_orig,
+            use_X_res, X_orig=use_X_orig, nsplits=int(np.log2(ncentroids)), # nsplit should <= log2(K) TODO: check it
             return_centroids=False, return_buckets=True, **kwargs)
         for split in multisplits:
             split.dim = idxs[split.dim]
@@ -1773,9 +1772,9 @@ def _learn_mithral_initialization(X, ncodebooks,
     return X_res, all_splits, all_centroids, all_buckets
 
 
-@_memory.cache
+# @_memory.cache
 def learn_pluto(
-    X, Q, ncodebooks, activation, output, bias, **kwargs,
+    X, Q, ncodebooks, ncentroids: int, activation, output, bias, **kwargs,
 ):
     objective = kwargs["objective"]
     kwargs.pop("objective", None)
@@ -1785,7 +1784,7 @@ def learn_pluto(
     M, DQ = Q.shape  # B^T
     print(f"learn_pluto with N:{N} D:{D} M:{M} DQ:{DQ} obj:{objective}")
     
-    ncentroids_per_codebook = 16
+    ncentroids_per_codebook = ncentroids
     X_orig = X.astype(np.float32)
 
     X_res0, all_splits0, all_centroids0, all_buckets0 = \
@@ -1838,14 +1837,14 @@ def learn_pluto(
 
 @_memory.cache
 def learn_vingilote(
-    X, Q, ncodebooks, return_buckets=False, **kwargs,
+    X, Q, ncodebooks, ncentroids, return_buckets=False, **kwargs,
 ):
     N, D = X.shape  # A
     M, DQ = Q.shape  # B^T
     Xweights = np.sum(Q ** 2, axis=0, keepdims=True) # (1, D)
     print(f"learn_vingilote with N:{N} D:{D} M:{M} DQ:{DQ}")
     
-    ncentroids_per_codebook = 16
+    ncentroids_per_codebook = ncentroids
     X_orig = X.astype(np.float32)
 
     
@@ -1888,14 +1887,14 @@ def learn_vingilote(
 
 
 @_memory.cache
-def learn_mithral(X, ncodebooks, return_buckets=False,
+def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
                   lut_work_const=-1, **kwargs):
     N, D = X.shape
-    ncentroids_per_codebook = 16
+    ncentroids_per_codebook = ncentroids
     X_orig = X.astype(np.float32)
 
     X_res0, all_splits0, all_centroids0, all_buckets0 = \
-        _learn_mithral_initialization(X, ncodebooks, pq_perm_algo='start', **kwargs)
+        _learn_mithral_initialization(X, ncodebooks, ncentroids=ncentroids, pq_perm_algo='start', **kwargs)
 
     mse_orig = (X_orig * X_orig).mean()
     mse0 = (X_res0 * X_res0).mean()
@@ -1941,7 +1940,7 @@ def learn_mithral(X, ncodebooks, return_buckets=False,
         if lut_work_const < 0:
             print("fitting dense lstsq to X_res")
             print(f"  with X_enc:{X_enc.shape} Y:{X_res.shape}")
-            W = encoded_lstsq(X_enc=X_enc, Y=X_res)
+            W = encoded_lstsq(X_enc=X_enc, Y=X_res, K=ncentroids)
             print(f"fitted dense lstsq with W:{W.shape}")
             #exit(0)
         else:
@@ -1949,7 +1948,7 @@ def learn_mithral(X, ncodebooks, return_buckets=False,
             print(f"  with X_enc:{X_enc.shape} Y:{X_res.shape}")
  
             W, _ = sparse_encoded_lstsq(
-                    X_enc, X_res, nnz_blocks=lut_work_const,
+                    X_enc, X_res, K=ncentroids, nnz_blocks=lut_work_const,
                     pq_perm_algo=used_perm_algo)
             print(f"fitted sparse lstsq with W:{W.shape}")
             #exit(0)

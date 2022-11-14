@@ -603,9 +603,9 @@ def _mithral_quantize_luts(luts, lut_work_const, force_power_of_2=True):
 
 class MithralEncoder(MultiCodebookEncoder):
 
-    def __init__(self, ncodebooks, nonzeros_heuristic='pq',lut_work_const=-1):
+    def __init__(self, ncodebooks, ncentroids: int, nonzeros_heuristic='pq',lut_work_const=-1):
         super().__init__(
-            ncodebooks=ncodebooks, ncentroids=16,
+            ncodebooks=ncodebooks, ncentroids=ncentroids,
             # quantize_lut=True, upcast_every=64,
             # quantize_lut=True, upcast_every=32,
             quantize_lut=True, upcast_every=16,
@@ -621,12 +621,12 @@ class MithralEncoder(MultiCodebookEncoder):
         return "{}_{}".format('mithral', super().name())
 
     def params(self):
-        return {'ncodebooks': self.ncodebooks,
+        return {'ncodebooks': self.ncodebooks, 'ncentroids': self.ncentroids,
                 'lut_work_const': self.lut_work_const}
 
     def fit(self, X, Q=None):
         self.splits_lists, self.centroids = clusterize.learn_mithral(
-            X, self.ncodebooks, lut_work_const=self.lut_work_const,
+            X, self.ncodebooks, ncentroids=self.ncentroids, lut_work_const=self.lut_work_const,
             nonzeros_heuristic=self.nonzeros_heuristic)
         # self._learn_lut_quantization(X, Q)
 
