@@ -1749,7 +1749,7 @@ def _learn_mithral_initialization(X, ncodebooks, ncentroids: int=16,
         #print(np.corrcoef(X_orig[:,idxs], rowvar=False))
         # learn codebook to soak current residuals
         multisplits, _, buckets = learn_multisplits(
-            use_X_res, X_orig=use_X_orig, nsplits=int(np.log2(ncentroids)), # nsplit should <= log2(K) TODO: check it
+            use_X_res, X_orig=use_X_orig, nsplits=int(np.log2(ncentroids)), # nsplit should <= log2(K)
             return_centroids=False, return_buckets=True, **kwargs)
         for split in multisplits:
             split.dim = idxs[split.dim]
