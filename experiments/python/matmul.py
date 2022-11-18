@@ -250,7 +250,7 @@ def _fitted_est_for_hparams(method_id, hparams_dict, X_train, W_train,
 
 def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
                verbose=1, limit_ntasks=-1, tasks_all_same_shape=False, tasks=None,
-               X_path="", W_path="", Y_path="", bias_path="", dir=""):
+               X_path="", W_path="", Y_path="", bias_path="", dir="", nbits = 8):
     methods = methods.DEFAULT_METHODS if methods is None else methods
     tasks = md.load_dft_train(X_path, W_path, Y_path, dir, bias_path) if tasks is None else tasks
     if isinstance(methods, str):
@@ -263,7 +263,7 @@ def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
     # nc: 1 2 4 8 16 32
     # lut: 2 4 -1
     if (METHOD_SCALAR_QUANTIZE in methods):
-        hparams_dict = {}
+        hparams_dict = {'nbits': nbits}
     elif (METHOD_HASHJL in methods) or (METHOD_SVD in methods) or (METHOD_FD_AMM in methods):
         hparams_dict = {'d': 2}
     elif (METHOD_SPARSE_PCA in methods):
