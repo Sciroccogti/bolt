@@ -648,9 +648,9 @@ class MithralEncoder(MultiCodebookEncoder):
 
 class VingiloteEncoder(MultiCodebookEncoder):
 
-    def __init__(self, ncodebooks, lut_work_const=-1):
+    def __init__(self, ncodebooks, ncentroids: int, lut_work_const=-1):
         super().__init__(
-            ncodebooks=ncodebooks, ncentroids=16,
+            ncodebooks=ncodebooks, ncentroids=ncentroids,
             # quantize_lut=True, upcast_every=64,
             # quantize_lut=True, upcast_every=32,
             quantize_lut=True, upcast_every=16,
@@ -665,13 +665,13 @@ class VingiloteEncoder(MultiCodebookEncoder):
         return "{}_{}".format('mithral', super().name())
 
     def params(self):
-        return {'ncodebooks': self.ncodebooks,
+        return {'ncodebooks': self.ncodebooks, 'ncentroids': self.ncentroids,
                 'lut_work_const': self.lut_work_const}
 
     def fit(self, X, Q=None):
         # Q = B.T, where A is (N, D) and B is (D, M). So Q is (M, D)
         self.splits_lists, self.centroids = clusterize.learn_vingilote(
-            X, Q, self.ncodebooks)
+            X, Q, self.ncodebooks, ncentroids=self.ncentroids)
         # self._learn_lut_quantization(X, Q)
 
     def encode_X(self, X):
@@ -695,6 +695,7 @@ class PlutoEncoder(MultiCodebookEncoder):
     def __init__(
         self,
         ncodebooks,
+        ncentroids: int,
         activation=None,
         nonzeros_heuristic='pq',
         objective='mse',
@@ -702,7 +703,7 @@ class PlutoEncoder(MultiCodebookEncoder):
         lut_work_const=-1,
     ):
         super().__init__(
-            ncodebooks=ncodebooks, ncentroids=16,
+            ncodebooks=ncodebooks, ncentroids=ncentroids,
             # quantize_lut=True, upcast_every=64,
             # quantize_lut=True, upcast_every=32,
             quantize_lut=True, upcast_every=16,
@@ -720,13 +721,14 @@ class PlutoEncoder(MultiCodebookEncoder):
         return "{}_{}".format('pluto', super().name())
 
     def params(self):
-        return {'ncodebooks': self.ncodebooks,
+        return {'ncodebooks': self.ncodebooks, 'ncentroids': self.ncentroids,
                 'lut_work_const': self.lut_work_const}
 
     def fit(self, X, Q, output=None, bias=None):
         # Q = B.T, where A is (N, D) and B is (D, M). So Q is (M, D)
         self.splits_lists, self.centroids, luts = clusterize.learn_pluto(
-            X, Q, self.ncodebooks, self.activation, output, bias, 
+            X, Q, self.ncodebooks, ncentroids=self.ncentroids,
+            activation=self.activation, output=output, bias=bias, 
             nonzeros_heuristic=self.nonzeros_heuristic, objective=self.objective,
             verbose=0)
         # self._learn_lut_quantization(X, Q)

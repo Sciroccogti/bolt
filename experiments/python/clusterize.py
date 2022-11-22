@@ -206,7 +206,7 @@ def _cumsse_cols(X):
 
 
 # def optimal_split_val(X, dim, possible_vals=None, return_val_idx=False):
-# @_memory.cache
+@_memory.cache
 def optimal_split_val(X, dim, possible_vals=None, X_orig=None,
                       # return_possible_vals_losses=False, force_val='median'):
                       return_possible_vals_losses=False, force_val=None,
@@ -646,7 +646,7 @@ def learn_multisplits_orig(X, nsplits, log2_max_vals_per_split=4,
     return splits, loss
 
 
-#@_memory.cache
+@_memory.cache
 def learn_multisplits(
         X, nsplits=4, return_centroids=True, return_buckets=False,
         # learn_quantize_params=False,
@@ -1687,7 +1687,7 @@ def group_X_cols_opq(X, ncodebooks):
     return perm
 
 
-# @_memory.cache
+@_memory.cache
 def _learn_mithral_initialization(X, ncodebooks, ncentroids: int=16,
                                   pq_perm_algo='start', nonzeros_heuristic='pq', **kwargs):
     heuristics = ('pq', 'pca', 'disjoint_pca', 'r2', 'opq')
@@ -1772,7 +1772,7 @@ def _learn_mithral_initialization(X, ncodebooks, ncentroids: int=16,
     return X_res, all_splits, all_centroids, all_buckets
 
 
-# @_memory.cache
+@_memory.cache
 def learn_pluto(
     X, Q, ncodebooks, ncentroids: int, activation, output, bias, **kwargs,
 ):
@@ -1789,7 +1789,7 @@ def learn_pluto(
 
     X_res0, all_splits0, all_centroids0, all_buckets0 = \
         _learn_mithral_initialization(
-            X, ncodebooks, pq_perm_algo='start', **kwargs)
+            X, ncodebooks, ncentroids=ncentroids, pq_perm_algo='start', **kwargs)
 
     mse_orig = (X_orig * X_orig).mean()
     mse0 = (X_res0 * X_res0).mean()
@@ -1809,7 +1809,7 @@ def learn_pluto(
     T_badshape = encoded_pluto(
         X_orig=X_orig, all_centroids=all_centroids,
         X_enc=X_enc, B=Q.T, output=output, bias=bias,
-        activation=activation, objective=objective)
+        activation=activation, objective=objective, K=ncentroids)
     # shape: (n_codebooks*16, M)
     luts = T_badshape.T # (M, n_codebooks*16)
     luts = luts.reshape(M, ncodebooks, ncentroids_per_codebook)
@@ -1849,7 +1849,8 @@ def learn_vingilote(
 
     
     X_res0, all_splits0, all_centroids0, all_buckets0 = \
-        _learn_mithral_initialization(X, Xweights, ncodebooks, pq_perm_algo='start')
+        _learn_mithral_initialization(X, Xweights, ncodebooks,
+        ncentroids=ncentroids, pq_perm_algo='start')
 
     mse_orig = (X_orig * X_orig).mean()
     mse0 = (X_res0 * X_res0).mean()
@@ -1867,7 +1868,8 @@ def learn_vingilote(
     # W = encoded_lstsq(X_enc=X_enc, Y=X_res)
 
     W = encoded_vingilote(
-        X_orig=X_orig, all_centroids=all_centroids, Y=X_res, X_enc=X_enc, B=Q.T)
+        X_orig=X_orig, all_centroids=all_centroids, Y=X_res, X_enc=X_enc, B=Q.T,
+        K=ncentroids)
     print(f"vingilote fitted dense lstsq with W:{W.shape}")
 
     all_centroids_delta = W.reshape(ncodebooks, ncentroids_per_codebook, D)
@@ -1886,7 +1888,7 @@ def learn_vingilote(
     return all_splits, all_centroids
 
 
-# @_memory.cache
+@_memory.cache
 def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
                   lut_work_const=-1, **kwargs):
     N, D = X.shape

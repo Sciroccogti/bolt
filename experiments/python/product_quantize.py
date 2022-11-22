@@ -232,7 +232,7 @@ def opq_undo_rotate(X, R):  # so other code need not know what to transpose
     return np.dot(np.atleast_2d(X), R)
 
 
-# @_memory.cache
+@_memory.cache
 def opq_initialize(X_train, ncodebooks, init='gauss'):
     X = X_train
     _, D = X.shape

@@ -333,6 +333,7 @@ class PlutoMatmul(VQMatmul):
     def __init__(
         self,
         ncodebooks,
+        ncentroids: int = 16,
         activation=None,
         nonzeros_heuristic="pq",
         objective="mse",
@@ -349,10 +350,10 @@ class PlutoMatmul(VQMatmul):
             raise amm.InvalidParametersException(
                 "lut_work_const > ncodebooks: {} > {}".format(
                     lut_work_const, ncodebooks))
-        super().__init__(ncodebooks=ncodebooks, ncentroids=16)
+        super().__init__(ncodebooks=ncodebooks, ncentroids=ncentroids)
 
-    # def _get_ncentroids(self):
-    #     return 16
+    def _get_ncentroids(self):
+        return self.ncentroids
 
     # def fit(self, A, B, Y=None):
     #     super().fit(self, A, B, Y=Y)
@@ -362,9 +363,10 @@ class PlutoMatmul(VQMatmul):
         # XXX - also self.B = None?
         # No! this must be called at each call of forward-pass
 
-    def _create_encoder(self, ncodebooks):
+    def _create_encoder(self, ncodebooks, ncentroids):
         pluto_enc = vq.PlutoEncoder(
             ncodebooks=ncodebooks,
+            ncentroids=ncentroids,
             activation=self.activation,
             nonzeros_heuristic=self.nonzeros_heuristic,
             objective=self.objective,
@@ -381,6 +383,7 @@ class PlutoMatmul(VQMatmul):
             else:
                 activation_str = str(self.activation)
         return {'ncodebooks': self.ncodebooks,
+                'ncentroids': self.ncentroids,
                 'lut_work_const': self.lut_work_const,
                 'activation': activation_str,
                 'nonzeros_heuristic': self.nonzeros_heuristic,
