@@ -659,7 +659,7 @@ def learn_multisplits(
         # verbose=3):
         # verbose=2):
         verbose=1):
-    assert nsplits <= 4  # >4 splits means >16 split_vals for this func's impl
+    # assert nsplits <= 4  # >4 splits means >16 split_vals for this func's impl
 
     X = X.astype(np.float32)
     N, D = X.shape
@@ -1687,7 +1687,7 @@ def group_X_cols_opq(X, ncodebooks):
     return perm
 
 
-@_memory.cache
+# @_memory.cache
 def _learn_mithral_initialization(X, ncodebooks, ncentroids: int=16,
                                   pq_perm_algo='start', nonzeros_heuristic='pq', **kwargs):
     heuristics = ('pq', 'pca', 'disjoint_pca', 'r2', 'opq')
@@ -1886,7 +1886,7 @@ def learn_vingilote(
     return all_splits, all_centroids
 
 
-@_memory.cache
+# @_memory.cache
 def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
                   lut_work_const=-1, **kwargs):
     N, D = X.shape
