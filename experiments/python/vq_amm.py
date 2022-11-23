@@ -16,7 +16,7 @@ class VQMatmul(amm.ApproxMatmul, abc.ABC):
         self.ncodebooks = ncodebooks
         self.ncentroids = (self._get_ncentroids() if ncentroids is None
                            else ncentroids)
-        self.enc = self._create_encoder(ncodebooks)
+        self.enc = self._create_encoder(ncodebooks, ncentroids=ncentroids)
         self.reset_for_new_task()
 
     @abc.abstractmethod
@@ -335,6 +335,7 @@ class PlutoMatmul(VQMatmul):
     def __init__(
         self,
         ncodebooks,
+        ncentroids: int = 16,
         activation=torch.nn.functional.relu,
         nonzeros_heuristic="pq",
         objective="mse",
@@ -351,10 +352,10 @@ class PlutoMatmul(VQMatmul):
             raise amm.InvalidParametersException(
                 "lut_work_const > ncodebooks: {} > {}".format(
                     lut_work_const, ncodebooks))
-        super().__init__(ncodebooks=ncodebooks, ncentroids=16)
+        super().__init__(ncodebooks=ncodebooks, ncentroids=ncentroids)
 
-    # def _get_ncentroids(self):
-    #     return 16
+    def _get_ncentroids(self):
+        return self.ncentroids
 
     # def fit(self, A, B, Y=None):
     #     super().fit(self, A, B, Y=Y)
@@ -364,9 +365,10 @@ class PlutoMatmul(VQMatmul):
         # XXX - also self.B = None?
         # No! this must be called at each call of forward-pass
 
-    def _create_encoder(self, ncodebooks):
+    def _create_encoder(self, ncodebooks, ncentroids):
         pluto_enc = vq.PlutoEncoder(
             ncodebooks=ncodebooks,
+            ncentroids=ncentroids,
             activation=self.activation,
             nonzeros_heuristic=self.nonzeros_heuristic,
             objective=self.objective,
@@ -383,6 +385,7 @@ class PlutoMatmul(VQMatmul):
             else:
                 activation_str = str(self.activation)
         return {'ncodebooks': self.ncodebooks,
+                'ncentroids': self.ncentroids,
                 'lut_work_const': self.lut_work_const,
                 'activation': activation_str,
                 'nonzeros_heuristic': self.nonzeros_heuristic,
@@ -430,20 +433,21 @@ class PlutoMatmul(VQMatmul):
 
     def set_B(self, B):
         # TODO: use stddev and shape to verify with less memory
-        assert np.array_equal(self.stddevB0, np.std(B, axis=0))
-        assert np.array_equal(self.stddevB1, np.std(B, axis=1))
+        # assert np.array_equal(self.stddevB0, np.std(B, axis=0))
+        # assert np.array_equal(self.stddevB1, np.std(B, axis=1))
+        pass
 
     def __call__(self, A, B):
         if self.A_enc is None:
             # sets self.A_enc, uses self.enc.splits_lists and self.enc.offsets
             self.A_enc = self.enc.encode_X(A)
 
-        if not np.array_equal(self.stddevB0, np.std(B, axis=0)):
-            # TODO: use stddev and shape to verify with less memory
-            raise ValueError("Pluto luts cannot be transferred to new B.")
-        if not np.array_equal(self.stddevB1, np.std(B, axis=1)):
-            # TODO: use stddev and shape to verify with less memory
-            raise ValueError("Pluto luts cannot be transferred to new B.")
+        # if not np.array_equal(self.stddevB0, np.std(B, axis=0)):
+        #     # TODO: use stddev and shape to verify with less memory
+        #     raise ValueError("Pluto luts cannot be transferred to new B.")
+        # if not np.array_equal(self.stddevB1, np.std(B, axis=1)):
+        #     # TODO: use stddev and shape to verify with less memory
+        #     raise ValueError("Pluto luts cannot be transferred to new B.")
 
         if self.luts is None:
             raise ValueError("Pluto luts must be pre-learned.")
@@ -468,7 +472,7 @@ class PlutoMatmul(VQMatmul):
 
 class MithralMatmul(VQMatmul):
 
-    def __init__(self, ncodebooks, nonzeros_heuristic="pq", lut_work_const=-1):
+    def __init__(self, ncodebooks, ncentroids: int = 16, nonzeros_heuristic="pq", lut_work_const=-1):
         self.nonzeros_heuristic = nonzeros_heuristic
         self.lut_work_const = lut_work_const
         if (lut_work_const is not None) and (lut_work_const > 0) and (
@@ -476,24 +480,25 @@ class MithralMatmul(VQMatmul):
             raise amm.InvalidParametersException(
                 "lut_work_const > ncodebooks: {} > {}".format(
                     lut_work_const, ncodebooks))
-        super().__init__(ncodebooks=ncodebooks, ncentroids=16)
+        super().__init__(ncodebooks=ncodebooks, ncentroids=ncentroids)
 
-    # def _get_ncentroids(self):
-    #     return 16
+    def _get_ncentroids(self):
+        return self.ncentroids
 
     # def fit(self, A, B, Y=None):
     #     super().fit(self, A, B, Y=Y)
 
-    def _create_encoder(self, ncodebooks):
+    def _create_encoder(self, ncodebooks, ncentroids):
         mithral_enc = vq.MithralEncoder(
             ncodebooks=ncodebooks,
+            ncentroids=ncentroids,
             nonzeros_heuristic=self.nonzeros_heuristic,
             lut_work_const=self.lut_work_const,
         )
         return mithral_enc
 
     def get_params(self):
-        return {'ncodebooks': self.ncodebooks,
+        return {'ncodebooks': self.ncodebooks, 'ncentroids': self.ncentroids,
                 'lut_work_const': self.lut_work_const}
 
     def get_speed_metrics(self, A, B, fixedA=False, fixedB=False):
@@ -523,5 +528,5 @@ class MithralMatmul(VQMatmul):
 
 class MithralPQ(MithralMatmul):
 
-    def __init__(self, ncodebooks):
-        super().__init__(ncodebooks=ncodebooks, lut_work_const=1)
+    def __init__(self, ncodebooks, ncentroids: int = 16):
+        super().__init__(ncodebooks=ncodebooks, ncentroids=ncentroids, lut_work_const=1)

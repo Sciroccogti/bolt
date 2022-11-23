@@ -42,7 +42,8 @@ python setup.py install
 
 #### 说明
 
-本项目用于科学研究
+Bolt 中使用了 [Joblib](https://joblib.readthedocs.io/en/latest/index.html) 来缓存计算结果，
+可以通过删除运行目录下的 `__pycache__` 文件夹来清除缓存。
 
 # 测试场景说明
 

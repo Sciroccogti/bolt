@@ -29,7 +29,7 @@ _memory = Memory('.', verbose=0)
 NUM_TRIALS = 10
 
 
-# @_memory.cache
+@_memory.cache
 def _estimator_for_method_id(method_id, **method_hparams):
     return methods.METHOD_TO_ESTIMATOR[method_id](**method_hparams)
 
@@ -240,7 +240,7 @@ def _eval_amm(task, est, fixedB=True, **metrics_kwargs):
 
 
 # @functools.lru_cache(maxsize=None)
-# @_memory.cache
+@_memory.cache
 def _fitted_est_for_hparams(method_id, hparams_dict, X_train, W_train,
                             Y_train, **kwargs):
     est = _estimator_for_method_id(method_id, **hparams_dict)
@@ -271,9 +271,11 @@ def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
         alpha_vals = (1. / 16384, .03125, .0625, .125, .25, .5, 1, 2, 4, 8)
         hparams_dict = [{'d': d, 'alpha': alpha}
                         for d in dvals for alpha in alpha_vals][0]
-    elif (METHOD_MITHRAL in methods) or (METHOD_PLUTO in methods):
-        hparams_dict = {'ncodebooks': ncodebooks,
-                        'lut_work_const': -1}  # Mithral 的 ncentroids 自动生成
+    elif (METHOD_PLUTO in methods):
+        hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids,
+                        'lut_work_const': -1}
+    elif (METHOD_MITHRALPQ in methods):
+        hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids}
     else:
         hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids}
 
