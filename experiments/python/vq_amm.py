@@ -14,7 +14,7 @@ class VQMatmul(amm.ApproxMatmul, abc.ABC):
         self.ncodebooks = ncodebooks
         self.ncentroids = (self._get_ncentroids() if ncentroids is None
                            else ncentroids)
-        self.enc = self._create_encoder(ncodebooks, ncentroids=ncentroids)
+        self.enc = self._create_encoder(ncodebooks)
         self.reset_for_new_task()
 
     @abc.abstractmethod
@@ -363,10 +363,10 @@ class PlutoMatmul(VQMatmul):
         # XXX - also self.B = None?
         # No! this must be called at each call of forward-pass
 
-    def _create_encoder(self, ncodebooks, ncentroids):
+    def _create_encoder(self, ncodebooks):
         pluto_enc = vq.PlutoEncoder(
             ncodebooks=ncodebooks,
-            ncentroids=ncentroids,
+            ncentroids=self.ncentroids,
             activation=self.activation,
             nonzeros_heuristic=self.nonzeros_heuristic,
             objective=self.objective,
@@ -481,10 +481,10 @@ class MithralMatmul(VQMatmul):
     # def fit(self, A, B, Y=None):
     #     super().fit(self, A, B, Y=Y)
 
-    def _create_encoder(self, ncodebooks, ncentroids):
+    def _create_encoder(self, ncodebooks):
         mithral_enc = vq.MithralEncoder(
             ncodebooks=ncodebooks,
-            ncentroids=ncentroids,
+            ncentroids=self.ncentroids,
             nonzeros_heuristic=self.nonzeros_heuristic,
             lut_work_const=self.lut_work_const,
         )
