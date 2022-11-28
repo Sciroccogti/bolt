@@ -1,4 +1,4 @@
-# 合并encoder transformer层的linear层（etl）训练数据集（e39_0-6999）,测试数据集（e39_7000-7999)
+# 有关transformer数据集的工具
 import numpy as np
 import os
 import socket
@@ -23,6 +23,25 @@ elif host_name == 'jm-System-Product-Name':
     # dir1 = '/data/hdr/transformer_data/joined/'
 else:
     raise NameError("You are running the script in a new computer, please define dir_intermediate")
+
+
+def get_AMM_train_dirs(linear_name, linear_name_full, method, feedback_bits, train_sam_num, test_sam_num):
+    AMM_train_dirs = {}
+    dir_now = os.path.dirname(os.path.abspath(__file__)) # 当前文件所在目录
+    AMM_train_dirs["dir_joined"] = os.path.join(dir_now, "../../../../transformer_data/joined")
+    AMM_train_dirs["dir_train"] = os.path.join(AMM_train_dirs["dir_joined"], 'train', 'f'+str(feedback_bits))
+    AMM_train_dirs["dir_test"] = os.path.join(AMM_train_dirs["dir_joined"], 'test', 'f'+str(feedback_bits))
+    AMM_train_dirs["dir_result"] = os.path.join(dir_now, "../../../res", method, "f%i" % feedback_bits, linear_name)
+    AMM_train_dirs["linearin_path_train"] = '%sin_train_f%i_sam%i.npy' % (linear_name_full, feedback_bits, train_sam_num)
+    AMM_train_dirs["y_train"] = '%s_y_train_f%i_sam%i.npy' % (linear_name_full, feedback_bits, train_sam_num)
+    AMM_train_dirs["linearout_path_train"]= '%sout_train_f%i_sam%i.npy' % (linear_name_full, feedback_bits, train_sam_num)
+    AMM_train_dirs["linearin_path_test"] = '%sin_test_f%i_sam%i.npy' % (linear_name_full, feedback_bits, test_sam_num)
+    AMM_train_dirs["linearout_path_test"] = '%sout_test_f%i_sam%i.npy' % (linear_name_full, feedback_bits, test_sam_num)
+
+    AMM_train_dirs["weightpath"] = '%s_w_f%i.npy' % (linear_name_full, feedback_bits)
+    AMM_train_dirs["biaspath"] = '%s_b_f%i.npy' % (linear_name_full, feedback_bits)
+
+    return AMM_train_dirs
 
 # 从单batch样本合成大样本集，方便AMM训练 #j1代表合并第一维
 def join_from_intermediate_j1(dir_intermediate, dir_t, bits, intermediate_name, sam_num, trainortest):
@@ -166,11 +185,4 @@ def dataset_prepare(direc, linear_name_full, feedback_bits, sam_num_list, batch_
                     elif linear_name_full in out_transformer_list:
                         join_from_intermediate(dir_intermediate, dire, feedback_bits, intermediate_name, sam_num, train_or_test)
                 
-
-    # dataset_name = '%s%s_train_f%i_sam%i.npy' % (linear_name_full, feedback_bits, sam_num)
-    # y_train = '%s_y_train_f%i_sam%i.npy' % (linear_name_full, feedback_bits, sam_num)
-    # linearout_path_train = '%sout_train_f%i_sam%i.npy' % (linear_name_full, feedback_bits, sam_num)
-    # linearin_path_test = '%sin_test_f%i_sam%i.npy' % (linear_name_full, feedback_bits, sam_num)
-    # linearout_path_test = '%sout_test_f%i_sam%i.npy' % (linear_name_full, feedback_bits, sam_num)
-
 
