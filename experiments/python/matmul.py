@@ -29,7 +29,7 @@ _memory = Memory('.', verbose=0)
 NUM_TRIALS = 10
 
 
-@_memory.cache
+# @_memory.cache
 def _estimator_for_method_id(method_id, **method_hparams):
     return methods.METHOD_TO_ESTIMATOR[method_id](**method_hparams)
 
@@ -240,7 +240,7 @@ def _eval_amm(task, est, fixedB=True, **metrics_kwargs):
 
 
 # @functools.lru_cache(maxsize=None)
-@_memory.cache
+# @_memory.cache
 def _fitted_est_for_hparams(method_id, hparams_dict, X_train, W_train,
                             Y_train, **kwargs):
     est = _estimator_for_method_id(method_id, **hparams_dict)

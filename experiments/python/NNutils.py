@@ -7,6 +7,7 @@ import re # 正则表达式
 bits = 256
 batch_size = 32
 S1 = [32,32,1,32,32,1] # ex_linear1in大小为batch_size*S1*S2;etl1,etl2,fc1,dtl1,dtl2,fc2的S1大小
+S1_dict = {"etl1":32, "etl2":32, "fc1":1, "dtl1":32, "dtl2":32, "fc2":1}
 nbits = 8 # # METHOD_SCALAR_QUANTIZE的量化比特数
 # whole_train_sam_num = 7000 # 完整的训练集样本数
 # smaller_train_sam_num = 3000 # 减小内存消耗的训练集样本数
@@ -46,7 +47,7 @@ def get_AMM_train_dirs(linear_name, linear_name_full, method, feedback_bits, tra
     return AMM_train_dirs
 
 # 从单batch样本合成大样本集，方便AMM训练 #j1代表合并第一维
-def join_from_intermediate_j1(dir_intermediate, dir_t, bits, intermediate_name, sam_num, trainortest):
+def join_from_intermediate_j1(dir_intermediate, dir_t, dire_train, bits, intermediate_name, sam_num, trainortest):
     #sam_num:合并的样本数;trainortest:合成训练集填"train",测试集填"test"
     linearpath0= os.path.join(dir_intermediate, str(bits), intermediate_name+'_f%i_e39_0.npy' % bits)#例：此处intermediate_name为linear
     linear0 = np.load(linearpath0)
@@ -71,13 +72,13 @@ def join_from_intermediate_j1(dir_intermediate, dir_t, bits, intermediate_name, 
     print("intermediate_name[-3:] == out:",intermediate_name[-3:] == "out")
     if intermediate_name[-3:] == "out": # 如果合并的是out数据集，顺带把y=out-bias也合并了
         linear_name=intermediate_name[:-3]
-        bias = np.load(os.path.join(dir_train, "%s_b_f%i.npy" % (linear_name, bits)))
+        bias = np.load(os.path.join(dire_train, "%s_b_f%i.npy" % (linear_name, bits)))
         y = linear0_join1 - bias
         np.save(os.path.join(dir_t, '%s_y_%s_f%i_sam%i.npy' % (linear_name, trainortest, bits, sam_num)), y) 
     
 
 # 从单batch样本合成大样本集，方便AMM训练 #不需要合并第一维
-def join_from_intermediate(dir_intermediate, dir_t, bits, intermediate_name, sam_num, trainortest):
+def join_from_intermediate(dir_intermediate, dir_t, dire_train, bits, intermediate_name, sam_num, trainortest):
     #sam_num:合并的样本数;trainortest:合成训练集填"train",测试集填"test"
     linearinpath0= os.path.join(dir_intermediate, str(bits), intermediate_name+'_f%i_e39_0.npy' % bits)#例：此处intermediate_name为linearin
     linearin0 = np.load(linearinpath0)
@@ -98,7 +99,7 @@ def join_from_intermediate(dir_intermediate, dir_t, bits, intermediate_name, sam
     np.save(os.path.join(dir_t, '%s_%s_f%i_sam%i.npy' % (intermediate_name,trainortest,bits,sam_num)), linearin0) 
     if intermediate_name[-3:] == "out": #如果合并的是out数据集，顺带把y=out-bias也合并了
         linear_name=intermediate_name[:-3]
-        bias = np.load(os.path.join(dir_t, "%s_b_f%i.npy" % (linear_name, bits)))
+        bias = np.load(os.path.join(dire_train, "%s_b_f%i.npy" % (linear_name, bits)))
         y = linearin0 - bias
         np.save(os.path.join(dir_t, '%s_y_%s_f%i_sam%i.npy' % (linear_name, trainortest, bits, sam_num)), y) 
         
@@ -162,6 +163,7 @@ def dataset_prepare(direc, linear_name_full, feedback_bits, sam_num_list, batch_
     for data_place in data_place_list:
         for train_or_test in tt_list:
             dire = os.path.join(direc, train_or_test, 'f'+str(feedback_bits))
+            dire_train = os.path.join(direc, "train", 'f'+str(feedback_bits))
             if train_or_test == "train":
                 sam_num = sam_num_list[0]
             else:
@@ -183,8 +185,8 @@ def dataset_prepare(direc, linear_name_full, feedback_bits, sam_num_list, batch_
                 else:# 没有更大的数据集
                     print("没有比输入样本数更大的数据集，从样本合成新数据集")
                     if linear_name_full in in_transformer_list: # transformer子模块内的全连接层需要把数据集第一维合并，外的不需要合并
-                        join_from_intermediate_j1(dir_intermediate, dire, feedback_bits, intermediate_name, sam_num, train_or_test)
+                        join_from_intermediate_j1(dir_intermediate, dire, dire_train, feedback_bits, intermediate_name, sam_num, train_or_test)
                     elif linear_name_full in out_transformer_list:
-                        join_from_intermediate(dir_intermediate, dire, feedback_bits, intermediate_name, sam_num, train_or_test)
+                        join_from_intermediate(dir_intermediate, dire, dire_train, feedback_bits, intermediate_name, sam_num, train_or_test)
                 
 
