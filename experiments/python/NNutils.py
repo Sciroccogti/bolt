@@ -27,6 +27,22 @@ elif host_name == 'jm-System-Product-Name':
 else:
     raise NameError("You are running the script in a new computer, please define dir_intermediate")
 
+def create_dir(directory): # 创建（尚未存在的）空目录函数
+    try:
+        os.mkdir(directory)
+    except FileNotFoundError:
+        os.makedirs(directory)
+    except FileExistsError:
+        pass 
+
+def del_linear_suffix(intermediate_name:str): # 删除全连接层名称的尾缀（in、out、_y）
+    if intermediate_name.endswith('_y') or intermediate_name.endswith('in'):
+        linear_name = intermediate_name[:-2]
+    elif intermediate_name.endswith('out'):
+        linear_name = intermediate_name[:-3]
+    else:
+        linear_name = intermediate_name
+    return linear_name
 
 def get_AMM_train_dirs(linear_name, linear_name_full, method, feedback_bits, train_sam_num, test_sam_num):
     AMM_train_dirs = {}
@@ -46,7 +62,7 @@ def get_AMM_train_dirs(linear_name, linear_name_full, method, feedback_bits, tra
 
     return AMM_train_dirs
 
-# 从单batch样本合成大样本集，方便AMM训练 #j1代表合并第一维
+# 从单batch样本合成大样本集（样本从序号0开始），方便AMM训练 #j1代表合并第一维
 def join_from_intermediate_j1(dir_intermediate, dir_t, dire_train, bits, intermediate_name, sam_num, trainortest):
     #sam_num:合并的样本数;trainortest:合成训练集填"train",测试集填"test"
     linearpath0= os.path.join(dir_intermediate, str(bits), intermediate_name+'_f%i_e39_0.npy' % bits)#例：此处intermediate_name为linear
@@ -77,7 +93,7 @@ def join_from_intermediate_j1(dir_intermediate, dir_t, dire_train, bits, interme
         np.save(os.path.join(dir_t, '%s_y_%s_f%i_sam%i.npy' % (linear_name, trainortest, bits, sam_num)), y) 
     
 
-# 从单batch样本合成大样本集，方便AMM训练 #不需要合并第一维
+# 从单batch样本合成大样本集（样本从序号0开始），方便AMM训练 #不需要合并第一维
 def join_from_intermediate(dir_intermediate, dir_t, dire_train, bits, intermediate_name, sam_num, trainortest):
     #sam_num:合并的样本数;trainortest:合成训练集填"train",测试集填"test"
     linearinpath0= os.path.join(dir_intermediate, str(bits), intermediate_name+'_f%i_e39_0.npy' % bits)#例：此处intermediate_name为linearin
@@ -104,7 +120,7 @@ def join_from_intermediate(dir_intermediate, dir_t, dire_train, bits, intermedia
         np.save(os.path.join(dir_t, '%s_y_%s_f%i_sam%i.npy' % (linear_name, trainortest, bits, sam_num)), y) 
         
 
-# 从已合成训练/测试集中提取更小的训练测试集
+# 从已合成训练/测试集中提取更小的1个训练/测试集
 def join_from_joined(dir_t, intermediate_name, bits, joined_sam_num, sam_num, batch_size, trainortest, S1 = 1):# 从已合成训练/测试集中提取更小的训练测试集
     # 例:intermediate_name:'ex_linear1in'
     # joined_sam_num：已合成训练/测试集的样本数
@@ -121,6 +137,35 @@ def join_from_joined(dir_t, intermediate_name, bits, joined_sam_num, sam_num, ba
         bias = np.load(os.path.join(dir_train, "%s_b_f%i.npy" % (linear_name, bits)))
         y = linear_smaller - bias
         np.save(os.path.join(dir_t, '%s_y_%s_f%i_sam%i.npy' % (linear_name, trainortest, bits, sam_num)), y) 
+
+# 从已合成训练/测试集中分割的多个等大小的训练/测试集
+def split_from_joined(dir_t, intermediate_name, bits, joined_sam_num, sam_num, batch_size, trainortest, n_split: int = -1, S1 = 1):# 从已合成训练/测试集中提取更小的训练测试集
+    # 例:intermediate_name:'ex_linear1in'
+    # joined_sam_num：已合成训练/测试集的样本数
+    # sam_num：分割出的*每个*训练/测试集的样本数
+    # n_split: 分割出的训练/测试集的个数。-1表示最大，其他可为正整数
+    # S1对于transformer子模块外的全连接层为1，对于transformer子模块内的全连接层不为1
+    assert joined_sam_num % sam_num == 0 # 大样本集的样本数必须是分割成的小样本集的样本数的整数倍
+    n_split_max = joined_sam_num / sam_num
+    assert (n_split==-1 or n_split>0) and n_split<=n_split_max # nsplit需要为-1或小于等于最大值的正整数
+    if n_split == -1:# n_split: 分割出的训练/测试集的个数。-1表示最大，其他正整数
+        n_split = n_split_max
+    linear_whole = np.load(os.path.join(dir_t,  '%s_%s_f%i_sam%i.npy' % (intermediate_name, trainortest, bits,joined_sam_num)))
+    print("生成的数据集前缀: %s_%s" % (intermediate_name, trainortest))
+    print("原数据集大小: ", linear_whole.shape)
+    linear_name = del_linear_suffix(intermediate_name)
+    dir_split = os.path.join(dir_t, intermediate_name, 'sam_num%i' % sam_num)
+    create_dir(dir_split)
+    bias = np.load(os.path.join(dir_train, "%s_b_f%i.npy" % (linear_name, bits)))
+    for i_split in range(n_split):
+        linear_smaller = linear_whole[np.ix_(range(i_split*sam_num*batch_size*S1, (i_split+1)*sam_num*batch_size*S1), range(linear_whole.shape[1]))]
+        if i_split == 0:
+            print("提取后每个数据集大小: ", linear_smaller.shape)
+            print("提取后小数据集个数: ", n_split)
+        np.save(os.path.join(dir_split, '%s_%s_f%i_sam%i_i%i.npy' % (intermediate_name, trainortest, bits, sam_num, i_split)), linear_smaller) 
+        if intermediate_name[-3:] == "out":
+            y = linear_smaller - bias
+            np.save(os.path.join(dir_split, '%s_y_%s_f%i_sam%i_i%i.npy' % (linear_name, trainortest, bits, sam_num, i_split)), y) 
 
 
 def findfiles(dire, file_str):
