@@ -72,7 +72,7 @@ class PQMatmul(VQMatmul):
                             quantize_lut=self.quantize_lut, **self._get_encoder_kwargs())
 
     def _get_ncentroids(self):
-        return 256
+        return self.ncentroids
 
     def get_speed_metrics(self, A, B, fixedA=False, fixedB=False):
         # data encoding and LUT costs
@@ -528,3 +528,17 @@ class MithralPQ(MithralMatmul):
 
     def __init__(self, ncodebooks, ncentroids: int = 16, quantize_lut=True):
         super().__init__(ncodebooks=ncodebooks, ncentroids=ncentroids, lut_work_const=1, quantize_lut=quantize_lut)
+
+    def _create_encoder(self, ncodebooks):  # to be overriden by subclasses
+        return vq.PQEncoder(ncodebooks=ncodebooks, ncentroids=self.ncentroids,
+                            quantize_lut=self.quantize_lut, **self._get_encoder_kwargs())
+
+    def set_B(self, B):
+        self.luts = self.enc.encode_Q(B.T)
+
+    def __call__(self, A, B):
+        if self.A_enc is None:
+            self.set_A(A)
+        if self.luts is None:
+            self.set_B(B)
+        return self.enc.dists_enc(self.A_enc, self.luts)
