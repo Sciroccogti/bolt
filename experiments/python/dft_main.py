@@ -27,6 +27,7 @@ class Transceiver:
         self.Symbol_num = params['Symbol_num']
         self.matmul_method = params['matmul_method']
         self.ldpc_rate = params['ldpc_rate']
+        self.quantize_lut = params['quantize_lut']
 
         self.bitpilot = self.Bit_create(
             self.qAry * self.Ncarrier * self.Symbol_num)  # 列向量
@@ -276,9 +277,9 @@ class Transceiver:
         TestFrame = self.params['TestFrame']
         Bitlen = self.qAry * self.Ncarrier * self.Symbol_num
         if self.ldpc_rate < 1:
-            encoder = LDPC5GEncoder(Bitlen * self.ldpc_rate,
-                                    Bitlen, dtype=tf.int64)
-            decoder = LDPC5GDecoder(encoder=encoder, num_iter=self.params['LDPC_iter'], hard_out=True)
+            encoder = LDPC5GEncoder(Bitlen * self.ldpc_rate, Bitlen, dtype=tf.int64)
+            decoder = LDPC5GDecoder(
+                encoder=encoder, num_iter=self.params['LDPC_iter'], hard_out=True)
 
         dft_est = None
         idft_est = None
@@ -286,11 +287,13 @@ class Transceiver:
             dft_est = mm.estFactory(methods=[METHOD_EXACT], verbose=3,  # TODO: change to matmul_method
                                     ncodebooks=self.params["ncodebooks"],
                                     ncentroids=self.params["ncentroids"],
-                                    X_path="DFT_X.npy", W_path="DFT_W.npy", Y_path="DFT_Y.npy", dir="dft")
+                                    X_path="DFT_X.npy", W_path="DFT_W.npy", Y_path="DFT_Y.npy",
+                                    dir="dft", quantize_lut=self.quantize_lut)
             idft_est = mm.estFactory(methods=[self.matmul_method],
                                      ncodebooks=self.params["ncodebooks"],
                                      ncentroids=self.params["ncentroids"],
-                                     X_path="IDFT_X.npy", W_path="IDFT_W.npy", Y_path="IDFT_Y.npy", dir="dft")
+                                     X_path="IDFT_X.npy", W_path="IDFT_W.npy", Y_path="IDFT_Y.npy",
+                                     dir="dft", quantize_lut=self.quantize_lut)
         else:
             assert self.matmul_method == METHOD_EXACT, "Other methods not supported!"
         for i, SNR in enumerate(SNRs):
@@ -469,10 +472,10 @@ class Transceiver:
     def create_Traindata(self, SNR):
         sample = 25000
         DFT_Xtrain = np.zeros((sample, 20), dtype=complex)
-        DFT_Ytrain = np.zeros((sample, 128), dtype=complex)
+        DFT_Ytrain = np.zeros((sample, self.Nifft), dtype=complex)
         DFT_W = self.DFTm[0:20]  # 20*128
 
-        IDFT_Xtrain = np.zeros((sample, 128), dtype=complex)
+        IDFT_Xtrain = np.zeros((sample, self.Nifft), dtype=complex)
         IDFT_Ytrain = np.zeros((sample, 20), dtype=complex)
         IDFT_W = self.IDFTm[:, 0:20]  # 128*20
         sigma_2 = np.power(10, (SNR / 10))
@@ -719,6 +722,7 @@ params = {
     'LDPC_iter': 50,
     'ncodebooks': 64,
     'ncentroids': 16,
+    'quantize_lut': True,
     'matmul_method': METHOD_MITHRAL
 }
 

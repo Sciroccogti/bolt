@@ -384,7 +384,7 @@ class PQEncoder(MultiCodebookEncoder):
 
     def __init__(self, ncodebooks, ncentroids=256,
                  elemwise_dist_func=dists_elemwise_dot,
-                 preproc='PQ', encode_algo=None, quantize_lut=True, # TODO
+                 preproc='PQ', encode_algo=None, quantize_lut=True,
                  upcast_every=-1, accumulate_how='sum',
                  **preproc_kwargs):
         super().__init__(
@@ -603,12 +603,13 @@ def _mithral_quantize_luts(luts, lut_work_const, force_power_of_2=True):
 
 class MithralEncoder(MultiCodebookEncoder):
 
-    def __init__(self, ncodebooks, ncentroids: int, nonzeros_heuristic='pq',lut_work_const=-1):
+    def __init__(self, ncodebooks, ncentroids: int, nonzeros_heuristic='pq',
+                 lut_work_const=-1, quantize_lut=True):
         super().__init__(
             ncodebooks=ncodebooks, ncentroids=ncentroids,
             # quantize_lut=True, upcast_every=64,
             # quantize_lut=True, upcast_every=32,
-            quantize_lut=True, upcast_every=16,
+            quantize_lut=quantize_lut, upcast_every=16,
             # quantize_lut=True, upcast_every=8,
             # quantize_lut=True, upcast_every=4,
             # quantize_lut=True, upcast_every=2,
@@ -634,11 +635,12 @@ class MithralEncoder(MultiCodebookEncoder):
         idxs = clusterize.mithral_encode(X, self.splits_lists)
         return idxs + self.offsets
 
-    def encode_Q(self, Q, quantize=True):
+    def encode_Q(self, Q):
+        '''Q是B的转置，本函数会在读入矩阵B的时候调用，即 set_B'''
         Q = np.atleast_2d(Q)
         luts = np.zeros((Q.shape[0], self.ncodebooks, self.ncentroids))
         for i, q in enumerate(Q):
-            luts[i] = clusterize.mithral_lut(q, self.centroids)
+            luts[i] = clusterize.mithral_lut(q, self.centroids) # 此时 luts 为 float64
         if self.quantize_lut:
             luts, offset, scale = _mithral_quantize_luts(luts, self.lut_work_const)
             return luts, offset, scale
@@ -648,12 +650,13 @@ class MithralEncoder(MultiCodebookEncoder):
 
 class VingiloteEncoder(MultiCodebookEncoder):
 
-    def __init__(self, ncodebooks, ncentroids: int, lut_work_const=-1):
+    def __init__(self, ncodebooks, ncentroids: int, lut_work_const=-1,
+                 quantize_lut=True):
         super().__init__(
             ncodebooks=ncodebooks, ncentroids=ncentroids,
             # quantize_lut=True, upcast_every=64,
             # quantize_lut=True, upcast_every=32,
-            quantize_lut=True, upcast_every=16,
+            quantize_lut=quantize_lut, upcast_every=16,
             # quantize_lut=True, upcast_every=8,
             # quantize_lut=True, upcast_every=4,
             # quantize_lut=True, upcast_every=2,
@@ -678,7 +681,7 @@ class VingiloteEncoder(MultiCodebookEncoder):
         idxs = clusterize.mithral_encode(X, self.splits_lists)
         return idxs + self.offsets
 
-    def encode_Q(self, Q, quantize=True):
+    def encode_Q(self, Q):
         Q = np.atleast_2d(Q)
         luts = np.zeros((Q.shape[0], self.ncodebooks, self.ncentroids))
         for i, q in enumerate(Q):
@@ -701,12 +704,13 @@ class PlutoEncoder(MultiCodebookEncoder):
         objective='mse',
         accumulate_how='mean',
         lut_work_const=-1,
+        quantize_lut=True
     ):
         super().__init__(
             ncodebooks=ncodebooks, ncentroids=ncentroids,
             # quantize_lut=True, upcast_every=64,
             # quantize_lut=True, upcast_every=32,
-            quantize_lut=True, upcast_every=16,
+            quantize_lut=quantize_lut, upcast_every=16,
             # quantize_lut=True, upcast_every=8,
             # quantize_lut=True, upcast_every=4,
             # quantize_lut=True, upcast_every=2,
