@@ -141,13 +141,13 @@ class Bucket(object):
     def col_variances(self, safe=False):
         if self.N < 1:
             return np.zeros(self.D, dtype=np.float32)
-        E_X2 = self.sumX2 / self.N
-        E_X = self.sumX / self.N
-        ret = E_X2 - (E_X * E_X)
+        E_X2 = self.sumX2 / self.N # 列X^2的期望
+        E_X = self.sumX / self.N # 列的期望
+        ret = E_X2 - (E_X * E_X) # 列方差
         return np.maximum(0, ret) if safe else ret
 
     def col_sum_sqs(self):
-        return self.col_variances() * self.N
+        return self.col_variances() * self.N #列SSE
 
     @property
     def loss(self):
@@ -716,11 +716,11 @@ def learn_multisplits(
                 dim_scores += np.abs(v)
                 # X_buck -= X_buck.mean(axis=0)
             try_dims = np.argsort(dim_scores)[-try_ndims:]
-        elif dim_heuristic == 'bucket_sse':
+        elif dim_heuristic == 'bucket_sse': # 运行此分支
             col_losses[:] = 0
             for buck in buckets:
                 col_losses += buck.col_sum_sqs()
-            try_dims = np.argsort(col_losses)[-try_ndims:]
+            try_dims = np.argsort(col_losses)[-try_ndims:] # 寻找损失最大的4列
         elif dim_heuristic == 'kurtosis':
             # compute X_res
             if s > 0:
@@ -771,19 +771,21 @@ def learn_multisplits(
         # vals for all buckets
         best_tried_dim_idx = np.argmin(losses)
         best_dim = try_dims[best_tried_dim_idx]
-        use_split_vals = all_split_vals[best_tried_dim_idx]
-        split = MultiSplit(dim=best_dim, vals=use_split_vals)
+        use_split_vals = all_split_vals[best_tried_dim_idx] # 分割后性能最好的列的分割阈值
+        split = MultiSplit(dim=best_dim, vals=use_split_vals) # MultiSplit类：记录列号和该列分割阈值，可设定偏移值和放缩因子
         if learn_quantize_params:
             # simple version, which also handles 1 bucket: just set min
             # value to be avg of min splitval and xval, and max value to
             # be avg of max splitval and xval
-            x = X[:, best_dim]
-            offset = (np.min(x) + np.min(use_split_vals)) / 2
+            x = X[:, best_dim] # 分割后性能最好的列
+            offset = (np.min(x) + np.min(use_split_vals)) / 2 
             upper_val = (np.max(x) + np.max(use_split_vals)) / 2 - offset
             scale = 254. / upper_val
             if learn_quantize_params == 'int16': # TODO: changed by itlumm
                 try:
                     scale = 2. ** int(np.log2(scale))
+                    if verbose > 2:
+                        print("learn_multisplits\nscale:\n",scale)
                 except:
                     print(f"split err: upper_val{upper_val} offset{offset}")
                     print(f"  oldvals:{split.vals}")
@@ -793,10 +795,17 @@ def learn_multisplits(
                     print(f"  newvals:{splitvals}")
 
             split.offset = offset
+            if verbose > 2:
+                print("split.offset", split.offset)
             split.scaleby = scale
+            if verbose > 2:
+                print("split.scaleby", split.scaleby)
+                print("split.vals before", split.vals)
             split.vals = (split.vals - split.offset) * split.scaleby
             split.vals = np.clip(split.vals, 0, 255).astype(np.int32)
-
+            if verbose > 2:
+                print("split.vals after", split.vals)
+            
         splits.append(split)
 
         # apply this split to get next round of buckets
@@ -826,6 +835,7 @@ def learn_multisplits(
     ret = [splits, loss]
     if return_centroids:
         centroids = np.vstack([buck.col_means() for buck in buckets])
+        print("learn_multisplits\ncentroids:\n", centroids)
         assert centroids.shape == (len(buckets), X.shape[1])
         ret.append(centroids)
         # return splits, loss, centroids
@@ -1698,6 +1708,7 @@ def _learn_mithral_initialization(X, ncodebooks, ncentroids: int=16,
     print(f'_learn_mithral_initialization heuristic {nonzeros_heuristic}')
 
     N, D = X.shape # A矩阵的大小
+
     ncentroids_per_codebook = ncentroids # 每个码本的质心数
 
     X = X.astype(np.float32) 
@@ -1710,7 +1721,7 @@ def _learn_mithral_initialization(X, ncodebooks, ncentroids: int=16,
     # 'start' would mess up OPQ badly
     pq_idxs = _pq_codebook_start_end_idxs(X, ncodebooks, algo='end')
     subvec_len = int(np.ceil(D / ncodebooks))  # for non-pq heuristics
-
+    
     if nonzeros_heuristic in ('r2', 'opq'):
         if nonzeros_heuristic == 'r2':
             reordered_ixs = group_X_cols_r2(X)
@@ -1727,7 +1738,7 @@ def _learn_mithral_initialization(X, ncodebooks, ncentroids: int=16,
             my_ixs.append(np.array(c_idxs))
         assert(my_ixs_set == set(list(range(0, D))))
 
-
+    
     # ------------------------ 0th iteration; initialize all codebooks
     all_splits = []
     all_buckets = []
@@ -1746,7 +1757,7 @@ def _learn_mithral_initialization(X, ncodebooks, ncentroids: int=16,
             idxs = np.argsort(np.abs(v))[:-subvec_len]
         elif nonzeros_heuristic in ('r2', 'opq'):
             idxs = my_ixs[c]
-
+        
         use_X_res = X_res[:, idxs] # 取出每个码本的训练矩阵
         use_X_orig = X_orig[:, idxs]
         #print(np.corrcoef(X_orig[:,idxs], rowvar=False))
@@ -1769,6 +1780,8 @@ def _learn_mithral_initialization(X, ncodebooks, ncentroids: int=16,
                 # update centroid here in case we want to regularize it somehow
                 all_centroids[c, b] = centroid
 
+        
+        # print("_learn_mithral_initialization\nall_centroids:\n", all_centroids)
         # print("X_res mse / X mse: ",
         #       (X_res * X_res).mean() / (X_orig * X_orig).mean())
 
@@ -1973,6 +1986,7 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
 
     if return_buckets:
         return all_splits, all_centroids, all_buckets
+    print("learn_mithral\nall_centroids:\n", all_centroids)
     return all_splits, all_centroids
 
 

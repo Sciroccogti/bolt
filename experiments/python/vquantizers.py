@@ -603,12 +603,12 @@ def _mithral_quantize_luts(luts, lut_work_const, force_power_of_2=True):
 
 class MithralEncoder(MultiCodebookEncoder):
 
-    def __init__(self, ncodebooks, ncentroids: int, nonzeros_heuristic='pq',lut_work_const=-1):
+    def __init__(self, ncodebooks, ncentroids: int, nonzeros_heuristic='pq', lut_work_const=-1, quantize_lut=True):
         super().__init__(
             ncodebooks=ncodebooks, ncentroids=ncentroids,
             # quantize_lut=True, upcast_every=64,
             # quantize_lut=True, upcast_every=32,
-            quantize_lut=True, upcast_every=16,
+            quantize_lut=quantize_lut, upcast_every=16,
             # quantize_lut=True, upcast_every=8,
             # quantize_lut=True, upcast_every=4,
             # quantize_lut=True, upcast_every=2,
@@ -634,13 +634,16 @@ class MithralEncoder(MultiCodebookEncoder):
         idxs = clusterize.mithral_encode(X, self.splits_lists)
         return idxs + self.offsets
 
-    def encode_Q(self, Q, quantize=True):
+    def encode_Q(self, Q):
         Q = np.atleast_2d(Q)
         luts = np.zeros((Q.shape[0], self.ncodebooks, self.ncentroids))
+        print("刚好在生成lut的代码前的质心：\n", self.centroids)
         for i, q in enumerate(Q):
             luts[i] = clusterize.mithral_lut(q, self.centroids)
+        print("未量化的luts：\n", luts)
         if self.quantize_lut:
             luts, offset, scale = _mithral_quantize_luts(luts, self.lut_work_const)
+            print("量化的luts：\n", luts)
             return luts, offset, scale
 
         return luts, 0, 1

@@ -472,9 +472,10 @@ class PlutoMatmul(VQMatmul):
 
 class MithralMatmul(VQMatmul):
 
-    def __init__(self, ncodebooks, ncentroids: int = 16, nonzeros_heuristic="pq", lut_work_const=-1):
+    def __init__(self, ncodebooks, ncentroids: int = 16, nonzeros_heuristic="pq", lut_work_const=-1, quantize_lut = True):
         self.nonzeros_heuristic = nonzeros_heuristic
         self.lut_work_const = lut_work_const
+        self.quantize_lut = quantize_lut
         if (lut_work_const is not None) and (lut_work_const > 0) and (
                 lut_work_const > ncodebooks):
             raise amm.InvalidParametersException(
@@ -494,6 +495,7 @@ class MithralMatmul(VQMatmul):
             ncentroids=self.ncentroids,
             nonzeros_heuristic=self.nonzeros_heuristic,
             lut_work_const=self.lut_work_const,
+            quantize_lut = self.quantize_lut
         )
         return mithral_enc
 
