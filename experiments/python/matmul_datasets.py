@@ -29,13 +29,14 @@ DFT_DIR = os.path.join(_dir, '..', 'assets', 'dft')
 class MatmulTask(object):
 
     def __init__(self, X_train, Y_train, X_test, Y_test, W_train, W_test=None,
-                 name=None, info=None):
+                 bias=None, name=None, info=None):
         self.X_train = X_train
         self.Y_train = Y_train
         self.X_test = X_test
         self.Y_test = Y_test
         self.W_train = W_train
         self.W_test = W_test if W_test is not None else W_train
+        self.bias = bias
         self.name = name
         self.info = info if info is not None else {}
 
@@ -614,10 +615,11 @@ def load_dft_tasks():
                        name='DFT test')]
 
 
-def load_dft_train(X_path, W_path, Y_path, dir):
+def load_dft_train(X_path, W_path, Y_path, dir, bias_path=""):
     DFT_INPUTS_TRAIN_PATH = X_path
     DFT_OUTPUTS_TRAIN_PATH = Y_path
     DFT_MATRIX_PATH = W_path
+    LINEAR_BIAS_PATH = bias_path
 
     def load_mat(fname):
         DIR = os.path.join(_dir, '..', 'assets', dir)
@@ -627,10 +629,14 @@ def load_dft_train(X_path, W_path, Y_path, dir):
     X_train = load_mat(DFT_INPUTS_TRAIN_PATH)
     Y_train = load_mat(DFT_OUTPUTS_TRAIN_PATH)
     W = load_mat(DFT_MATRIX_PATH)
-
-    # info = {'dft': 'myDFT'}
-    return [MatmulTask(X_train, Y_train, None, None, W,
-                       name='DFT')]
+    if LINEAR_BIAS_PATH != "":
+        bias = load_mat(LINEAR_BIAS_PATH)
+        return [MatmulTask(X_train, Y_train, None, None, W,
+                       bias=bias, name='DFT')]
+    else:
+        # info = {'dft': 'myDFT'}
+        return [MatmulTask(X_train, Y_train, None, None, W,
+                        name='DFT')]
 
 
 def load_dft_test():

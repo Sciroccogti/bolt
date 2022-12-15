@@ -17,11 +17,9 @@ pip3 install ./third_party/kmc2/ # 安装 kmc2
 
 #### Windows 上安装教程
 
-1. 请使用Python3.5以上版本进行使用，在Python3.8环境本例测试通过。推荐使用本地Python环境，Anaconda虚拟环境请自行寻找安装`setup.py`的包的方法
-
-2. 推荐使用Pycharm作为你的IDE工具，根据调试提示安装缺失的包`pip install [你所需要的包]`
-
-3. kmc2包是根据论文实现的K-means初始化算法，如果使用包管理工具 **最新的版本是无法适用于python3环境的！** ，请使用仓库[kmc2](https://gitee.com/dxone/kmc2.git)的`mneilly/cythonize`分支程序。将其下载后通过命令行
+1. 请使用Python3.5以上版本进行使用，在Python3.8环境本例测试通过。推荐使用本地Python环境，Anaconda虚拟环境请自行寻找安装 `setup.py`的包的方法
+2. 推荐使用Pycharm作为你的IDE工具，根据调试提示安装缺失的包 `pip install [你所需要的包]`
+3. kmc2包是根据论文实现的K-means初始化算法，如果使用包管理工具 **最新的版本是无法适用于python3环境的！** ，请使用仓库[kmc2](https://gitee.com/dxone/kmc2.git)的 `mneilly/cythonize`分支程序。将其下载后通过命令行
 
    【更新】因为管理政策，gitee现在不能保证正常访问，以下为github的原地址，自行找方法访问：https://github.com/mneilly/kmc2.git
 
@@ -29,11 +27,12 @@ pip3 install ./third_party/kmc2/ # 安装 kmc2
 python setup.py build
 python setup.py install
 ```
+
 即可安装
 
-4.  kmc2包可能需要 `Microsoft Visual C++ 14.0`环境，可以自行在网络寻找，或向我们要求安装包
+4. kmc2包可能需要 `Microsoft Visual C++ 14.0`环境，可以自行在网络寻找，或向我们要求安装包
+5. 数据集文件默认需要放置在 `C:\\Users\\user\\Desktop\\datasets\\caltech\\101_ObjectCategories`（用户名无所谓，取的就是桌面后路径，这是caltech数据集的位置）请将数据集文件放置妥当，数据集如下：
 
-5.  数据集文件默认需要放置在`C:\\Users\\user\\Desktop\\datasets\\caltech\\101_ObjectCategories`（用户名无所谓，取的就是桌面后路径，这是caltech数据集的位置）请将数据集文件放置妥当，数据集如下：
 - [Caltech-101](http://www.vision.caltech.edu/Image_Datasets/Caltech101/) - The dataset we extracted image patches from.
 - [UCR Time Series Archive](https://www.cs.ucr.edu/~eamonn/time_series_data/) - The corpus we used to compare AMM methods across many datasets in a unified manner.
 - [CIFAR-10 and CIFAR-100](https://www.cs.toronto.edu/~kriz/cifar.html).
@@ -41,6 +40,8 @@ python setup.py install
 部分数据集需要外网访问环境，请自行寻找方法或向我们咨询
 
 #### 说明
+
+MADDNESS的学习函数_learn_mithral_initialization()、learn_mithral()在clusterize.py文件里。vquantizers.py文件中class MithralEncoder fit()调用了learn_mithral()。
 
 Bolt 中使用了 [Joblib](https://joblib.readthedocs.io/en/latest/index.html) 来缓存计算结果，
 可以通过删除运行目录下的 `__pycache__` 文件夹来清除缓存。
@@ -51,11 +52,10 @@ Bolt 中使用了 [Joblib](https://joblib.readthedocs.io/en/latest/index.html) �
 
 在之前的测试中我们研究了DFT和神经网络辅助MAP解码器两个场景，在代码中的入口如下：
 
-1. 论文开源部分：论文开源代码的入口函数为`bolt-master/experiments/python/amm_main.py`，数据集读取函数`bolt-master/experiments/python/matmul_datasets.py`，数据集的位置如前所述
+1. 论文开源部分：论文开源代码的入口函数为 `bolt-master/experiments/python/amm_main.py`，数据集读取函数 `bolt-master/experiments/python/matmul_datasets.py`，数据集的位置如前所述
+2. 改造部分：将预测器和预测方法抽象，放在函数 `bolt-master/experiments/python/matmul.py`中，其中核心函数两个：
 
-2. 改造部分：将预测器和预测方法抽象，放在函数`bolt-master/experiments/python/matmul.py`中，其中核心函数两个：
-
-   -  `estFactory()`：构造一个预测器并使用训练集进行训练，返回一个预测器`est`，注意必须传入的参数为：
+   - `estFactory()`：构造一个预测器并使用训练集进行训练，返回一个预测器 `est`，注意必须传入的参数为：
 
    ```python
    X_path="",  # 乘数矩阵X的训练集文件名
@@ -76,7 +76,7 @@ Bolt 中使用了 [Joblib](https://joblib.readthedocs.io/en/latest/index.html) �
 
 将复数乘法通过拼接转变为实数矩阵乘法。
 
-替换了IDFT和DFT两个数乘步骤，训练集存放在`bolt-master/experiments/assets/dft`目录中，测试中实时生成测试数据。训练集生成函数为`create_Traindata()`
+替换了IDFT和DFT两个数乘步骤，训练集存放在 `bolt-master/experiments/assets/dft`目录中，测试中实时生成测试数据。训练集生成函数为 `create_Traindata()`
 
 给出这个场景下的训练集位置的使用例：
 
@@ -105,8 +105,7 @@ W:(16*2)*128 = 32*128
 
 左边的黄色线框是将最后一个全连接层替换后的替代函数，其中的矩阵乘法部分可以替换为无乘法方案。我们给出具体的代码整理：
 
-1. 入口函数：入口函数文件为`bolt-master/experiments/python/LDPC_decoder_NET_main.py`，它只进行训练和给出最终结果的工作，之后需要将结果嵌入到网络代码中
-
+1. 入口函数：入口函数文件为 `bolt-master/experiments/python/LDPC_decoder_NET_main.py`，它只进行训练和给出最终结果的工作，之后需要将结果嵌入到网络代码中
 2. 数据集：
 
    ```python
@@ -125,6 +124,7 @@ W:(16*2)*128 = 32*128
 本程序将尝试替换解码器的后两层
 
 程序中
+
 - `baseline` 是指用方形 QAM 非神经网络解调
 - `conventional` 是指用训练后的星座和神经网络进行解调
 - `boltConventional` 是指用训练后的星座和用加速矩阵乘法替换后的神经网络进行解调
@@ -134,9 +134,9 @@ W:(16*2)*128 = 32*128
 最后，运行 [boltConventional.py](./boltConventional.py) 来测试加速矩阵乘法替换后的性能，也会绘制 BLER 曲线。
 
 使用方法：
+
 1. `pip3 install sionna`
 2. `cd experiments/python`
 3. `python3 -m NVIDIAsionna.train` 训练神经网络
-3. `python3 -m NVIDIAsionna.eval` 测试神经网络
-4. `python3 boltConventional.py` 测试加速矩阵乘法替换
-
+4. `python3 -m NVIDIAsionna.eval` 测试神经网络
+5. `python3 boltConventional.py` 测试加速矩阵乘法替换
