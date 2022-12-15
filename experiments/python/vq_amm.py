@@ -57,7 +57,7 @@ class VQMatmul(amm.ApproxMatmul, abc.ABC):
             self.set_A(A)
         if self.luts is None:
             self.set_B(B)
-        return self.enc.dists_enc(self.A_enc, self.luts)
+        return self.enc.dists_enc(self.A_enc, self.luts, self.quantize_lut)
 
     def get_params(self):
         return {'ncodebooks': self.ncodebooks}

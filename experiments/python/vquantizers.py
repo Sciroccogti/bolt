@@ -122,7 +122,7 @@ def _learn_best_quantization(luts):
         alpha_pct = 100 * alpha
 
         # compute quantized luts this alpha would yield
-        floors = np.percentile(luts, alpha_pct, axis=0)
+        floors = np.percentile(luts, alpha_pct, axis=0) # 数据中从小到大百分之 alpha_pct的位置的值
         luts_offset = np.maximum(0, luts - floors)
 
         ceil = np.percentile(luts_offset, 100 - alpha_pct)
