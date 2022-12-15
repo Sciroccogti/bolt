@@ -250,9 +250,13 @@ def _fitted_est_for_hparams(method_id, hparams_dict, X_train, W_train,
 
 def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
                verbose=1, limit_ntasks=-1, tasks_all_same_shape=False, tasks=None,
+<<<<<<< experiments/python/matmul.py
                X_path="", W_path="", Y_path="", dir="", quantize_lut=True):
+=======
+               X_path="", W_path="", Y_path="", bias_path="", dir="", nbits = 8, quantize_lut = True):
+>>>>>>> experiments/python/matmul.py
     methods = methods.DEFAULT_METHODS if methods is None else methods
-    tasks = md.load_dft_train(X_path, W_path, Y_path, dir) if tasks is None else tasks
+    tasks = md.load_dft_train(X_path, W_path, Y_path, dir, bias_path) if tasks is None else tasks
     if isinstance(methods, str):
         methods = [methods]
     if limit_ntasks is None or limit_ntasks < 1:
@@ -263,7 +267,7 @@ def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
     # nc: 1 2 4 8 16 32
     # lut: 2 4 -1
     if (METHOD_SCALAR_QUANTIZE in methods):
-        hparams_dict = {}
+        hparams_dict = {'nbits': nbits}
     elif (METHOD_HASHJL in methods) or (METHOD_SVD in methods) or (METHOD_FD_AMM in methods):
         hparams_dict = {'d': 2}
     elif (METHOD_SPARSE_PCA in methods):
@@ -275,8 +279,15 @@ def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
         hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids,
                         'lut_work_const': -1, 'quantize_lut': quantize_lut}
     elif (METHOD_MITHRALPQ in methods):
+<<<<<<< experiments/python/matmul.py
         hparams_dict = {'ncodebooks': ncodebooks,
                         'ncentroids': ncentroids, 'quantize_lut': quantize_lut}
+=======
+        hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids}
+    elif (METHOD_MITHRAL in methods):
+        hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids, 
+                        'quantize_lut':quantize_lut}
+>>>>>>> experiments/python/matmul.py
     else:
         hparams_dict = {'ncodebooks': ncodebooks,
                         'ncentroids': ncentroids, 'quantize_lut': quantize_lut}
@@ -302,7 +313,7 @@ def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
             if verbose > 3:
                 print("-------- running task: {} ({}/{})".format(
                     task.name, i + 1, ntasks))
-                task.validate_shapes()  # fail fast if task is ill-formed
+                # task.validate_shapes()  # fail fast if task is ill-formed
 
             can_reuse_est = (
                 (i != 0) and (est is not None)
@@ -319,9 +330,14 @@ def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
             if not can_reuse_est:
                 try:
                     task.W_train = np.atleast_2d(task.W_train)
-                    est = _fitted_est_for_hparams(
-                        method_id, hparams_dict,
-                        task.X_train, task.W_train, task.Y_train)
+                    if bias_path!="":
+                        est = _fitted_est_for_hparams(
+                            method_id, hparams_dict,
+                            task.X_train, task.W_train, task.Y_train, bias=task.bias)
+                    else:
+                        est = _fitted_est_for_hparams(
+                            method_id, hparams_dict,
+                            task.X_train, task.W_train, task.Y_train)
                 except amm.InvalidParametersException as e:
                     # hparams don't make sense for task (eg, D < d)
                     print(f"hparams apparently invalid: {e}")

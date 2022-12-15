@@ -639,10 +639,12 @@ class MithralEncoder(MultiCodebookEncoder):
         '''Q是B的转置，本函数会在读入矩阵B的时候调用，即 set_B'''
         Q = np.atleast_2d(Q)
         luts = np.zeros((Q.shape[0], self.ncodebooks, self.ncentroids))
+        print("刚好在生成lut的代码前的质心：\n", self.centroids)
         for i, q in enumerate(Q):
             luts[i] = clusterize.mithral_lut(q, self.centroids) # 此时 luts 为 float64
         if self.quantize_lut:
             luts, offset, scale = _mithral_quantize_luts(luts, self.lut_work_const)
+            print("量化的luts：\n", luts)
             return luts, offset, scale
 
         return luts, 0, 1

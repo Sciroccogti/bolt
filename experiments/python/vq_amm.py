@@ -6,6 +6,8 @@ import numpy as np
 import vquantizers as vq
 import amm
 
+import torch
+
 KEY_NLOOKUPS = 'nlookups'
 
 
@@ -337,7 +339,7 @@ class PlutoMatmul(VQMatmul):
         self,
         ncodebooks,
         ncentroids: int = 16,
-        activation=None,
+        activation=torch.nn.functional.relu,
         nonzeros_heuristic="pq",
         objective="mse",
         accumulate_how="mean",
@@ -416,6 +418,11 @@ class PlutoMatmul(VQMatmul):
             Y: desired A @ B if not None -- see ApproxMatmul -- ignored
             bias: shape broadcasts when adding A @ B + bias
         """
+        print(Y.shape)
+        print(bias.shape)
+        # print(output.shape)
+        print(type(Y))
+        # print(type(output))
         # TODO use bias with nonlinearity
         _, D = A.shape
         if D < self.ncodebooks:
@@ -425,7 +432,7 @@ class PlutoMatmul(VQMatmul):
         # self.enc.fit sets self.enc.splits_lists and self.enc.centroids
         # self.enc.fit also calls clusterize.learn_pluto
         self.luts, self.offset, self.scale = self.enc.fit(
-            A, B.T, output=output, bias=bias)
+            A, B.T, output=output, bias=bias)#, activation = self.activation)
         self.stddevB0 = np.std(B, axis=0)
         self.stddevB1 = np.std(B, axis=1)
 
@@ -472,6 +479,7 @@ class MithralMatmul(VQMatmul):
     def __init__(self, ncodebooks, ncentroids: int = 16, nonzeros_heuristic="pq", lut_work_const=-1, quantize_lut=True):
         self.nonzeros_heuristic = nonzeros_heuristic
         self.lut_work_const = lut_work_const
+        self.quantize_lut = quantize_lut
         if (lut_work_const is not None) and (lut_work_const > 0) and (
                 lut_work_const > ncodebooks):
             raise amm.InvalidParametersException(

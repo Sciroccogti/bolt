@@ -32,13 +32,13 @@ class Bucket(object):
     def __init__(self, D=None, N=0, sumX=None, sumX2=None, point_ids=None,
                  bucket_id=0, support_add_and_remove=False):
         # self.reset(D=D, sumX=sumX, sumX2=sumX2)
-        # assert point_ids is not None
+        # assert point_ids is not None point_ids是每一行的索引序号
         if point_ids is None:
             assert N == 0
             point_ids = (set() if support_add_and_remove
                          else np.array([], dtype=np.int))
 
-        self.N = len(point_ids)
+        self.N = len(point_ids)# 矩阵行数
         self.id = bucket_id
 
         # this is just so that we can store the point ids as array instead of
@@ -48,7 +48,7 @@ class Bucket(object):
         if support_add_and_remove:
             self.point_ids = set(point_ids)
         else:
-            self.point_ids = np.asarray(point_ids)
+            self.point_ids = np.asarray(point_ids) # 列表转换为array
 
         # figure out D
         if (D is None or D < 1) and (sumX is not None):
@@ -59,8 +59,8 @@ class Bucket(object):
         self.D = D
 
         # figure out + sanity check stats arrays
-        self.sumX = np.zeros(D, dtype=np.float32) if (sumX is None) else sumX
-        self.sumX2 = np.zeros(D, dtype=np.float32) if (sumX2 is None) else sumX2 # noqa
+        self.sumX = np.zeros(D, dtype=np.float32) if (sumX is None) else sumX # X按列求和
+        self.sumX2 = np.zeros(D, dtype=np.float32) if (sumX2 is None) else sumX2 # noqa X^2按列求和
         # print("D: ", D)
         # print("sumX type: ", type(sumX))
         assert len(self.sumX) == D
@@ -91,7 +91,7 @@ class Bucket(object):
             sumX=np.copy(self.sumX), sumX2=np.copy(self.sumX2),
             point_ids=copy.deepcopy(self.point_ids), bucket_id=bucket_id)
 
-    def split(self, X=None, dim=None, val=None, X_orig=None):
+    def split(self, X=None, dim=None, val=None, X_orig=None): # X的dim列按照阈值val切分，将同样的切分方式应用到原来的桶，返回切分后的两个桶
         id0 = 2 * self.id
         id1 = id0 + 1
         if X is None or self.N < 2:  # copy of this bucket + an empty bucket
@@ -105,12 +105,12 @@ class Bucket(object):
         # print("my_idxs shape, dtype", my_idxs.shape, my_idxs.dtype)
         X = X[my_idxs]
         X_orig = X if X_orig is None else X_orig[my_idxs]
-        mask = X_orig[:, dim] < val
+        mask = X_orig[:, dim] < val # X_orig的dim列小于val的值所在的行（返回值为布尔向量）
         not_mask = ~mask
-        X0 = X[mask]
-        X1 = X[not_mask]
-        ids0 = my_idxs[mask]
-        ids1 = my_idxs[not_mask]
+        X0 = X[mask] # X_orig的dim列小于val的值所在的行取出来
+        X1 = X[not_mask] # X_orig的dim列大于等于val的值所在的行取出来
+        ids0 = my_idxs[mask] # X_orig的dim列小于val的值所在的行的序号
+        ids1 = my_idxs[not_mask] # X_orig的dim列大于等于val的值所在的行的序号
 
         def create_bucket(points, ids, bucket_id):
             sumX = points.sum(axis=0) if len(ids) else None
@@ -141,13 +141,13 @@ class Bucket(object):
     def col_variances(self, safe=False):
         if self.N < 1:
             return np.zeros(self.D, dtype=np.float32)
-        E_X2 = self.sumX2 / self.N
-        E_X = self.sumX / self.N
-        ret = E_X2 - (E_X * E_X)
+        E_X2 = self.sumX2 / self.N # 列X^2的期望
+        E_X = self.sumX / self.N # 列的期望
+        ret = E_X2 - (E_X * E_X) # 列方差
         return np.maximum(0, ret) if safe else ret
 
     def col_sum_sqs(self):
-        return self.col_variances() * self.N
+        return self.col_variances() * self.N #列SSE
 
     @property
     def loss(self):
@@ -660,12 +660,13 @@ def learn_multisplits(
         # verbose=2):
         verbose=1):
     # assert nsplits <= 4  # >4 splits means >16 split_vals for this func's impl
+    # X:当前码本的学习数据矩阵 nsplits: 质心数以2为底的对数
 
     X = X.astype(np.float32)
-    N, D = X.shape
+    N, D = X.shape # 数据矩阵的大小
     X_orig = X if X_orig is None else X_orig
 
-    X_hat = np.zeros_like(X)
+    X_hat = np.zeros_like(X) # 定义与X同样大小的全0矩阵
 
     # initially, one big bucket with everything
     buckets = [Bucket(sumX=X.sum(axis=0), sumX2=(X * X).sum(axis=0),
@@ -715,11 +716,11 @@ def learn_multisplits(
                 dim_scores += np.abs(v)
                 # X_buck -= X_buck.mean(axis=0)
             try_dims = np.argsort(dim_scores)[-try_ndims:]
-        elif dim_heuristic == 'bucket_sse':
+        elif dim_heuristic == 'bucket_sse': # 运行此分支
             col_losses[:] = 0
             for buck in buckets:
                 col_losses += buck.col_sum_sqs()
-            try_dims = np.argsort(col_losses)[-try_ndims:]
+            try_dims = np.argsort(col_losses)[-try_ndims:] # 寻找损失最大的4列
         elif dim_heuristic == 'kurtosis':
             # compute X_res
             if s > 0:
@@ -770,19 +771,21 @@ def learn_multisplits(
         # vals for all buckets
         best_tried_dim_idx = np.argmin(losses)
         best_dim = try_dims[best_tried_dim_idx]
-        use_split_vals = all_split_vals[best_tried_dim_idx]
-        split = MultiSplit(dim=best_dim, vals=use_split_vals)
+        use_split_vals = all_split_vals[best_tried_dim_idx] # 分割后性能最好的列的分割阈值
+        split = MultiSplit(dim=best_dim, vals=use_split_vals) # MultiSplit类：记录列号和该列分割阈值，可设定偏移值和放缩因子
         if learn_quantize_params:
             # simple version, which also handles 1 bucket: just set min
             # value to be avg of min splitval and xval, and max value to
             # be avg of max splitval and xval
-            x = X[:, best_dim]
-            offset = (np.min(x) + np.min(use_split_vals)) / 2
+            x = X[:, best_dim] # 分割后性能最好的列
+            offset = (np.min(x) + np.min(use_split_vals)) / 2 
             upper_val = (np.max(x) + np.max(use_split_vals)) / 2 - offset
             scale = 254. / upper_val
             if learn_quantize_params == 'int16': # TODO: changed by itlumm
                 try:
                     scale = 2. ** int(np.log2(scale))
+                    if verbose > 2:
+                        print("learn_multisplits\nscale:\n",scale)
                 except:
                     print(f"split err: upper_val{upper_val} offset{offset}")
                     print(f"  oldvals:{split.vals}")
@@ -792,10 +795,17 @@ def learn_multisplits(
                     print(f"  newvals:{splitvals}")
 
             split.offset = offset
+            if verbose > 2:
+                print("split.offset", split.offset)
             split.scaleby = scale
+            if verbose > 2:
+                print("split.scaleby", split.scaleby)
+                print("split.vals before", split.vals)
             split.vals = (split.vals - split.offset) * split.scaleby
             split.vals = np.clip(split.vals, 0, 255).astype(np.int32)
-
+            if verbose > 2:
+                print("split.vals after", split.vals)
+            
         splits.append(split)
 
         # apply this split to get next round of buckets
@@ -825,6 +835,7 @@ def learn_multisplits(
     ret = [splits, loss]
     if return_centroids:
         centroids = np.vstack([buck.col_means() for buck in buckets])
+        print("learn_multisplits\ncentroids:\n", centroids)
         assert centroids.shape == (len(buckets), X.shape[1])
         ret.append(centroids)
         # return splits, loss, centroids
@@ -993,6 +1004,7 @@ def encoded_pluto(
         bias = torch.tensor(0.)
     else:
         bias = torch.from_numpy(bias)
+    print("encoded_pluto bias:", bias)
  
     P_0_np = all_centroids.reshape(X_bin.shape[1], X_orig.shape[1])
     P_0 = torch.from_numpy(P_0_np)
@@ -1022,6 +1034,7 @@ def encoded_pluto(
         T_star = T_0_np + T_delta
         return T_star
 
+    print("encoded_pluto activation:", activation)
     if activation is None:
         activation = identity
 
@@ -1633,17 +1646,17 @@ def _pq_codebook_start_end_idxs(X, ncodebooks, algo='start'):
     # D = int(D)
     _, D = X.shape
     ncodebooks = int(ncodebooks)
-    assert D >= ncodebooks
+    assert D >= ncodebooks # 列数大于等于码本数
 
-    idxs = np.empty((ncodebooks, 2), dtype=np.int)
-    full_subvec_len = D // ncodebooks
+    idxs = np.empty((ncodebooks, 2), dtype=np.int) #记录每个码本的起始列数与终止列数
+    full_subvec_len = D // ncodebooks # 每个码本的列宽
     start_idx = 0
     for c in range(ncodebooks):
         subvec_len = full_subvec_len
-        if algo == 'start':     # wider codebooks at the start
+        if algo == 'start':     # wider codebooks at the start，适用于列数不是码本数的整数倍时，序号更小的码本列更宽
             if c < (D % ncodebooks):
                 subvec_len += 1
-        elif algo == 'end':     # wider codebooks at the end
+        elif algo == 'end':     # wider codebooks at the end，适用于列数不是码本数的整数倍时，序号更大的码本列更宽
             if (ncodebooks - c - 1) < (D % ncodebooks):
                 subvec_len += 1
         end_idx = min(D, start_idx + subvec_len)
@@ -1694,20 +1707,21 @@ def _learn_mithral_initialization(X, ncodebooks, ncentroids: int=16,
     assert nonzeros_heuristic in heuristics
     print(f'_learn_mithral_initialization heuristic {nonzeros_heuristic}')
 
-    N, D = X.shape
-    ncentroids_per_codebook = ncentroids
+    N, D = X.shape # A矩阵的大小
 
-    X = X.astype(np.float32)
+    ncentroids_per_codebook = ncentroids # 每个码本的质心数
+
+    X = X.astype(np.float32) 
     X_res = X.copy()
     X_orig = X
 
     all_centroids = np.zeros(
-        (ncodebooks, ncentroids_per_codebook, D), dtype=np.float32)
+        (ncodebooks, ncentroids_per_codebook, D), dtype=np.float32) # 质心矩阵大小为码本数×质心数×A矩阵列数
     all_splits = []
     # 'start' would mess up OPQ badly
     pq_idxs = _pq_codebook_start_end_idxs(X, ncodebooks, algo='end')
     subvec_len = int(np.ceil(D / ncodebooks))  # for non-pq heuristics
-
+    
     if nonzeros_heuristic in ('r2', 'opq'):
         if nonzeros_heuristic == 'r2':
             reordered_ixs = group_X_cols_r2(X)
@@ -1724,14 +1738,14 @@ def _learn_mithral_initialization(X, ncodebooks, ncentroids: int=16,
             my_ixs.append(np.array(c_idxs))
         assert(my_ixs_set == set(list(range(0, D))))
 
-
+    
     # ------------------------ 0th iteration; initialize all codebooks
     all_splits = []
     all_buckets = []
     for c in range(ncodebooks):
         if nonzeros_heuristic == 'pq':
             start_idx, end_idx = pq_idxs[c]
-            idxs = np.arange(start_idx, end_idx)
+            idxs = np.arange(start_idx, end_idx) # 每个码本对应的列序号向量
         elif nonzeros_heuristic == 'pca':
             v = subs.top_principal_component(X_res)
             idxs = np.argsort(np.abs(v))[:-subvec_len]
@@ -1743,8 +1757,8 @@ def _learn_mithral_initialization(X, ncodebooks, ncentroids: int=16,
             idxs = np.argsort(np.abs(v))[:-subvec_len]
         elif nonzeros_heuristic in ('r2', 'opq'):
             idxs = my_ixs[c]
-
-        use_X_res = X_res[:, idxs]
+        
+        use_X_res = X_res[:, idxs] # 取出每个码本的训练矩阵
         use_X_orig = X_orig[:, idxs]
         #print(np.corrcoef(X_orig[:,idxs], rowvar=False))
         # learn codebook to soak current residuals
@@ -1766,16 +1780,19 @@ def _learn_mithral_initialization(X, ncodebooks, ncentroids: int=16,
                 # update centroid here in case we want to regularize it somehow
                 all_centroids[c, b] = centroid
 
+        
+        # print("_learn_mithral_initialization\nall_centroids:\n", all_centroids)
         # print("X_res mse / X mse: ",
         #       (X_res * X_res).mean() / (X_orig * X_orig).mean())
 
     return X_res, all_splits, all_centroids, all_buckets
 
 
-@_memory.cache
+# @_memory.cache
 def learn_pluto(
     X, Q, ncodebooks, ncentroids: int, activation, output, bias, **kwargs,
 ):
+    print("learn_pluto activation:", activation)
     objective = kwargs["objective"]
     kwargs.pop("objective", None)
     Q = np.atleast_2d(Q)
@@ -1892,6 +1909,7 @@ def learn_vingilote(
 def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
                   lut_work_const=-1, **kwargs):
     N, D = X.shape
+    print("X.shape: ", X.shape)
     ncentroids_per_codebook = ncentroids
     X_orig = X.astype(np.float32)
 
@@ -1968,6 +1986,7 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
 
     if return_buckets:
         return all_splits, all_centroids, all_buckets
+    print("learn_mithral\nall_centroids:\n", all_centroids)
     return all_splits, all_centroids
 
 
