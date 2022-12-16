@@ -1047,7 +1047,7 @@ def encoded_pluto(
         cosine_target = torch.ones(X_orig.shape[0])
     #rint(f"encoded_pluto A:{X_orig.shape} B:{B.shape} G:{G.shape} P:{P_0.shape} B:{B.shape}")
     def pluto_obj(T_cur):
-        pred_act = activation(G.double() @ T_cur + bias.double())
+        pred_act = activation(G.double() @ T_cur.double() + bias.double())
         if objective == "mse":
             AB_err_loss = torch.sum(torch.square(pred_act - orig_act))
         elif objective == "kld":

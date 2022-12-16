@@ -12,11 +12,12 @@ KEY_NLOOKUPS = 'nlookups'
 
 
 class VQMatmul(amm.ApproxMatmul, abc.ABC):
-    def __init__(self, ncodebooks, ncentroids=None, quantize_lut=True):
+    def __init__(self, ncodebooks, ncentroids=None, quantize_lut=True, nbits=8):
         self.ncodebooks = ncodebooks
         self.ncentroids = (self._get_ncentroids() if ncentroids is None
                            else ncentroids)
         self.quantize_lut = quantize_lut
+        self.nbits = nbits
         self.enc = self._create_encoder(ncodebooks)
         self.reset_for_new_task()
 
@@ -60,6 +61,10 @@ class VQMatmul(amm.ApproxMatmul, abc.ABC):
         if self.luts is None:
             self.set_B(B)
         return self.enc.dists_enc(self.A_enc, self.luts, self.quantize_lut)
+<<<<<<< HEAD
+
+=======
+>>>>>>> temp
 
     def get_params(self):
         return {'ncodebooks': self.ncodebooks}
@@ -71,7 +76,7 @@ class PQMatmul(VQMatmul):
 
     def _create_encoder(self, ncodebooks):  # to be overriden by subclasses
         return vq.PQEncoder(ncodebooks=ncodebooks, ncentroids=self.ncentroids,
-                            quantize_lut=self.quantize_lut, **self._get_encoder_kwargs())
+                            quantize_lut=self.quantize_lut, nbits=self.nbits, **self._get_encoder_kwargs())
 
     def _get_ncentroids(self):
         return self.ncentroids
@@ -294,7 +299,7 @@ class VingiloteMatmul(VQMatmul):
     def _create_encoder(self, ncodebooks):
         return vq.VingiloteEncoder(
             ncodebooks=ncodebooks, lut_work_const=self.lut_work_const,
-            quantize_lut=self.quantize_lut)
+            quantize_lut=self.quantize_lut, ncentroids=16)
 
     def get_params(self):
         return {'ncodebooks': self.ncodebooks,
@@ -339,12 +344,13 @@ class PlutoMatmul(VQMatmul):
         self,
         ncodebooks,
         ncentroids: int = 16,
-        activation=torch.nn.functional.relu,
+        activation=None, # torch.nn.functional.relu,
         nonzeros_heuristic="pq",
         objective="mse",
         accumulate_how="mean",
         lut_work_const=-1,
         quantize_lut=True,
+        nbits = 8
     ):
         self.activation = activation
         self.nonzeros_heuristic = nonzeros_heuristic
@@ -356,7 +362,8 @@ class PlutoMatmul(VQMatmul):
             raise amm.InvalidParametersException(
                 "lut_work_const > ncodebooks: {} > {}".format(
                     lut_work_const, ncodebooks))
-        super().__init__(ncodebooks=ncodebooks, ncentroids=ncentroids, quantize_lut=quantize_lut)
+        super().__init__(ncodebooks=ncodebooks, ncentroids=ncentroids, \
+            quantize_lut=quantize_lut, nbits=nbits)
 
     def _get_ncentroids(self):
         return self.ncentroids
@@ -379,6 +386,7 @@ class PlutoMatmul(VQMatmul):
             accumulate_how=self.accumulate_how,
             lut_work_const=self.lut_work_const,
             quantize_lut=self.quantize_lut,
+            nbits=self.nbits
         )
         return pluto_enc
 
@@ -476,7 +484,8 @@ class PlutoMatmul(VQMatmul):
 
 class MithralMatmul(VQMatmul):
 
-    def __init__(self, ncodebooks, ncentroids: int = 16, nonzeros_heuristic="pq", lut_work_const=-1, quantize_lut=True):
+    def __init__(self, ncodebooks, ncentroids: int = 16, nonzeros_heuristic="pq", \
+        lut_work_const=-1, quantize_lut=True, nbits = 8):
         self.nonzeros_heuristic = nonzeros_heuristic
         self.lut_work_const = lut_work_const
         self.quantize_lut = quantize_lut
@@ -485,7 +494,8 @@ class MithralMatmul(VQMatmul):
             raise amm.InvalidParametersException(
                 "lut_work_const > ncodebooks: {} > {}".format(
                     lut_work_const, ncodebooks))
-        super().__init__(ncodebooks=ncodebooks, ncentroids=ncentroids, quantize_lut=quantize_lut)
+        super().__init__(ncodebooks=ncodebooks, ncentroids=ncentroids, \
+            quantize_lut=quantize_lut, nbits=nbits)
 
     def _get_ncentroids(self):
         return self.ncentroids
@@ -500,6 +510,7 @@ class MithralMatmul(VQMatmul):
             nonzeros_heuristic=self.nonzeros_heuristic,
             lut_work_const=self.lut_work_const,
             quantize_lut=self.quantize_lut,
+            nbits=self.nbits
         )
         return mithral_enc
 
@@ -534,12 +545,14 @@ class MithralMatmul(VQMatmul):
 
 class MithralPQ(MithralMatmul):
 
-    def __init__(self, ncodebooks, ncentroids: int = 16, quantize_lut=True):
-        super().__init__(ncodebooks=ncodebooks, ncentroids=ncentroids, lut_work_const=1, quantize_lut=quantize_lut)
+    def __init__(self, ncodebooks, ncentroids: int = 16, quantize_lut=True, nbits=8):
+        super().__init__(ncodebooks=ncodebooks, ncentroids=ncentroids, lut_work_const=1, \
+                        quantize_lut=quantize_lut, nbits=nbits)
 
     def _create_encoder(self, ncodebooks):  # to be overriden by subclasses
-        return vq.PQEncoder(ncodebooks=ncodebooks, ncentroids=self.ncentroids,
-                            quantize_lut=self.quantize_lut, **self._get_encoder_kwargs())
+        return vq.PQEncoder(ncodebooks=ncodebooks, ncentroids=self.ncentroids, \
+                            quantize_lut=self.quantize_lut, nbits=self.nbits, \
+                            **self._get_encoder_kwargs())
 
     def set_B(self, B):
         self.luts = self.enc.encode_Q(B.T)
