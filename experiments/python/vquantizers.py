@@ -155,8 +155,8 @@ def _learn_best_quantization(luts, nbits=8): #TODO how can nbits change
 
 class MultiCodebookEncoder(abc.ABC):
 
-    def __init__(self, ncodebooks, ncentroids=256, quantize_lut=True, \
-        nbits=8, upcast_every=-1, accumulate_how='sum'):
+    def __init__(self, ncodebooks, ncentroids=256, quantize_lut=True,
+                 nbits=8, upcast_every=-1, accumulate_how='sum'):
         self.ncodebooks = ncodebooks
         self.ncentroids = ncentroids
         self.quantize_lut = quantize_lut
@@ -181,7 +181,7 @@ class MultiCodebookEncoder(abc.ABC):
         return {'ncodebooks': self.ncodebooks,
                 'code_bits': self.code_bits, 'quantize_lut': self.quantize_lut, 'nbits':self.nbits}
 
-    def _learn_lut_quantization(self, X, Q=None, nbits = 8):
+    def _learn_lut_quantization(self, X, Q=None, nbits=8):
         if self.quantize_lut:  # TODO put this logic in separate function
             print("learning quantization...")
 
@@ -231,18 +231,7 @@ class MultiCodebookEncoder(abc.ABC):
         X_enc = np.ascontiguousarray(X_enc) # has shape (N x C) with values in [0, K-1]
         # Q_luts has shape (M x C x K)
         #rint(Q_luts.shape)
-        # print("运行了dist_enc")
-        # print("self.nbits:\n", self.nbits)
-        # print("self.upcast_every:\n", self.upcast_every)
-        # print("self.quantize_lut:\n", self.quantize_lut)
-        # print("self.accumulate_how:\n", self.accumulate_how)
-        # print("Q_luts:\n", Q_luts)
-        # print("offset:\n", offset)
-        # print("self.total_lut_offset:\n",self.total_lut_offset)
-        # print("scale:\n", scale)
-        # print("self.scale_by:\n", self.scale_by)
-        # print("unquantize:\n", unquantize)
-        
+
         if unquantize:
             offset = self.total_lut_offset if offset is None else offset
             scale = self.scale_by if scale is None else scale
@@ -273,7 +262,6 @@ class MultiCodebookEncoder(abc.ABC):
                     # sum upcast_every vals, then clip to mirror saturating
                     # unsigned addition, then sum without saturation (like u16)
                     dists = dists.sum(2)
-                    print("dist:\n", dists)
                     quantize_max_level = 2 ** self.nbits
                     # dists = np.clip(dists, 0, 255).sum(axis=-1)
                     dists = np.clip(dists, 0, quantize_max_level-1).sum(axis=-1) # 由8bit的255层级变为自定义比特的自定义层级
@@ -400,16 +388,16 @@ def _fit_pq_lut(q, centroids, elemwise_dist_func):
 
 class PQEncoder(MultiCodebookEncoder):
 
-    def __init__(self, ncodebooks, ncentroids=256,\
-                 elemwise_dist_func=dists_elemwise_dot,\
-                 preproc='PQ', encode_algo=None, quantize_lut=True,\
-                 nbits = 8, upcast_every=-1, accumulate_how='sum',\
+    def __init__(self, ncodebooks, ncentroids=256,
+                 elemwise_dist_func=dists_elemwise_dot,
+                 preproc='PQ', encode_algo=None, quantize_lut=True,
+                 nbits=8, upcast_every=-1, accumulate_how='sum',
                  **preproc_kwargs):
-        super().__init__(\
-                ncodebooks=ncodebooks, ncentroids=ncentroids,\
-                quantize_lut=quantize_lut, nbits=nbits,\
-                upcast_every=upcast_every,\
-                accumulate_how=accumulate_how)
+        super().__init__(
+            ncodebooks=ncodebooks, ncentroids=ncentroids,
+            quantize_lut=quantize_lut, nbits=nbits,
+            upcast_every=upcast_every,
+            accumulate_how=accumulate_how)
         self.elemwise_dist_func = elemwise_dist_func
         self.preproc = preproc
         self.encode_algo = encode_algo
@@ -629,7 +617,7 @@ def _mithral_quantize_luts(luts, lut_work_const, nbits=8, force_power_of_2=True)
 class MithralEncoder(MultiCodebookEncoder):
 
     def __init__(self, ncodebooks, ncentroids: int, nonzeros_heuristic='pq',
-                 lut_work_const=-1, quantize_lut=True, nbits = 8):
+                 lut_work_const=-1, quantize_lut=True, nbits=8):
         super().__init__(
             ncodebooks=ncodebooks, ncentroids=ncentroids,
             # quantize_lut=True, upcast_every=64,
@@ -647,9 +635,9 @@ class MithralEncoder(MultiCodebookEncoder):
         return "{}_{}".format('mithral', super().name())
 
     def params(self):
-        return {'ncodebooks': self.ncodebooks, 'ncentroids': self.ncentroids,\
-                'lut_work_const': self.lut_work_const, 'quantize_lut':self.quantize_lut, \
-                    'nbits': self.nbits}
+        return {'ncodebooks': self.ncodebooks, 'ncentroids': self.ncentroids,
+                'lut_work_const': self.lut_work_const, 'quantize_lut':self.quantize_lut, 
+                'nbits': self.nbits}
 
     def fit(self, X, Q=None):
         self.splits_lists, self.centroids = clusterize.learn_mithral(
@@ -696,9 +684,9 @@ class VingiloteEncoder(MultiCodebookEncoder):
         return "{}_{}".format('mithral', super().name())
 
     def params(self):
-        return {'ncodebooks': self.ncodebooks, 'ncentroids': self.ncentroids,\
-                'lut_work_const': self.lut_work_const, 'quantize_lut':self.quantize_lut, \
-                    'nbits': self.nbits}
+        return {'ncodebooks': self.ncodebooks, 'ncentroids': self.ncentroids,
+                'lut_work_const': self.lut_work_const, 'quantize_lut':self.quantize_lut, 
+                'nbits': self.nbits}
 
     def fit(self, X, Q=None):
         # Q = B.T, where A is (N, D) and B is (D, M). So Q is (M, D)
@@ -755,16 +743,16 @@ class PlutoEncoder(MultiCodebookEncoder):
         return "{}_{}".format('pluto', super().name())
 
     def params(self):
-        return {'ncodebooks': self.ncodebooks, 'ncentroids': self.ncentroids,\
-                'lut_work_const': self.lut_work_const, 'quantize_lut':self.quantize_lut, \
-                    'nbits': self.nbits}
+        return {'ncodebooks': self.ncodebooks, 'ncentroids': self.ncentroids,
+                'lut_work_const': self.lut_work_const, 'quantize_lut':self.quantize_lut,
+                'nbits': self.nbits}
 
     def fit(self, X, Q, output=None, bias=None):
         # Q = B.T, where A is (N, D) and B is (D, M). So Q is (M, D)
-        self.splits_lists, self.centroids, luts = clusterize.learn_pluto(\
-            X, Q, self.ncodebooks, ncentroids=self.ncentroids,\
-            activation=self.activation, output=output, bias=bias, \
-            nonzeros_heuristic=self.nonzeros_heuristic, objective=self.objective,\
+        self.splits_lists, self.centroids, luts = clusterize.learn_pluto(
+            X, Q, self.ncodebooks, ncentroids=self.ncentroids,
+            activation=self.activation, output=output, bias=bias, 
+            nonzeros_heuristic=self.nonzeros_heuristic, objective=self.objective,
             verbose=0)
         # self._learn_lut_quantization(X, Q)
 
