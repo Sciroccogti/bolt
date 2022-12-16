@@ -111,26 +111,29 @@ def ensure_num_cols_multiple_of(X, multiple_of):
     return X
 
 
-def _learn_best_quantization(luts):
+def _learn_best_quantization(luts, nbits=8): #TODO how can nbits change
     assert luts.ndim == 2  # luts can be a bunch of vstacked luts, but not 3D
     best_loss = np.inf
     best_alpha = None
     best_floors = None
     best_scale_by = None
+    quantize_max_level = 2 ** nbits
     for alpha in [.001, .002, .005, .01, .02, .05, .1]:
         # alpha_pct = int(100 * alpha)
         alpha_pct = 100 * alpha
 
         # compute quantized luts this alpha would yield
-        floors = np.percentile(luts, alpha_pct, axis=0)
+        floors = np.percentile(luts, alpha_pct, axis=0) # 数据中从小到大百分之 alpha_pct的位置的值
         luts_offset = np.maximum(0, luts - floors)
 
         ceil = np.percentile(luts_offset, 100 - alpha_pct)
-        scale_by = 255. / ceil
+        # scale_by = 255. / ceil
+        scale_by = (quantize_max_level-1.) / ceil # 上一行255为8bit量化，改为自定义比特量化
         # if only_shift:
         #     scale_by = 1 << int(np.log2(scale_by))
         luts_quantized = np.floor(luts_offset * scale_by).astype(np.int)
-        luts_quantized = np.minimum(255, luts_quantized)
+        # luts_quantized = np.minimum(255, luts_quantized)
+        luts_quantized = np.minimum((quantize_max_level-1), luts_quantized) # 上一行255为8bit量化，改为自定义比特量化
 
         # compute err
         luts_ideal = (luts - luts_offset) * scale_by
@@ -152,11 +155,12 @@ def _learn_best_quantization(luts):
 
 class MultiCodebookEncoder(abc.ABC):
 
-    def __init__(self, ncodebooks, ncentroids=256,
-                 quantize_lut=False, upcast_every=-1, accumulate_how='sum'):
+    def __init__(self, ncodebooks, ncentroids=256, quantize_lut=True, \
+        nbits=8, upcast_every=-1, accumulate_how='sum'):
         self.ncodebooks = ncodebooks
         self.ncentroids = ncentroids
         self.quantize_lut = quantize_lut
+        self.nbits = nbits
         self.upcast_every = upcast_every if upcast_every >= 1 else 1
         self.upcast_every = min(self.ncodebooks, self.upcast_every)
         assert self.upcast_every in (1, 2, 4, 8, 16, 32, 64, 128, 256)
@@ -169,15 +173,15 @@ class MultiCodebookEncoder(abc.ABC):
                         self.ncentroids)
 
     def name(self):
-        return "{}_{}x{}b_quantize={}".format(
+        return "{}_{}x{}b_quantize={}_{}".format(
             self.preproc, self.ncodebooks, self.code_bits,
-            int(self.quantize_lut))
+            self.quantize_lut, self.nbits)
 
     def params(self):
         return {'ncodebooks': self.ncodebooks,
-                'code_bits': self.code_bits, 'quantize': self.quantize_lut}
+                'code_bits': self.code_bits, 'quantize_lut': self.quantize_lut, 'nbits':self.nbits}
 
-    def _learn_lut_quantization(self, X, Q=None):
+    def _learn_lut_quantization(self, X, Q=None, nbits = 8):
         if self.quantize_lut:  # TODO put this logic in separate function
             print("learning quantization...")
 
@@ -212,7 +216,7 @@ class MultiCodebookEncoder(abc.ABC):
             assert luts.shape == (len(Q), self.ncentroids, self.ncodebooks)
             luts = luts.reshape(len(Q) * self.ncentroids, self.ncodebooks)
 
-            self.lut_offsets, self.scale_by, _ = _learn_best_quantization(luts)
+            self.lut_offsets, self.scale_by, _ = _learn_best_quantization(luts, nbits=nbits)
             # print("self.lut_offsets.shape", self.lut_offsets.shape)
             # print("self.scale_by.shape", self.scale_by.shape)
             # print("self.scale_by", self.scale_by)
@@ -221,13 +225,24 @@ class MultiCodebookEncoder(abc.ABC):
             self.total_lut_offset = np.sum(self.lut_offsets)
             # print("lut offsets: ", self.lut_offsets)
 
-    def dists_enc(self, X_enc, Q_luts, unquantize=True,
+    def dists_enc(self, X_enc, Q_luts, unquantize=True, 
                   offset=None, scale=None):
         # for A(N x D) and B(D x M), C codebooks, K=16 buckets
         X_enc = np.ascontiguousarray(X_enc) # has shape (N x C) with values in [0, K-1]
         # Q_luts has shape (M x C x K)
         #rint(Q_luts.shape)
-
+        # print("运行了dist_enc")
+        # print("self.nbits:\n", self.nbits)
+        # print("self.upcast_every:\n", self.upcast_every)
+        # print("self.quantize_lut:\n", self.quantize_lut)
+        # print("self.accumulate_how:\n", self.accumulate_how)
+        # print("Q_luts:\n", Q_luts)
+        # print("offset:\n", offset)
+        # print("self.total_lut_offset:\n",self.total_lut_offset)
+        # print("scale:\n", scale)
+        # print("self.scale_by:\n", self.scale_by)
+        # print("unquantize:\n", unquantize)
+        
         if unquantize:
             offset = self.total_lut_offset if offset is None else offset
             scale = self.scale_by if scale is None else scale
@@ -258,7 +273,10 @@ class MultiCodebookEncoder(abc.ABC):
                     # sum upcast_every vals, then clip to mirror saturating
                     # unsigned addition, then sum without saturation (like u16)
                     dists = dists.sum(2)
-                    dists = np.clip(dists, 0, 255).sum(axis=-1)
+                    print("dist:\n", dists)
+                    quantize_max_level = 2 ** self.nbits
+                    # dists = np.clip(dists, 0, 255).sum(axis=-1)
+                    dists = np.clip(dists, 0, quantize_max_level-1).sum(axis=-1) # 由8bit的255层级变为自定义比特的自定义层级
                 elif self.accumulate_how == 'mean':
                     # mirror hierarchical avg_epu8
                     # print("reducing using mean!")
@@ -382,15 +400,16 @@ def _fit_pq_lut(q, centroids, elemwise_dist_func):
 
 class PQEncoder(MultiCodebookEncoder):
 
-    def __init__(self, ncodebooks, ncentroids=256,
-                 elemwise_dist_func=dists_elemwise_dot,
-                 preproc='PQ', encode_algo=None, quantize_lut=True,
-                 upcast_every=-1, accumulate_how='sum',
+    def __init__(self, ncodebooks, ncentroids=256,\
+                 elemwise_dist_func=dists_elemwise_dot,\
+                 preproc='PQ', encode_algo=None, quantize_lut=True,\
+                 nbits = 8, upcast_every=-1, accumulate_how='sum',\
                  **preproc_kwargs):
-        super().__init__(
-            ncodebooks=ncodebooks, ncentroids=ncentroids,
-            quantize_lut=quantize_lut, upcast_every=upcast_every,
-            accumulate_how=accumulate_how)
+        super().__init__(\
+                ncodebooks=ncodebooks, ncentroids=ncentroids,\
+                quantize_lut=quantize_lut, nbits=nbits,\
+                upcast_every=upcast_every,\
+                accumulate_how=accumulate_how)
         self.elemwise_dist_func = elemwise_dist_func
         self.preproc = preproc
         self.encode_algo = encode_algo
@@ -436,7 +455,7 @@ class PQEncoder(MultiCodebookEncoder):
                 self.centroids = _learn_centroids(
                     X, self.ncentroids, self.ncodebooks, self.subvect_len)
 
-        self._learn_lut_quantization(X, Q)
+        self._learn_lut_quantization(X, Q, nbits=self.nbits)
 
     def name(self):
         return "{}_{}".format(self.preproc, super().name())
@@ -466,9 +485,11 @@ class PQEncoder(MultiCodebookEncoder):
             lut = _fit_pq_lut(q, centroids=self.centroids,
                               elemwise_dist_func=self.elemwise_dist_func)
             if self.quantize_lut and quantize:
+                quantize_max_level = 2 ** self.nbits
                 lut = np.maximum(0, lut - self.lut_offsets)
                 lut = np.floor(lut * self.scale_by).astype(np.int)
-                lut = np.minimum(lut, 255)
+                # lut = np.minimum(lut, 255)
+                lut = np.minimum(lut, quantize_max_level-1) # 量化级数由8bit的255改为自定义
             luts[i] = lut.T
         return luts
 
@@ -496,7 +517,7 @@ class PQEncoder(MultiCodebookEncoder):
 # ------------------------------------------------ Mithral
 
 # def _mithral_quantize_luts(luts, lut_work_const, force_power_of_2=False):
-def _mithral_quantize_luts(luts, lut_work_const, force_power_of_2=True):
+def _mithral_quantize_luts(luts, lut_work_const, nbits=8, force_power_of_2=True):
     nqueries, ncodebooks, ncentroids = luts.shape
 
     # if lut_work_const < 0:  # not time constrained
@@ -570,23 +591,27 @@ def _mithral_quantize_luts(luts, lut_work_const, force_power_of_2=True):
     gaps = maxs - mins
     # gaps[np.argmax(gaps)] = 0  # use 2nd highest
     gap = np.max(gaps)
+    quantize_max_level = 2 ** nbits
     if force_power_of_2:
         if gap == 0.0:
             scale = 1e-10
         else:
             exponent = np.ceil(np.log2(gap))
             scale = 2 ** int(-exponent)  # scale is a power of 2, so can just shift
-            scale *= (255.5 - 1e-10)  # so max val is at most 255
+            # scale *= (255.5 - 1e-10)  # so max val is at most 255
+            scale *= (quantize_max_level - 0.5 - 1e-10)  # 上一行255为8bit量化，改为自定义比特量化
     else:
-        scale = (255.5 - 1e-10) / gap
+        # scale = (255.5 - 1e-10) / gap
+        scale = (quantize_max_level - 0.5 - 1e-10) / gap # 上一行255为8bit量化，改为自定义比特量化
 
     offsets = mins[np.newaxis, :, np.newaxis]
     luts_quantized = (luts - offsets) * scale
-    luts_quantized = (luts_quantized + .5).astype(np.int)
+    luts_quantized = (luts_quantized + .5).astype(np.int) 
     # luts_quantized = np.minimum(luts_quantized, 255)
 
     assert np.min(luts_quantized) >= 0
-    assert np.max(luts_quantized) <= 255.
+    # assert np.max(luts_quantized) <= 255.
+    assert np.max(luts_quantized) <= float(quantize_max_level - 1) # 上一行255为8bit量化，改为自定义比特量化
 
     # print("total offset: ", mins.sum())
 
@@ -604,7 +629,7 @@ def _mithral_quantize_luts(luts, lut_work_const, force_power_of_2=True):
 class MithralEncoder(MultiCodebookEncoder):
 
     def __init__(self, ncodebooks, ncentroids: int, nonzeros_heuristic='pq',
-                 lut_work_const=-1, quantize_lut=True):
+                 lut_work_const=-1, quantize_lut=True, nbits = 8):
         super().__init__(
             ncodebooks=ncodebooks, ncentroids=ncentroids,
             # quantize_lut=True, upcast_every=64,
@@ -614,7 +639,7 @@ class MithralEncoder(MultiCodebookEncoder):
             # quantize_lut=True, upcast_every=4,
             # quantize_lut=True, upcast_every=2,
             # quantize_lut=True, upcast_every=1,
-            accumulate_how='mean')
+            accumulate_how='mean', nbits=nbits)
         self.nonzeros_heuristic = nonzeros_heuristic
         self.lut_work_const = lut_work_const
 
@@ -622,8 +647,9 @@ class MithralEncoder(MultiCodebookEncoder):
         return "{}_{}".format('mithral', super().name())
 
     def params(self):
-        return {'ncodebooks': self.ncodebooks, 'ncentroids': self.ncentroids,
-                'lut_work_const': self.lut_work_const}
+        return {'ncodebooks': self.ncodebooks, 'ncentroids': self.ncentroids,\
+                'lut_work_const': self.lut_work_const, 'quantize_lut':self.quantize_lut, \
+                    'nbits': self.nbits}
 
     def fit(self, X, Q=None):
         self.splits_lists, self.centroids = clusterize.learn_mithral(
@@ -643,7 +669,7 @@ class MithralEncoder(MultiCodebookEncoder):
         for i, q in enumerate(Q):
             luts[i] = clusterize.mithral_lut(q, self.centroids) # 此时 luts 为 float64
         if self.quantize_lut:
-            luts, offset, scale = _mithral_quantize_luts(luts, self.lut_work_const)
+            luts, offset, scale = _mithral_quantize_luts(luts, self.lut_work_const, nbits=self.nbits)
             print("量化的luts：\n", luts)
             return luts, offset, scale
 
@@ -653,7 +679,7 @@ class MithralEncoder(MultiCodebookEncoder):
 class VingiloteEncoder(MultiCodebookEncoder):
 
     def __init__(self, ncodebooks, ncentroids: int, lut_work_const=-1,
-                 quantize_lut=True):
+                 quantize_lut=True, nbits=8):
         super().__init__(
             ncodebooks=ncodebooks, ncentroids=ncentroids,
             # quantize_lut=True, upcast_every=64,
@@ -663,19 +689,20 @@ class VingiloteEncoder(MultiCodebookEncoder):
             # quantize_lut=True, upcast_every=4,
             # quantize_lut=True, upcast_every=2,
             # quantize_lut=True, upcast_every=1,
-            accumulate_how='mean')
+            accumulate_how='mean', nbits=nbits)
         self.lut_work_const = lut_work_const
 
     def name(self):
         return "{}_{}".format('mithral', super().name())
 
     def params(self):
-        return {'ncodebooks': self.ncodebooks, 'ncentroids': self.ncentroids,
-                'lut_work_const': self.lut_work_const}
+        return {'ncodebooks': self.ncodebooks, 'ncentroids': self.ncentroids,\
+                'lut_work_const': self.lut_work_const, 'quantize_lut':self.quantize_lut, \
+                    'nbits': self.nbits}
 
     def fit(self, X, Q=None):
         # Q = B.T, where A is (N, D) and B is (D, M). So Q is (M, D)
-        self.splits_lists, self.centroids = clusterize.learn_vingilote(
+        self.splits_lists, self.centroids = clusterize.learn_vingilote(\
             X, Q, self.ncodebooks, ncentroids=self.ncentroids)
         # self._learn_lut_quantization(X, Q)
 
@@ -689,7 +716,7 @@ class VingiloteEncoder(MultiCodebookEncoder):
         for i, q in enumerate(Q):
             luts[i] = clusterize.mithral_lut(q, self.centroids)
         if self.quantize_lut:
-            luts, offset, scale = _mithral_quantize_luts(luts, self.lut_work_const)
+            luts, offset, scale = _mithral_quantize_luts(luts, self.lut_work_const, nbits=self.nbits)
             return luts, offset, scale
 
         return luts, 0, 1
@@ -706,7 +733,8 @@ class PlutoEncoder(MultiCodebookEncoder):
         objective='mse',
         accumulate_how='mean',
         lut_work_const=-1,
-        quantize_lut=True
+        quantize_lut=True, 
+        nbits=8
     ):
         super().__init__(
             ncodebooks=ncodebooks, ncentroids=ncentroids,
@@ -717,7 +745,7 @@ class PlutoEncoder(MultiCodebookEncoder):
             # quantize_lut=True, upcast_every=4,
             # quantize_lut=True, upcast_every=2,
             # quantize_lut=True, upcast_every=1,
-            accumulate_how=accumulate_how)
+            accumulate_how=accumulate_how, nbits=nbits)
         self.activation = activation
         self.nonzeros_heuristic = nonzeros_heuristic
         self.objective = objective
@@ -727,15 +755,16 @@ class PlutoEncoder(MultiCodebookEncoder):
         return "{}_{}".format('pluto', super().name())
 
     def params(self):
-        return {'ncodebooks': self.ncodebooks, 'ncentroids': self.ncentroids,
-                'lut_work_const': self.lut_work_const}
+        return {'ncodebooks': self.ncodebooks, 'ncentroids': self.ncentroids,\
+                'lut_work_const': self.lut_work_const, 'quantize_lut':self.quantize_lut, \
+                    'nbits': self.nbits}
 
     def fit(self, X, Q, output=None, bias=None):
         # Q = B.T, where A is (N, D) and B is (D, M). So Q is (M, D)
-        self.splits_lists, self.centroids, luts = clusterize.learn_pluto(
-            X, Q, self.ncodebooks, ncentroids=self.ncentroids,
-            activation=self.activation, output=output, bias=bias, 
-            nonzeros_heuristic=self.nonzeros_heuristic, objective=self.objective,
+        self.splits_lists, self.centroids, luts = clusterize.learn_pluto(\
+            X, Q, self.ncodebooks, ncentroids=self.ncentroids,\
+            activation=self.activation, output=output, bias=bias, \
+            nonzeros_heuristic=self.nonzeros_heuristic, objective=self.objective,\
             verbose=0)
         # self._learn_lut_quantization(X, Q)
 
@@ -747,7 +776,7 @@ class PlutoEncoder(MultiCodebookEncoder):
         """
 
         if self.quantize_lut:
-            luts, offset, scale = _mithral_quantize_luts(luts, self.lut_work_const)
+            luts, offset, scale = _mithral_quantize_luts(luts, self.lut_work_const, nbits=self.nbits)
             return luts, offset, scale
 
         return luts, 0, 1
