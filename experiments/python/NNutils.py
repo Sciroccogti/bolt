@@ -1,5 +1,6 @@
 # 有关transformer数据集的工具
 import numpy as np
+import pandas as pd
 import os
 import socket
 import re # 正则表达式
@@ -27,6 +28,8 @@ elif host_name == 'jm-System-Product-Name':
 else:
     raise NameError("You are running the script in a new computer, please define dir_intermediate")
 
+dir_now = os.path.dirname(os.path.abspath(__file__)) # 当前文件所在目录
+
 def create_dir(directory): # 创建（尚未存在的）空目录函数
     try:
         os.mkdir(directory)
@@ -46,7 +49,6 @@ def del_linear_suffix(intermediate_name:str): # 删除全连接层名称的尾�
 
 def get_AMM_train_dirs(linear_name, linear_name_full, method, feedback_bits, train_sam_num, test_sam_num):
     AMM_train_dirs = {}
-    dir_now = os.path.dirname(os.path.abspath(__file__)) # 当前文件所在目录
     AMM_train_dirs["dir_joined"] = os.path.join(dir_now, "../../../../transformer_data/joined")
     AMM_train_dirs["dir_train"] = os.path.join(AMM_train_dirs["dir_joined"], 'train', 'f'+str(feedback_bits))
     AMM_train_dirs["dir_test"] = os.path.join(AMM_train_dirs["dir_joined"], 'test', 'f'+str(feedback_bits))
@@ -234,4 +236,68 @@ def dataset_prepare(direc, linear_name_full, feedback_bits, sam_num_list, batch_
                     elif linear_name_full in out_transformer_list:
                         join_from_intermediate(dir_intermediate, dire, dire_train, feedback_bits, intermediate_name, sam_num, train_or_test)
                 
+def change_nbits_auto_run_list(linear_name, method, feedback_bits, nbits_trained, nbits_goal, flag = ''):
+    excel_path = os.path.join(dir_now, '../../../../csi_transformer/performance','%s_f%i.xls' % (linear_name, feedback_bits))
+    res_path = os.path.join(dir_now, "../../../res/%s/f%i/%s" % (method, feedback_bits, linear_name))
+    # 读取 Excel 文件并将其存储在变量 df 中
+    df = pd.read_excel(excel_path)
+    # print(df)
+    row_ref = { "AMM_method": method, "nbits": nbits_trained} # 运行参考的训练集大小的行
+    row_run = { "AMM_method": method, "nbits": nbits_goal} # 运行的目标行，用于排除已运行的
+    # excel中符合row值的行
+    method_ref_value = df.loc[(df[list(row_ref.keys())[0]] == row_ref[list(row_ref.keys())[0]]) 
+                            & (df[list(row_ref.keys())[1]] == row_ref[list(row_ref.keys())[1]])]
+    method_run_value = df.loc[(df[list(row_run.keys())[0]] == row_run[list(row_run.keys())[0]]) 
+                            & (df[list(row_run.keys())[1]] == row_run[list(row_run.keys())[1]])]
+    cb_ct_combinations = method_ref_value[['cb', 'ct']].values
+    #将cb_ct_combinations转换为Pandas的DataFrame
+    cb_ct_combinations_df = pd.DataFrame(cb_ct_combinations, columns=['cb', 'ct'])
+    #删除重复组合
+    cb_ct_combinations_unique = cb_ct_combinations_df.drop_duplicates()
+    # 初始化结果列表
+    result = []
+    # 遍历每个cb、ct组合
+    for _, row_ref in cb_ct_combinations_unique.iterrows():
+        cb = row_ref['cb']
+        ct = row_ref['ct']
+        # 找到符合当前cb、ct组合的行
+        method_ref_value_filtered = method_ref_value[(method_ref_value['cb'] == cb) & (method_ref_value['ct'] == ct)]
+        # print(method_8bits_value_filtered)
+        # 找到n_train_sam列数值最大的那个值
+        max_n_train_sam = method_ref_value_filtered['n_train_sam'].max()
+        # 将结果添加到结果列表中
+        result.append(max_n_train_sam)
+    # 使用assign方法将result列表添加到cb_ct_combinations_unique数据帧的最后一列
+    cb_ct_ntr_combinations_unique = cb_ct_combinations_unique.assign(n_train_sam=result)
+    # 遍历每个cb、ct、n_train_sam组合，排除已经运行的目标点
+    for _, row_ref in cb_ct_ntr_combinations_unique.iterrows():
+        cb = row_ref['cb']
+        ct = row_ref['ct']
+        n_train_sam = row_ref['n_train_sam']
+        # 找到excel中符合当前cb、ct、n_train_sam组合的行
+        method_run_value_filtered = method_run_value[(method_run_value['cb'] == cb) 
+                                & (method_run_value['ct'] == ct) & (method_run_value['n_train_sam'] == n_train_sam)]
+        # 获取AMM相乘结果路径下的所有文件和文件夹的名称列表
+        names = os.listdir(res_path)
+        # 创建一个空列表，用于保存文件名
+        AMM_predict_files = []
+        # 遍历名称列表，筛选出文件名
+        for name in names:
+            if os.path.isfile(os.path.join(res_path, name)):
+                AMM_predict_files.append(name)
+        # 使用 any() 函数判断AMM相乘结果列表中是否存在cb_ct_ntr_combinations_unique中待运行的点
+        AMM_predict_files_already_exist = any('nbits%i'%nbits_goal in name and 'trsam%i'%n_train_sam in name 
+                            and 'fb%i'%feedback_bits in name and 'cb%i'%cb in name
+                            and 'ct%i'%ct in name for name in AMM_predict_files)
+        if flag == "performance_test":
+            AMM_predict_files_already_exist = False
 
+        if (not method_run_value_filtered.empty) or AMM_predict_files_already_exist:# 如果要运行比特数的部分点已经运行，则在待运行dataframe中删除该点
+            # 可以使用df.loc方法选取出列名“cb”的对应值、“ct”的对应值的所有行：
+            selected_rows = cb_ct_ntr_combinations_unique.loc[(cb_ct_ntr_combinations_unique['cb'] == cb) 
+                                                            & (cb_ct_ntr_combinations_unique['ct'] == ct)
+                                                            & (cb_ct_ntr_combinations_unique['n_train_sam'] == n_train_sam)]
+            # 使用df.drop方法删除选取出的行，代码如下：
+            cb_ct_ntr_combinations_unique.drop(selected_rows.index, inplace=True)
+            
+    return cb_ct_ntr_combinations_unique

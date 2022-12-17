@@ -12,7 +12,7 @@ KEY_NLOOKUPS = 'nlookups'
 
 
 class VQMatmul(amm.ApproxMatmul, abc.ABC):
-    def __init__(self, ncodebooks, ncentroids=None, quantize_lut=True, nbits=8):
+    def __init__(self, ncodebooks, ncentroids=None, quantize_lut=True, nbits = 8):
         self.ncodebooks = ncodebooks
         self.ncentroids = (self._get_ncentroids() if ncentroids is None
                            else ncentroids)
@@ -61,10 +61,6 @@ class VQMatmul(amm.ApproxMatmul, abc.ABC):
         if self.luts is None:
             self.set_B(B)
         return self.enc.dists_enc(self.A_enc, self.luts, self.quantize_lut)
-<<<<<<< HEAD
-
-=======
->>>>>>> temp
 
     def get_params(self):
         return {'ncodebooks': self.ncodebooks}
