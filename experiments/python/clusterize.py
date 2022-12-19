@@ -91,7 +91,7 @@ class Bucket(object):
             sumX=np.copy(self.sumX), sumX2=np.copy(self.sumX2),
             point_ids=copy.deepcopy(self.point_ids), bucket_id=bucket_id)
 
-    def split(self, X=None, dim=None, val=None, X_orig=None): # X的dim列按照阈值val切分，将同样的切分方式应用到原来的桶，返回切分后的两个桶
+    def split(self, X=None, dim=None, val=None, X_orig=None): # X的dim列按照阈值val切分, 将同样的切分方式应用到原来的桶, 返回切分后的两个桶
         id0 = 2 * self.id
         id1 = id0 + 1
         if X is None or self.N < 2:  # copy of this bucket + an empty bucket
@@ -772,7 +772,7 @@ def learn_multisplits(
         best_tried_dim_idx = np.argmin(losses)
         best_dim = try_dims[best_tried_dim_idx]
         use_split_vals = all_split_vals[best_tried_dim_idx] # 分割后性能最好的列的分割阈值
-        split = MultiSplit(dim=best_dim, vals=use_split_vals) # MultiSplit类：记录列号和该列分割阈值，可设定偏移值和放缩因子
+        split = MultiSplit(dim=best_dim, vals=use_split_vals) # MultiSplit类：记录列号和该列分割阈值, 可设定偏移值和放缩因子
         if learn_quantize_params:
             # simple version, which also handles 1 bucket: just set min
             # value to be avg of min splitval and xval, and max value to
@@ -1653,10 +1653,10 @@ def _pq_codebook_start_end_idxs(X, ncodebooks, algo='start'):
     start_idx = 0
     for c in range(ncodebooks):
         subvec_len = full_subvec_len
-        if algo == 'start':     # wider codebooks at the start，适用于列数不是码本数的整数倍时，序号更小的码本列更宽
+        if algo == 'start':     # wider codebooks at the start, 适用于列数不是码本数的整数倍时, 序号更小的码本列更宽
             if c < (D % ncodebooks):
                 subvec_len += 1
-        elif algo == 'end':     # wider codebooks at the end，适用于列数不是码本数的整数倍时，序号更大的码本列更宽
+        elif algo == 'end':     # wider codebooks at the end, 适用于列数不是码本数的整数倍时, 序号更大的码本列更宽
             if (ncodebooks - c - 1) < (D % ncodebooks):
                 subvec_len += 1
         end_idx = min(D, start_idx + subvec_len)
@@ -2390,18 +2390,27 @@ def learn_splits(X, nsplits, return_centroids=True, algo='multisplits',
 
 
 def assignments_from_splits(X, splits):
+    '''
+    assignments_from_splits函数的作用是, 根据splits中的信息, 将X的每一行编码为一个离散值。它的实现方式是, 首先对于每一个split, 都会计算出X的每一行在该split的左边还是右边。然后, 将每一个split的分类结果按照二进制位的方式拼接起来, 得到X的最终编码。
+    '''
+    # 计算 splits 中的每一个 split 对 X 的每一行的分类结果
     nsplits = len(splits)
     indicators = np.empty((nsplits, len(X)), dtype=np.int)
     for i, split in enumerate(splits):
         indicators[i] = X[:, split.dim] > split.val
 
     # compute assignments by treating indicators in a row as a binary num
+    # 将每一个 split 的分类结果按照二进制位的方式拼接起来, 得到 X 的最终编码
     # scales = (2 ** np.arange(nsplits)).astype(np.int)
     scales = (1 << np.arange(nsplits)).astype(np.int)
     return (indicators.T * scales).sum(axis=1).astype(np.int)
 
 
 def assignments_from_multisplits(X, splits):
+    '''
+    assignments_from_multisplits函数与assignments_from_splits函数类似, 但它多了一个前置步骤, 即对于每一个split, 将X的每一行分成若干组。然后, 对于每一个组, 都会根据splits中的信息将其编码。
+    '''
+    # 计算 splits 中的每一个 split 对 X 的每一行的分类结果
     N, _ = X.shape
     nsplits = len(splits)
     # indicators = np.zeros((nsplits, len(X)), dtype=np.int)
@@ -2417,6 +2426,7 @@ def assignments_from_multisplits(X, splits):
 
     # determine group ids for each point; this is the one that's annoying
     # because the number of bits changes after split
+    # 将 X 的每一行划分成若干组, 然后对于每一个组, 都会根据 splits 中的信息将其编码
     group_ids = np.zeros(N, dtype=np.int)
     for i in range(min(nsplits, nsplits_affecting_group_id)):
         split = splits[i]
@@ -2434,6 +2444,7 @@ def assignments_from_multisplits(X, splits):
         return group_ids
 
     # compute remaining bits
+    # 将剩余的 bits 按照二进制位的方式拼接起来, 得到 X 的最终编码
     assignments = np.copy(group_ids)
     for i in range(nsplits_affecting_group_id, nsplits):
         split = splits[i]
@@ -2528,6 +2539,11 @@ def learn_splits_in_subspaces(X, subvect_len, nsplits_per_subs,
 
 
 def encode_using_splits(X, subvect_len, splits_lists, split_type='single'):
+    '''
+    encode_using_splits函数用于将输入数据X编码为离散型的编码, 编码的过程是基于splits_lists中的信息进行的。
+    具体来说, 首先将X划分成若干个子向量, 每个子向量的长度为subvect_len。然后, 对于每个子向量, 都会调用assignments_from_splits或assignments_from_multisplits函数, 根据splits_lists中的信息将其编码。具体使用哪个函数, 取决于split_type参数的值。如果split_type为'single', 则使用assignments_from_splits函数；如果split_type为'multi', 则使用assignments_from_multisplits函数。最终, encode_using_splits函数会将所有子向量的编码拼接起来, 作为函数的输出返回。
+    '''
+    # 将 X 划分成若干个子向量, 然后使用 assignments_from_splits 或 assignments_from_multisplits 函数, 将每一个子向量编码
     N, D = X.shape
     nsubs = int(np.ceil(D) / subvect_len)
     X_enc = np.empty((X.shape[0], nsubs), dtype=np.int, order='f')
@@ -2539,7 +2555,7 @@ def encode_using_splits(X, subvect_len, splits_lists, split_type='single'):
             X_enc[:, m] = assignments_from_splits(X_subs, splits_lists[m])
         elif split_type == 'multi':
             X_enc[:, m] = assignments_from_multisplits(X_subs, splits_lists[m])
-
+    # 返回将所有子向量的编码拼接起来的结果
     return np.ascontiguousarray(X_enc)
 
 

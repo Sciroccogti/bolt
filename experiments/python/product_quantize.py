@@ -57,6 +57,22 @@ def _dists_elemwise_l1(x, q):
 
 
 def _encode_X_pq(X, codebooks, elemwise_dist_func=_dists_elemwise_sq):
+    '''
+    _encode_X_pq函数的计算复杂度为O(N * nsubvects * subvect_len * ncentroids)。
+    在这个函数中, 有一个循环, 循环次数为X的行数, 也就是N。在循环体内, 会计算每个子向量和codebooks中所有中心向量之间的距离, 这部分的复杂度为O(nsubvects * subvect_len * ncentroids)。因此, 整个函数的复杂度为O(N * nsubvects * subvect_len * ncentroids)。
+    其中, N表示X的行数, nsubvects表示每个向量被划分成的子向量的数量, subvect_len表示每个子向量的长度, ncentroids表示codebooks中中心向量的数量。
+
+    _encode_X_pq 函数用于将给定的数据集 X 编码为指定的编码本集合 codebooks 中的编码。
+    这个函数的主要流程是：
+    首先, 它通过调用 elemwise_dist_func 函数来计算数据集 X 中的每个元素和编码本集合 codebooks 中的所有编码的距离。这个函数默认是 _dists_elemwise_sq 函数, 该函数计算两个输入之间的欧几里得距离。
+    然后, 它使用 numpy 库的 argmin 函数来获取每个元素最近的编码。
+    最后, 它返回编码的索引。
+    这个函数用于将给定的数据集转换为离散编码, 这在许多机器学习任务中是很有用的。例如, 在文本分类中, 可以将单词转换为离散编码, 然后使用这些编码来训练模型。
+    
+    idxs 是一个 NumPy 数组, 其中包含了给定数据集 X 中的每个元素编码为编码本集合 codebooks 中的哪个编码的索引。
+    具体来说, idxs 数组的第 i 行包含了给定数据集 X 中的第 i 个元素编码为编码本集合 codebooks 中的哪个编码的索引。
+    举个例子, 假设我们有一个编码本集合 codebooks, 其中包含了三个编码, 分别为 [1, 2, 3], [4, 5, 6] 和 [7, 8, 9]。如果 idxs 数组为 [[0, 1, 2], [2, 1, 0]], 则表示给定数据集 X 中的第一个元素编码为 [1, 2, 3], 第二个元素编码为 [4, 5, 6], 第三个元素编码为 [7, 8, 9], 第四个元素编码为 [7, 8, 9], 第五个元素编码为 [4, 5, 6], 第六个元素编码为 [1, 2, 3]。
+    '''
     ncentroids, nsubvects, subvect_len = codebooks.shape
 
     assert X.shape[1] == (nsubvects * subvect_len)
