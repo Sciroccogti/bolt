@@ -2,6 +2,10 @@
 # %%
 import numpy as np
 import os
+import sys
+dir_now = os.getcwd()
+sys.path.append(dir_now)
+sys.path.append(os.path.join(dir_now, '../'))
 import matmul as mm
 import math_util as mu
 import scipy.io as io

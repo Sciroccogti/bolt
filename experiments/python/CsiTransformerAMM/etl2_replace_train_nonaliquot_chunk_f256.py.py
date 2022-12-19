@@ -3,6 +3,10 @@
 
 import numpy as np
 import os
+import sys
+dir_now = os.getcwd()
+sys.path.append(dir_now)
+sys.path.append(os.path.join(dir_now, '../'))
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE" # 防止jupyter爆内存
 import matmul as mm
 from NNutils import *

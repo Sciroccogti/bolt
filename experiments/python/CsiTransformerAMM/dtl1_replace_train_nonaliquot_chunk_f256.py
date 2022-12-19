@@ -1,9 +1,16 @@
+# %% [markdown]
+# decoder transformer层的linear1层（dtl1）替换为近似矩阵乘法, 32\*32\*64, 64\*128, 32\*32\*128
+
 # %%
 import numpy as np
 import os
+import sys
+dir_now = os.getcwd()
+sys.path.append(dir_now)
+sys.path.append(os.path.join(dir_now, '../'))
 import matmul as mm
 import math_util as mu
-import scipy.io as io
+# import scipy.io as io
 from amm_methods import *
 import socket # Obtain the current host name, which can be used to select different data directories and result saving directories
 
@@ -12,22 +19,23 @@ import socket # Obtain the current host name, which can be used to select differ
 method = METHOD_PQ
 # method = METHOD_EXACT
 # method = METHOD_SCALAR_QUANTIZE
-nbits = 4
+nbits = 4 # 量化比特数
 
 # %%
-linear_name = 'fc2'
+linear_name = 'dtl1'
 feedback_bits = 256
-# ncodebooks=32 #max：256 feedbackbits
-ncentroids=64
+# ncodebooks = 32 # max:64
+ncentroids = 64
+if method == METHOD_MITHRAL:
+    ncentroids = 16
+train_sam_num = 3000 # 训练集样本数
 if method == METHOD_EXACT:
     ncodebooks = 0
     ncentroids = 0
-if method == METHOD_MITHRAL:
-    ncentroids = 16
-train_sam_num = 3000
-test_sam_num = 1000
+test_sam_num = 1000 # 测试集样本数
+batch_size = 32
 
-for ncodebooks in [16,32,64,128,256]:
+for ncodebooks in [16,32,64]:
     # %%
     host_name = socket.gethostname()
     if host_name == 'DESKTOP-PLRL7TK':
@@ -36,26 +44,26 @@ for ncodebooks in [16,32,64,128,256]:
     elif host_name == 'DESKTOP-6FOH47P':
         dir_train = 'F:\\Projects\\python\\PQ\\intermediate8dbfc1'
         dir_result = 'F:\\Projects\\python\\PQ\\res'
-        fc2inpath_train= 'fc2in_e39_7999.npy'
-        fc2outpath_train= 'fc2out_e39_7999.npy'
-        fc2inpath_test = 'fc2in_e39_7999.npy'
-        fc2outpath_test = 'fc2out_e39_7999.npy'
+        data_to_fcpath_train= ''
+        featurepath_train= ''
+        data_to_fcpath_test = ''
+        featurepath_test = ''
     elif host_name == 'jm-System-Product-Name':
         dir_train = os.path.join('/data/hdr/transformer_data/joined', 'train', 'f'+str(feedback_bits))
         dir_test = os.path.join('/data/hdr/transformer_data/joined', 'test', 'f'+str(feedback_bits))
         dir_result = '/data/hdr/pq/res'
-        fc2inpath_train= 'fc2in_train_f%i_sam%i.npy' % (feedback_bits, train_sam_num)
-        fc2y_train = 'fc2y_train_f%i_sam%i.npy' % (feedback_bits, train_sam_num)
-        fc2outpath_train= 'fc2out_train_f%i_sam%i.npy' % (feedback_bits, train_sam_num)
-        fc2inpath_test = 'fc2in_test_f%i_sam%i.npy' % (feedback_bits, test_sam_num)
-        fc2outpath_test = 'fc2out_test_f%i_sam%i.npy' % (feedback_bits, test_sam_num)
-        fc2y_test = 'fc2y_test_f%i.npy' % feedback_bits
+        data_to_fcpath_train= 'dx_linear1in_train_f%i_sam%i.npy' % (feedback_bits, train_sam_num)
+        y_train = 'dx_linear1_y_train_f%i_sam%i.npy' % (feedback_bits, train_sam_num)
+        featurepath_train= 'dx_linear1out_train_f%i_sam%i.npy' % (feedback_bits, train_sam_num)
+        data_to_fcpath_test = 'dx_linear1in_test_f%i_sam%i.npy' % (feedback_bits, test_sam_num)
+        featurepath_test = 'dx_linear1out_test_f%i_sam%i.npy' % (feedback_bits, test_sam_num)
+        # y_test = 'y_test.npy'
     else:
-        raise NameError("You are running the script in a new computer, please define dir_train")
+        raise NameError("You are running the script in a new computer, please define dirs")
 
 
-    weightpath = 'fc2_w_f%i.npy' % feedback_bits
-    biaspath = 'fc2_b_f%i.npy' % feedback_bits
+    weightpath = 'dx_linear1_w_f256.npy'
+    biaspath = 'dx_linear1_b_f256.npy'
     dir_result = os.path.join(dir_result, method, "f%i" % feedback_bits, linear_name)
     try:
         os.mkdir(dir_result)
@@ -64,11 +72,14 @@ for ncodebooks in [16,32,64,128,256]:
 
 
     # %%
-    est3 = mm.estFactory(X_path=fc2inpath_train, W_path=weightpath, Y_path=fc2y_train, dir= dir_train, ncodebooks=ncodebooks, ncentroids=ncentroids, methods=[method], nbits=nbits)
+    est3 = mm.estFactory(X_path=data_to_fcpath_train, W_path=weightpath, Y_path=y_train, dir= dir_train, ncodebooks=ncodebooks, ncentroids=ncentroids, methods=[method], nbits=nbits)
 
 
     # %%
-    x_test = np.load(dir_test+'/'+fc2inpath_test)
+    # type(est3)
+
+    # %%
+    x_test = np.load(dir_test+'/'+data_to_fcpath_test)
     w_test = np.load(dir_train+'/'+weightpath)
     bias = np.load(dir_train+'/'+biaspath)
     # print(type(est3))
@@ -77,15 +88,14 @@ for ncodebooks in [16,32,64,128,256]:
     y_out_last = y_out_matmul + bias.T # MADDNESS替换后当前层输出，即+bias并不需要激活函数后的结果
 
     # %%
-    # print(y_out_last)
-    print(y_out_last.shape)
-    y_out_last_re = y_out_last.reshape(test_sam_num, -1, y_out_last.shape[-1])
+    print(y_out_last)
+    print("y_out_last.shape: ", y_out_last.shape)
+    y_out_last_re = y_out_last.reshape(test_sam_num, batch_size, -1, y_out_last.shape[-1]) #AMM字典模式需要复原y大小
     print("y_out_last_re.shape: ", y_out_last_re.shape)
     # np.save("LDPC_decoder_NET_testdata/" + snr + "nomul_matmul_yout_matmul", y_out_matmul)
     # np.save(dir_result+'/'+method+'fc1_fb256_cb%i_ct%i.npy' % (ncodebooks, ncentroids), y_out_matmul)
-    # np.save(dir_result+'/'+method+'fc1_fb%i_cb%i_ct%i.npy' % (feedback_bits, ncodebooks, ncentroids), y_out_last)
     if method == METHOD_EXACT:
-        train_sam_num = 0
+        train_sam_num = 0 # 训练集样本数
     if method == METHOD_SCALAR_QUANTIZE:
         np.save(os.path.join(dir_result, '%s%s_trsam%i_tesam%i_fb%i_nbits%i.npy' % (method, linear_name, train_sam_num, test_sam_num, feedback_bits, nbits)), y_out_last_re.astype(np.float32))
     else:
