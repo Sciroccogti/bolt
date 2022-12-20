@@ -2,7 +2,13 @@
 import numpy as np
 import pandas as pd
 import os
-import socket
+current_file_path = __file__
+current_dir_path = os.path.dirname(__file__)
+import sys
+## sys.path.append(current_dir_path)
+sys.path.append(os.path.join(current_dir_path, '../../../../csi_transformer/src'))
+import ctdirs_utils as cu
+# import socket
 import re # 正则表达式
 
 bits = 256
@@ -14,19 +20,19 @@ nbits = 8 # # METHOD_SCALAR_QUANTIZE的量化比特数
 # smaller_train_sam_num = 3000 # 减小内存消耗的训练集样本数
 # smallerer_train_sam_num = 1000
 # smallererer_train_sam_num = 50
-AMM_name_tran = {"etl1":"ex_linear1", "etl2":"ex_linear2", "fc1":"fc1", "dtl1":"dx_linear1", "dtl2":"dx_linear2", "fc2":"fc2"} # 顺序不变，与S1的顺序一致
-host_name = socket.gethostname()
-if host_name == 'DESKTOP-PLRL7TK':
-    dir_intermediate = ''
-elif host_name == 'DESKTOP-6FOH47P':
-    dir_intermediate = 'F:\\Projects\\python\\PQ\\intermediate8dbfc1\\'
-elif host_name == 'jm-System-Product-Name':
-    dir_intermediate = '/data/hdr/transformer_data/intermediate/'
-    dir_train = os.path.join('/data/hdr/transformer_data/joined', 'train', 'f'+str(bits))
-    dir_test = os.path.join('/data/hdr/transformer_data/joined', 'test', 'f'+str(bits))
-    # dir1 = '/data/hdr/transformer_data/joined/'
-else:
-    raise NameError("You are running the script in a new computer, please define dir_intermediate")
+# AMM_name_tran = {"etl1":"ex_linear1", "etl2":"ex_linear2", "fc1":"fc1", "dtl1":"dx_linear1", "dtl2":"dx_linear2", "fc2":"fc2"} # 顺序不变，与S1的顺序一致
+# host_name = socket.gethostname()
+# if host_name == 'DESKTOP-PLRL7TK':
+#     intermediate_path = ''
+# elif host_name == 'DESKTOP-6FOH47P':
+#     intermediate_path = 'F:\\Projects\\python\\PQ\\intermediate8dbfc1\\'
+# elif host_name == 'jm-System-Product-Name':
+#     intermediate_path = '/data/hdr/transformer_data/intermediate/'
+#     dir_train = os.path.join('/data/hdr/transformer_data/joined', 'train', 'f'+str(bits))
+#     dir_test = os.path.join('/data/hdr/transformer_data/joined', 'test', 'f'+str(bits))
+#     # dir1 = '/data/hdr/transformer_data/joined/'
+# else:
+#     raise NameError("You are running the script in a new computer, please define intermediate_path")
 
 dir_now = os.path.dirname(os.path.abspath(__file__)) # 当前文件所在目录
 
@@ -65,9 +71,9 @@ def get_AMM_train_dirs(linear_name, linear_name_full, method, feedback_bits, tra
     return AMM_train_dirs
 
 # 从单batch样本合成大样本集（样本从序号0开始），方便AMM训练 #j1代表合并第一维
-def join_from_intermediate_j1(dir_intermediate, dir_t, dire_train, bits, intermediate_name, sam_num, trainortest):
+def join_from_intermediate_j1(intermediate_path, dir_t, dire_train, bits, intermediate_name, sam_num, trainortest):
     #sam_num:合并的样本数;trainortest:合成训练集填"train",测试集填"test"
-    linearpath0= os.path.join(dir_intermediate, str(bits), intermediate_name+'_f%i_e39_0.npy' % bits)#例：此处intermediate_name为linear
+    linearpath0= os.path.join(intermediate_path, str(bits), intermediate_name+'_f%i_e39_0.npy' % bits)#例：此处intermediate_name为linear
     linear0 = np.load(linearpath0)
     print("生成的数据集前缀: ", intermediate_name, trainortest)
     print("样本合并第一维前大小：", linear0.shape)
@@ -79,14 +85,16 @@ def join_from_intermediate_j1(dir_intermediate, dir_t, dire_train, bits, interme
     else:
         add = 0
     for i in range(1+add, sam_num+add):
-        linearpath1= os.path.join(dir_intermediate, str(bits), intermediate_name+'_f%i_e39_%i.npy' % (bits, i) )
+        linearpath1= os.path.join(intermediate_path, str(bits), intermediate_name+'_f%i_e39_%i.npy' % (bits, i) )
         linear1 = np.load(linearpath1)
         linear1_join1 = np.reshape(linear1, (-1, linear1.shape[-1]))
         if linear1_join1.shape[0]!=1024:
             print("i",str(i),",shape",str(linear1_join1.shape[0]))
         linear0_join1 = np.append(linear0_join1, linear1_join1, axis=0)
     print("合并后数据集大小: ", linear0_join1.shape)
-    np.save(os.path.join(dir_t, '%s_%s_f%i_sam%i.npy' % (intermediate_name,trainortest,bits,sam_num)), linear0_join1) 
+    create_dir(dir_t)
+    save_dir = os.path.join(dir_t, '%s_%s_f%i_sam%i.npy' % (intermediate_name,trainortest,bits,sam_num))
+    np.save(save_dir, linear0_join1) 
     print("intermediate_name[-3:] == out:",intermediate_name[-3:] == "out")
     if intermediate_name[-3:] == "out": # 如果合并的是out数据集，顺带把y=out-bias也合并了
         linear_name=intermediate_name[:-3]
@@ -96,9 +104,9 @@ def join_from_intermediate_j1(dir_intermediate, dir_t, dire_train, bits, interme
     
 
 # 从单batch样本合成大样本集（样本从序号0开始），方便AMM训练 #不需要合并第一维
-def join_from_intermediate(dir_intermediate, dir_t, dire_train, bits, intermediate_name, sam_num, trainortest):
+def join_from_intermediate(intermediate_path, dir_t, dire_train, bits, intermediate_name, sam_num, trainortest):
     #sam_num:合并的样本数;trainortest:合成训练集填"train",测试集填"test"
-    linearinpath0= os.path.join(dir_intermediate, str(bits), intermediate_name+'_f%i_e39_0.npy' % bits)#例：此处intermediate_name为linearin
+    linearinpath0= os.path.join(intermediate_path, str(bits), intermediate_name+'_f%i_e39_0.npy' % bits)#例：此处intermediate_name为linearin
     linearin0 = np.load(linearinpath0)
     print("生成的数据集前缀: ", intermediate_name, trainortest)
     print("原样本大小: ", linearin0.shape)
@@ -107,13 +115,14 @@ def join_from_intermediate(dir_intermediate, dir_t, dire_train, bits, intermedia
     else:
         add = 0
     for i in range(1+add, sam_num+add):
-        linearinpath1= os.path.join(dir_intermediate, str(bits), intermediate_name+'_f%i_e39_%i.npy' % (bits, i) )
+        linearinpath1= os.path.join(intermediate_path, str(bits), intermediate_name+'_f%i_e39_%i.npy' % (bits, i) )
         linearin1 = np.load(linearinpath1)
         linearin1 = np.reshape(linearin1, (-1, linearin1.shape[-1]))
         if linearin1.shape[0]!=32:
             print("i",str(i),",shape",str(linearin1.shape[0]))
         linearin0 = np.append(linearin0, linearin1, axis=0)
     print("合并后数据集大小: ", linearin0.shape)
+    create_dir(dir_t)
     np.save(os.path.join(dir_t, '%s_%s_f%i_sam%i.npy' % (intermediate_name,trainortest,bits,sam_num)), linearin0) 
     if intermediate_name[-3:] == "out": #如果合并的是out数据集，顺带把y=out-bias也合并了
         linear_name=intermediate_name[:-3]
@@ -232,9 +241,9 @@ def dataset_prepare(direc, linear_name_full, feedback_bits, sam_num_list, batch_
                 else:# 没有更大的数据集
                     print("没有比输入样本数更大的数据集，从样本合成新数据集")
                     if linear_name_full in in_transformer_list: # transformer子模块内的全连接层需要把数据集第一维合并，外的不需要合并
-                        join_from_intermediate_j1(dir_intermediate, dire, dire_train, feedback_bits, intermediate_name, sam_num, train_or_test)
+                        join_from_intermediate_j1(cu.intermediate_path, dire, dire_train, feedback_bits, intermediate_name, sam_num, train_or_test)
                     elif linear_name_full in out_transformer_list:
-                        join_from_intermediate(dir_intermediate, dire, dire_train, feedback_bits, intermediate_name, sam_num, train_or_test)
+                        join_from_intermediate(cu.intermediate_path, dire, dire_train, feedback_bits, intermediate_name, sam_num, train_or_test)
                 
 def change_nbits_auto_run_list(linear_name, method, feedback_bits, nbits_trained, nbits_goal, flag = ''):
     excel_path = os.path.join(dir_now, '../../../../csi_transformer/performance','%s_f%i.xls' % (linear_name, feedback_bits))
