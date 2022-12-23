@@ -250,7 +250,8 @@ def _fitted_est_for_hparams(method_id, hparams_dict, X_train, W_train,
 
 def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
                verbose=1, limit_ntasks=-1, tasks_all_same_shape=False, tasks=None,
-               X_path="", W_path="", Y_path="", bias_path="", dir="", nbits=8, quantize_lut=True):
+               X_path="", W_path="", Y_path="", bias_path="", dir="", 
+               nbits=8, quantize_lut=True, upcast_every=None):
     methods = methods.DEFAULT_METHODS if methods is None else methods
     tasks = md.load_dft_train(X_path, W_path, Y_path, dir, bias_path) if tasks is None else tasks
     if isinstance(methods, str):
@@ -274,10 +275,15 @@ def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
     elif (METHOD_PLUTO in methods):
         hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids,
                         'lut_work_const': -1, 'quantize_lut': quantize_lut,
-                        'nbits': nbits}
-    elif (METHOD_MITHRAL in methods) or (METHOD_PQ in methods) or (METHOD_MITHRALPQ in methods):
+                        'nbits': nbits, 'upcast_every':upcast_every if upcast_every != None else 16}
+    elif (METHOD_MITHRAL in methods):
         hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids,
-                        'quantize_lut':quantize_lut, 'nbits': nbits}
+                        'quantize_lut':quantize_lut, 'nbits': nbits, 
+                        'upcast_every': upcast_every if upcast_every != None else 16}
+    elif (METHOD_PQ in methods) or (METHOD_MITHRALPQ in methods):
+        hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids,
+                        'quantize_lut':quantize_lut, 'nbits': nbits, 
+                        'upcast_every': upcast_every if upcast_every != None else -1}
     else:
         hparams_dict = {'ncodebooks': ncodebooks,
                         'ncentroids': ncentroids, 'quantize_lut': quantize_lut}

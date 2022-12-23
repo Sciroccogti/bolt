@@ -617,12 +617,12 @@ def _mithral_quantize_luts(luts, lut_work_const, nbits=8, force_power_of_2=True)
 class MithralEncoder(MultiCodebookEncoder):
 
     def __init__(self, ncodebooks, ncentroids: int, nonzeros_heuristic='pq',
-                 lut_work_const=-1, quantize_lut=True, nbits=8):
+                 lut_work_const=-1, quantize_lut=True, nbits=8, upcast_every=16):
         super().__init__(
             ncodebooks=ncodebooks, ncentroids=ncentroids,
             # quantize_lut=True, upcast_every=64,
             # quantize_lut=True, upcast_every=32,
-            quantize_lut=quantize_lut, upcast_every=16,
+            quantize_lut=quantize_lut, upcast_every=upcast_every,
             # quantize_lut=True, upcast_every=8,
             # quantize_lut=True, upcast_every=4,
             # quantize_lut=True, upcast_every=2,
@@ -637,7 +637,7 @@ class MithralEncoder(MultiCodebookEncoder):
     def params(self):
         return {'ncodebooks': self.ncodebooks, 'ncentroids': self.ncentroids,
                 'lut_work_const': self.lut_work_const, 'quantize_lut':self.quantize_lut, 
-                'nbits': self.nbits}
+                'nbits': self.nbits, 'upcast_every':self.upcast_every}
 
     def fit(self, X, Q=None):
         self.splits_lists, self.centroids = clusterize.learn_mithral(
@@ -650,7 +650,7 @@ class MithralEncoder(MultiCodebookEncoder):
         return idxs + self.offsets
 
     def encode_Q(self, Q):
-        '''Q是B的转置，本函数会在读入矩阵B的时候调用，即 set_B'''
+        '''Q是B的转置, 本函数会在读入矩阵B的时候调用, 即 set_B'''
         Q = np.atleast_2d(Q)
         luts = np.zeros((Q.shape[0], self.ncodebooks, self.ncentroids))
         for i, q in enumerate(Q):
@@ -720,13 +720,14 @@ class PlutoEncoder(MultiCodebookEncoder):
         accumulate_how='mean',
         lut_work_const=-1,
         quantize_lut=True, 
-        nbits=8
+        nbits=8, 
+        upcast_every=16
     ):
         super().__init__(
             ncodebooks=ncodebooks, ncentroids=ncentroids,
             # quantize_lut=True, upcast_every=64,
             # quantize_lut=True, upcast_every=32,
-            quantize_lut=quantize_lut, upcast_every=16,
+            quantize_lut=quantize_lut, upcast_every=upcast_every,
             # quantize_lut=True, upcast_every=8,
             # quantize_lut=True, upcast_every=4,
             # quantize_lut=True, upcast_every=2,
@@ -743,7 +744,7 @@ class PlutoEncoder(MultiCodebookEncoder):
     def params(self):
         return {'ncodebooks': self.ncodebooks, 'ncentroids': self.ncentroids,
                 'lut_work_const': self.lut_work_const, 'quantize_lut':self.quantize_lut,
-                'nbits': self.nbits}
+                'nbits': self.nbits, 'upcast_every':self.upcast_every}
 
     def fit(self, X, Q, output=None, bias=None):
         # Q = B.T, where A is (N, D) and B is (D, M). So Q is (M, D)
