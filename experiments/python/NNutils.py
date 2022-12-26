@@ -248,7 +248,7 @@ def dataset_prepare(direc, linear_name_full, feedback_bits, sam_num_list, batch_
                     elif linear_name_full in out_transformer_list:
                         join_from_intermediate(cu.intermediate_path, dire, dire_train, feedback_bits, intermediate_name, sam_num, train_or_test)
                 
-def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, param2change:str, param_trained, param_goal, flag = ''):
+def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, param2change:str, param_trained, param_goal, theotherparam:str, theotherparam_val, flag = ''):
     '''
     根据已经运行的符合参数要求的AMM结果, 返回待运行的码本数、质心数、训练集batch数组合的DataFrame, 适用于改变AMM method的某个参数(如nbits、upcast_every)后, 需要依照已运行的改变参数的之前的各点的cb、ct、ntr(取max)参数运行改变参数之后的点的情况。
     
@@ -259,6 +259,8 @@ def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, p
     param2change: 每个点需要改变的AMM参数(如nbits、upcast_every);
     param_trained: 已经运行过的点的param2change参数值;
     param_goal: 待运行的点的param2change参数值;
+    theotherparam: "nbits"和"upcast_every"中除了param2change的另外一个
+    theotherparam_val: "nbits"和"upcast_every"中除了param2change的另外一个的值
     flag: 两个场景: AMM训练时, flag不填; AMM训练完给出AMM结果后测试CsiTransformer性能时, flag为"performance_test"。
     
     output:
@@ -268,6 +270,7 @@ def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, p
     res_path = os.path.join(dir_now, "../../../res/%s/f%i/%s" % (method, feedback_bits, linear_name))
     param2change_abbr_dict = {"nbits":"nb", "upcast_every":"uc"}
     param2change_abbr = param2change_abbr_dict[param2change] # 新运行的点的要更改的参数在文件名中的缩写
+    theotherparam_abbr = param2change_abbr_dict[theotherparam]
     # 读取 Excel 文件并将其存储在变量 df 中
     df = pd.read_excel(excel_path)
     # print(df)
@@ -305,7 +308,8 @@ def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, p
         n_train_sam = row_ref['n_train_sam']
         # 找到excel中符合当前cb、ct、n_train_sam组合的行
         method_run_value_filtered = method_run_value[(method_run_value['cb'] == cb) 
-                                & (method_run_value['ct'] == ct) & (method_run_value['n_train_sam'] == n_train_sam)]
+                                & (method_run_value['ct'] == ct) & (method_run_value['n_train_sam'] == n_train_sam)
+                                & (method_run_value[theotherparam] == theotherparam_val)]
         # 获取AMM相乘结果路径下的所有文件和文件夹的名称列表
         names = os.listdir(res_path)
         # 创建一个空列表，用于保存文件名
@@ -315,11 +319,11 @@ def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, p
             if os.path.isfile(os.path.join(res_path, name)):
                 AMM_predict_files.append(name)
         # 使用 any() 函数判断AMM相乘结果列表中是否存在cb_ct_ntr_combinations_unique中待运行的点
-        AMM_predict_files_already_exist1 = any('%s%i' % (param2change, param_goal) in name and 'trsam%i'%n_train_sam in name 
-                            and 'fb%i'%feedback_bits in name and 'cb%i'%cb in name
+        AMM_predict_files_already_exist1 = any('%s%i' % (param2change, param_goal) in name and '%s%i' % (theotherparam, theotherparam_val) in name 
+                            and 'trsam%i'%n_train_sam in name and 'fb%i'%feedback_bits in name and 'cb%i'%cb in name
                             and 'ct%i'%ct in name for name in AMM_predict_files) # param在AMM相乘结果文件名中没有用缩写
-        AMM_predict_files_already_exist2 = any('%s%i' % (param2change_abbr, param_goal) in name and 'trsam%i'%n_train_sam in name 
-                            and 'fb%i'%feedback_bits in name and 'cb%i'%cb in name
+        AMM_predict_files_already_exist2 = any('%s%i' % (param2change_abbr, param_goal) in name and '%s%i' % (theotherparam_abbr, theotherparam_val) in name 
+                            and 'trsam%i'%n_train_sam in name and 'fb%i'%feedback_bits in name and 'cb%i'%cb in name
                             and 'ct%i'%ct in name for name in AMM_predict_files) # param在AMM相乘结果文件名中用了缩写
         AMM_predict_files_already_exist = AMM_predict_files_already_exist1 or AMM_predict_files_already_exist2 # param在AMM相乘结果文件名用没用缩写都要考虑
         
