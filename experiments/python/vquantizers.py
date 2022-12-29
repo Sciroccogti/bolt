@@ -273,7 +273,8 @@ class MultiCodebookEncoder(abc.ABC):
                     #       np.mean(dists % 2 == 1))  # ya, ~.5, or maybe ~.495
 
                     while dists.shape[-1] > 2:
-                        dists = (dists[:, :, ::2] + dists[:, :, 1::2] + 1) // 2
+                        # 1::2 指从1开始，到结尾（省略），步长2，即选出奇数位
+                        dists = (dists[:, :, ::2] + dists[:, :, 1::2] + 1) // 2 
                     dists = (dists[:, :, 0] + dists[:, :, 1] + 1) // 2
                     dists = dists.sum(axis=-1)  # clipping not needed
 
@@ -617,16 +618,10 @@ def _mithral_quantize_luts(luts, lut_work_const, nbits=8, force_power_of_2=True)
 class MithralEncoder(MultiCodebookEncoder):
 
     def __init__(self, ncodebooks, ncentroids: int, nonzeros_heuristic='pq',
-                 lut_work_const=-1, quantize_lut=True, nbits=8):
+                 lut_work_const=-1, upcast_every=16, quantize_lut=True, nbits=8):
         super().__init__(
             ncodebooks=ncodebooks, ncentroids=ncentroids,
-            # quantize_lut=True, upcast_every=64,
-            # quantize_lut=True, upcast_every=32,
-            quantize_lut=quantize_lut, upcast_every=16,
-            # quantize_lut=True, upcast_every=8,
-            # quantize_lut=True, upcast_every=4,
-            # quantize_lut=True, upcast_every=2,
-            # quantize_lut=True, upcast_every=1,
+            quantize_lut=quantize_lut, upcast_every=upcast_every,
             accumulate_how='mean', nbits=nbits)
         self.nonzeros_heuristic = nonzeros_heuristic
         self.lut_work_const = lut_work_const
@@ -665,16 +660,10 @@ class MithralEncoder(MultiCodebookEncoder):
 class VingiloteEncoder(MultiCodebookEncoder):
 
     def __init__(self, ncodebooks, ncentroids: int, lut_work_const=-1,
-                 quantize_lut=True, nbits=8):
+                 upcast_every=16, quantize_lut=True, nbits=8):
         super().__init__(
             ncodebooks=ncodebooks, ncentroids=ncentroids,
-            # quantize_lut=True, upcast_every=64,
-            # quantize_lut=True, upcast_every=32,
-            quantize_lut=quantize_lut, upcast_every=16,
-            # quantize_lut=True, upcast_every=8,
-            # quantize_lut=True, upcast_every=4,
-            # quantize_lut=True, upcast_every=2,
-            # quantize_lut=True, upcast_every=1,
+            quantize_lut=quantize_lut, upcast_every=upcast_every,
             accumulate_how='mean', nbits=nbits)
         self.lut_work_const = lut_work_const
 
@@ -719,18 +708,13 @@ class PlutoEncoder(MultiCodebookEncoder):
         objective='mse',
         accumulate_how='mean',
         lut_work_const=-1,
+        upcast_every=16,
         quantize_lut=True, 
         nbits=8
     ):
         super().__init__(
             ncodebooks=ncodebooks, ncentroids=ncentroids,
-            # quantize_lut=True, upcast_every=64,
-            # quantize_lut=True, upcast_every=32,
-            quantize_lut=quantize_lut, upcast_every=16,
-            # quantize_lut=True, upcast_every=8,
-            # quantize_lut=True, upcast_every=4,
-            # quantize_lut=True, upcast_every=2,
-            # quantize_lut=True, upcast_every=1,
+            quantize_lut=quantize_lut, upcast_every=upcast_every,
             accumulate_how=accumulate_how, nbits=nbits)
         self.activation = activation
         self.nonzeros_heuristic = nonzeros_heuristic

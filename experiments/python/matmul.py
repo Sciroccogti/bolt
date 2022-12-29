@@ -277,7 +277,7 @@ def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
                         'nbits': nbits}
     elif (METHOD_MITHRAL in methods) or (METHOD_PQ in methods) or (METHOD_MITHRALPQ in methods):
         hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids,
-                        'quantize_lut':quantize_lut, 'nbits': nbits}
+                        'quantize_lut':quantize_lut, 'nbits': nbits, 'upcast_every': -1}
     else:
         hparams_dict = {'ncodebooks': ncodebooks,
                         'ncentroids': ncentroids, 'quantize_lut': quantize_lut}
