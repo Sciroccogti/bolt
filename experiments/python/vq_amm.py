@@ -12,19 +12,21 @@ KEY_NLOOKUPS = 'nlookups'
 
 
 class VQMatmul(amm.ApproxMatmul, abc.ABC):
-    def __init__(self, ncodebooks, ncentroids=None, quantize_lut=True, nbits=8):
+    def __init__(self, ncodebooks, ncentroids=None, quantize_lut=True, nbits = 8, upcast_every = -1):
         self.ncodebooks = ncodebooks
         self.ncentroids = (self._get_ncentroids() if ncentroids is None
                            else ncentroids)
         self.quantize_lut = quantize_lut
         self.nbits = nbits
+        self.upcast_every = upcast_every
         self.enc = self._create_encoder(ncodebooks)
         self.reset_for_new_task()
 
     @abc.abstractmethod
     def _create_encoder(self, ncodebooks):  # to be overriden by subclasses
         return vq.PQEncoder(ncodebooks=ncodebooks, ncentroids=self.ncentroids,
-                            quantize_lut=self.quantize_lut, **self._get_encoder_kwargs())
+                            quantize_lut=self.quantize_lut, upcast_every=self.upcast_every, 
+                            **self._get_encoder_kwargs())
 
     # @abc.abstractmethod
     def _get_ncentroids(self):
@@ -71,7 +73,7 @@ class VQMatmul(amm.ApproxMatmul, abc.ABC):
 class PQMatmul(VQMatmul):
 
     def _create_encoder(self, ncodebooks):  # to be overriden by subclasses
-        return vq.PQEncoder(ncodebooks=ncodebooks, ncentroids=self.ncentroids,
+        return vq.PQEncoder(ncodebooks=ncodebooks, ncentroids=self.ncentroids, upcast_every=self.upcast_every,
                             quantize_lut=self.quantize_lut, nbits=self.nbits, **self._get_encoder_kwargs())
 
     def _get_ncentroids(self):
@@ -346,13 +348,15 @@ class PlutoMatmul(VQMatmul):
         accumulate_how="mean",
         lut_work_const=-1,
         quantize_lut=True,
-        nbits = 8
+        nbits=8, 
+        upcast_every=16
     ):
         self.activation = activation
         self.nonzeros_heuristic = nonzeros_heuristic
         self.objective = objective
         self.accumulate_how = accumulate_how
         self.lut_work_const = lut_work_const
+        self.upcast_every = upcast_every
         if (lut_work_const is not None) and (lut_work_const > 0) and (
                 lut_work_const > ncodebooks):
             raise amm.InvalidParametersException(
@@ -382,7 +386,8 @@ class PlutoMatmul(VQMatmul):
             accumulate_how=self.accumulate_how,
             lut_work_const=self.lut_work_const,
             quantize_lut=self.quantize_lut,
-            nbits=self.nbits
+            nbits=self.nbits, 
+            upcast_every = self.upcast_every
         )
         return pluto_enc
 
@@ -397,6 +402,9 @@ class PlutoMatmul(VQMatmul):
                 'ncentroids': self.ncentroids,
                 'lut_work_const': self.lut_work_const,
                 'activation': activation_str,
+                'quantize_lut': self.quantize_lut, 
+                'nbits': self.nbits, 
+                'upcast_every': self.upcast_every,
                 'nonzeros_heuristic': self.nonzeros_heuristic,
                 'objective': self.objective}
 
@@ -486,6 +494,7 @@ class MithralMatmul(VQMatmul):
         self.lut_work_const = lut_work_const
         self.upcast_every = upcast_every
         self.quantize_lut = quantize_lut
+        self.upcast_every = upcast_every
         if (lut_work_const is not None) and (lut_work_const > 0) and (
                 lut_work_const > ncodebooks):
             raise amm.InvalidParametersException(
@@ -508,13 +517,15 @@ class MithralMatmul(VQMatmul):
             lut_work_const=self.lut_work_const,
             upcast_every=self.upcast_every,
             quantize_lut=self.quantize_lut,
-            nbits=self.nbits
+            nbits=self.nbits, 
+            upcast_every=self.upcast_every
         )
         return mithral_enc
 
     def get_params(self):
         return {'ncodebooks': self.ncodebooks, 'ncentroids': self.ncentroids,
-                'lut_work_const': self.lut_work_const}
+                'quantize_lut': self.quantize_lut, 'nbits': self.nbits,
+                'upcast_every':self.upcast_every, 'lut_work_const': self.lut_work_const}
 
     def get_speed_metrics(self, A, B, fixedA=False, fixedB=False):
         N, D = A.shape
@@ -543,14 +554,14 @@ class MithralMatmul(VQMatmul):
 
 class MithralPQ(MithralMatmul):
 
-    def __init__(self, ncodebooks, ncentroids: int = 16, quantize_lut=True, nbits=8):
+    def __init__(self, ncodebooks, ncentroids: int = 16, quantize_lut=True, nbits=8, upcast_every=-1):
         super().__init__(ncodebooks=ncodebooks, ncentroids=ncentroids, lut_work_const=1, \
-                        quantize_lut=quantize_lut, nbits=nbits)
+                        quantize_lut=quantize_lut, nbits=nbits, upcast_every=upcast_every)
 
     def _create_encoder(self, ncodebooks):  # to be overriden by subclasses
-        return vq.PQEncoder(ncodebooks=ncodebooks, ncentroids=self.ncentroids, \
-                            quantize_lut=self.quantize_lut, nbits=self.nbits, \
-                            **self._get_encoder_kwargs())
+        return vq.PQEncoder(ncodebooks=ncodebooks, ncentroids=self.ncentroids, 
+                            quantize_lut=self.quantize_lut, nbits=self.nbits, 
+                            upcast_every=self.upcast_every, **self._get_encoder_kwargs())
 
     def set_B(self, B):
         self.luts = self.enc.encode_Q(B.T)

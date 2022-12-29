@@ -632,7 +632,7 @@ class MithralEncoder(MultiCodebookEncoder):
     def params(self):
         return {'ncodebooks': self.ncodebooks, 'ncentroids': self.ncentroids,
                 'lut_work_const': self.lut_work_const, 'quantize_lut':self.quantize_lut, 
-                'nbits': self.nbits}
+                'nbits': self.nbits, 'upcast_every':self.upcast_every}
 
     def fit(self, X, Q=None):
         self.splits_lists, self.centroids = clusterize.learn_mithral(
@@ -645,7 +645,7 @@ class MithralEncoder(MultiCodebookEncoder):
         return idxs + self.offsets
 
     def encode_Q(self, Q):
-        '''Q是B的转置，本函数会在读入矩阵B的时候调用，即 set_B'''
+        '''Q是B的转置, 本函数会在读入矩阵B的时候调用, 即 set_B'''
         Q = np.atleast_2d(Q)
         luts = np.zeros((Q.shape[0], self.ncodebooks, self.ncentroids))
         for i, q in enumerate(Q):
@@ -710,7 +710,8 @@ class PlutoEncoder(MultiCodebookEncoder):
         lut_work_const=-1,
         upcast_every=16,
         quantize_lut=True, 
-        nbits=8
+        nbits=8, 
+        upcast_every=16
     ):
         super().__init__(
             ncodebooks=ncodebooks, ncentroids=ncentroids,
@@ -727,7 +728,7 @@ class PlutoEncoder(MultiCodebookEncoder):
     def params(self):
         return {'ncodebooks': self.ncodebooks, 'ncentroids': self.ncentroids,
                 'lut_work_const': self.lut_work_const, 'quantize_lut':self.quantize_lut,
-                'nbits': self.nbits}
+                'nbits': self.nbits, 'upcast_every':self.upcast_every}
 
     def fit(self, X, Q, output=None, bias=None):
         # Q = B.T, where A is (N, D) and B is (D, M). So Q is (M, D)

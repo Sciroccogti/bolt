@@ -1,7 +1,14 @@
 # 有关transformer数据集的工具
 import numpy as np
+import pandas as pd
 import os
-import socket
+current_file_path = __file__
+current_dir_path = os.path.dirname(__file__)
+import sys
+## sys.path.append(current_dir_path)
+sys.path.append(os.path.join(current_dir_path, '../../../../csi_transformer/src'))
+import ctdirs_utils as cu
+# import socket
 import re # 正则表达式
 
 bits = 256
@@ -13,19 +20,21 @@ nbits = 8 # # METHOD_SCALAR_QUANTIZE的量化比特数
 # smaller_train_sam_num = 3000 # 减小内存消耗的训练集样本数
 # smallerer_train_sam_num = 1000
 # smallererer_train_sam_num = 50
-AMM_name_tran = {"etl1":"ex_linear1", "etl2":"ex_linear2", "fc1":"fc1", "dtl1":"dx_linear1", "dtl2":"dx_linear2", "fc2":"fc2"} # 顺序不变，与S1的顺序一致
-host_name = socket.gethostname()
-if host_name == 'DESKTOP-PLRL7TK':
-    dir_intermediate = ''
-elif host_name == 'DESKTOP-6FOH47P':
-    dir_intermediate = 'F:\\Projects\\python\\PQ\\intermediate8dbfc1\\'
-elif host_name == 'jm-System-Product-Name':
-    dir_intermediate = '/data/hdr/transformer_data/intermediate/'
-    dir_train = os.path.join('/data/hdr/transformer_data/joined', 'train', 'f'+str(bits))
-    dir_test = os.path.join('/data/hdr/transformer_data/joined', 'test', 'f'+str(bits))
-    # dir1 = '/data/hdr/transformer_data/joined/'
-else:
-    raise NameError("You are running the script in a new computer, please define dir_intermediate")
+# AMM_name_tran = {"etl1":"ex_linear1", "etl2":"ex_linear2", "fc1":"fc1", "dtl1":"dx_linear1", "dtl2":"dx_linear2", "fc2":"fc2"} # 顺序不变，与S1的顺序一致
+# host_name = socket.gethostname()
+# if host_name == 'DESKTOP-PLRL7TK':
+#     intermediate_path = ''
+# elif host_name == 'DESKTOP-6FOH47P':
+#     intermediate_path = 'F:\\Projects\\python\\PQ\\intermediate8dbfc1\\'
+# elif host_name == 'jm-System-Product-Name':
+#     intermediate_path = '/data/hdr/transformer_data/intermediate/'
+#     dir_train = os.path.join('/data/hdr/transformer_data/joined', 'train', 'f'+str(bits))
+#     dir_test = os.path.join('/data/hdr/transformer_data/joined', 'test', 'f'+str(bits))
+#     # dir1 = '/data/hdr/transformer_data/joined/'
+# else:
+#     raise NameError("You are running the script in a new computer, please define intermediate_path")
+
+dir_now = os.path.dirname(os.path.abspath(__file__)) # 当前文件所在目录
 
 def create_dir(directory): # 创建（尚未存在的）空目录函数
     try:
@@ -46,7 +55,6 @@ def del_linear_suffix(intermediate_name:str): # 删除全连接层名称的尾�
 
 def get_AMM_train_dirs(linear_name, linear_name_full, method, feedback_bits, train_sam_num, test_sam_num):
     AMM_train_dirs = {}
-    dir_now = os.path.dirname(os.path.abspath(__file__)) # 当前文件所在目录
     AMM_train_dirs["dir_joined"] = os.path.join(dir_now, "../../../../transformer_data/joined")
     AMM_train_dirs["dir_train"] = os.path.join(AMM_train_dirs["dir_joined"], 'train', 'f'+str(feedback_bits))
     AMM_train_dirs["dir_test"] = os.path.join(AMM_train_dirs["dir_joined"], 'test', 'f'+str(feedback_bits))
@@ -63,9 +71,9 @@ def get_AMM_train_dirs(linear_name, linear_name_full, method, feedback_bits, tra
     return AMM_train_dirs
 
 # 从单batch样本合成大样本集（样本从序号0开始），方便AMM训练 #j1代表合并第一维
-def join_from_intermediate_j1(dir_intermediate, dir_t, dire_train, bits, intermediate_name, sam_num, trainortest):
+def join_from_intermediate_j1(intermediate_path, dir_t, dire_train, bits, intermediate_name, sam_num, trainortest):
     #sam_num:合并的样本数;trainortest:合成训练集填"train",测试集填"test"
-    linearpath0= os.path.join(dir_intermediate, str(bits), intermediate_name+'_f%i_e39_0.npy' % bits)#例：此处intermediate_name为linear
+    linearpath0= os.path.join(intermediate_path, str(bits), intermediate_name+'_f%i_e39_0.npy' % bits)#例：此处intermediate_name为linear
     linear0 = np.load(linearpath0)
     print("生成的数据集前缀: ", intermediate_name, trainortest)
     print("样本合并第一维前大小：", linear0.shape)
@@ -77,14 +85,16 @@ def join_from_intermediate_j1(dir_intermediate, dir_t, dire_train, bits, interme
     else:
         add = 0
     for i in range(1+add, sam_num+add):
-        linearpath1= os.path.join(dir_intermediate, str(bits), intermediate_name+'_f%i_e39_%i.npy' % (bits, i) )
+        linearpath1= os.path.join(intermediate_path, str(bits), intermediate_name+'_f%i_e39_%i.npy' % (bits, i) )
         linear1 = np.load(linearpath1)
         linear1_join1 = np.reshape(linear1, (-1, linear1.shape[-1]))
         if linear1_join1.shape[0]!=1024:
             print("i",str(i),",shape",str(linear1_join1.shape[0]))
         linear0_join1 = np.append(linear0_join1, linear1_join1, axis=0)
     print("合并后数据集大小: ", linear0_join1.shape)
-    np.save(os.path.join(dir_t, '%s_%s_f%i_sam%i.npy' % (intermediate_name,trainortest,bits,sam_num)), linear0_join1) 
+    create_dir(dir_t)
+    save_dir = os.path.join(dir_t, '%s_%s_f%i_sam%i.npy' % (intermediate_name,trainortest,bits,sam_num))
+    np.save(save_dir, linear0_join1) 
     print("intermediate_name[-3:] == out:",intermediate_name[-3:] == "out")
     if intermediate_name[-3:] == "out": # 如果合并的是out数据集，顺带把y=out-bias也合并了
         linear_name=intermediate_name[:-3]
@@ -94,9 +104,9 @@ def join_from_intermediate_j1(dir_intermediate, dir_t, dire_train, bits, interme
     
 
 # 从单batch样本合成大样本集（样本从序号0开始），方便AMM训练 #不需要合并第一维
-def join_from_intermediate(dir_intermediate, dir_t, dire_train, bits, intermediate_name, sam_num, trainortest):
+def join_from_intermediate(intermediate_path, dir_t, dire_train, bits, intermediate_name, sam_num, trainortest):
     #sam_num:合并的样本数;trainortest:合成训练集填"train",测试集填"test"
-    linearinpath0= os.path.join(dir_intermediate, str(bits), intermediate_name+'_f%i_e39_0.npy' % bits)#例：此处intermediate_name为linearin
+    linearinpath0= os.path.join(intermediate_path, str(bits), intermediate_name+'_f%i_e39_0.npy' % bits)#例：此处intermediate_name为linearin
     linearin0 = np.load(linearinpath0)
     print("生成的数据集前缀: ", intermediate_name, trainortest)
     print("原样本大小: ", linearin0.shape)
@@ -105,13 +115,14 @@ def join_from_intermediate(dir_intermediate, dir_t, dire_train, bits, intermedia
     else:
         add = 0
     for i in range(1+add, sam_num+add):
-        linearinpath1= os.path.join(dir_intermediate, str(bits), intermediate_name+'_f%i_e39_%i.npy' % (bits, i) )
+        linearinpath1= os.path.join(intermediate_path, str(bits), intermediate_name+'_f%i_e39_%i.npy' % (bits, i) )
         linearin1 = np.load(linearinpath1)
         linearin1 = np.reshape(linearin1, (-1, linearin1.shape[-1]))
         if linearin1.shape[0]!=32:
             print("i",str(i),",shape",str(linearin1.shape[0]))
         linearin0 = np.append(linearin0, linearin1, axis=0)
     print("合并后数据集大小: ", linearin0.shape)
+    create_dir(dir_t)
     np.save(os.path.join(dir_t, '%s_%s_f%i_sam%i.npy' % (intermediate_name,trainortest,bits,sam_num)), linearin0) 
     if intermediate_name[-3:] == "out": #如果合并的是out数据集，顺带把y=out-bias也合并了
         linear_name=intermediate_name[:-3]
@@ -199,8 +210,11 @@ def find_max_dataset(dire, file_str):
 
 
 def dataset_prepare(direc, linear_name_full, feedback_bits, sam_num_list, batch_size, S1 = 1):
-    # 准备全连接层linear_name_full在CSI压缩后长度为feedback_bits的数据集，训练样本数为sam_num_list[0], 测试样本数为sam_num_list[1]，样本大小为batch_size
-    # S1对于transformer子模块外的全连接层为1，对于transformer子模块内的全连接层不为1
+    '''
+    准备全连接层linear_name_full在CSI压缩后长度为feedback_bits的数据集，训练样本数为sam_num_list[0], 测试样本数为sam_num_list[1]，样本大小为batch_size
+    
+    S1对于transformer子模块外的全连接层为1，对于transformer子模块内的全连接层不为1
+    '''
     in_transformer_list = ["ex_linear1", "ex_linear2", "dx_linear1", "dx_linear2"]
     out_transformer_list = ["fc1", "fc2"]
     data_place_list = ["in", "out", "_y"]
@@ -230,8 +244,98 @@ def dataset_prepare(direc, linear_name_full, feedback_bits, sam_num_list, batch_
                 else:# 没有更大的数据集
                     print("没有比输入样本数更大的数据集，从样本合成新数据集")
                     if linear_name_full in in_transformer_list: # transformer子模块内的全连接层需要把数据集第一维合并，外的不需要合并
-                        join_from_intermediate_j1(dir_intermediate, dire, dire_train, feedback_bits, intermediate_name, sam_num, train_or_test)
+                        join_from_intermediate_j1(cu.intermediate_path, dire, dire_train, feedback_bits, intermediate_name, sam_num, train_or_test)
                     elif linear_name_full in out_transformer_list:
-                        join_from_intermediate(dir_intermediate, dire, dire_train, feedback_bits, intermediate_name, sam_num, train_or_test)
+                        join_from_intermediate(cu.intermediate_path, dire, dire_train, feedback_bits, intermediate_name, sam_num, train_or_test)
                 
+def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, param2change:str, param_trained, param_goal, theotherparam:str, theotherparam_val, flag = ''):
+    '''
+    根据已经运行的符合参数要求的AMM结果, 返回待运行的码本数、质心数、训练集batch数组合的DataFrame, 适用于改变AMM method的某个参数(如nbits、upcast_every)后, 需要依照已运行的改变参数的之前的各点的cb、ct、ntr(取max)参数运行改变参数之后的点的情况。
+    
+    input:
+    linear_name: 要运行的全连接层名(缩写);
+    method: 要运行的AMM方法;
+    feedback_bits: CsiTransformer压缩后的长度;
+    param2change: 每个点需要改变的AMM参数(如nbits、upcast_every);
+    param_trained: 已经运行过的点的param2change参数值;
+    param_goal: 待运行的点的param2change参数值;
+    theotherparam: "nbits"和"upcast_every"中除了param2change的另外一个
+    theotherparam_val: "nbits"和"upcast_every"中除了param2change的另外一个的值
+    flag: 两个场景: AMM训练时, flag不填; AMM训练完给出AMM结果后测试CsiTransformer性能时, flag为"performance_test"。
+    
+    output:
+    cb_ct_ntr_combinations_unique: 码本数、质心数、训练集batch数组合的DataFrame
+    '''
+    excel_path = os.path.join(dir_now, '../../../../csi_transformer/performance','%s_f%i.xls' % (linear_name, feedback_bits))
+    res_path = os.path.join(dir_now, "../../../res/%s/f%i/%s" % (method, feedback_bits, linear_name))
+    param2change_abbr_dict = {"nbits":"nb", "upcast_every":"uc"}
+    param2change_abbr = param2change_abbr_dict[param2change] # 新运行的点的要更改的参数在文件名中的缩写
+    theotherparam_abbr = param2change_abbr_dict[theotherparam]
+    # 读取 Excel 文件并将其存储在变量 df 中
+    df = pd.read_excel(excel_path)
+    # print(df)
+    row_ref = { "AMM_method": method, param2change: param_trained} # 运行参考的训练集大小的行
+    row_run = { "AMM_method": method, param2change: param_goal} # 运行的目标行，用于排除已运行的
+    # excel中符合row值的行
+    method_ref_value = df.loc[(df[list(row_ref.keys())[0]] == row_ref[list(row_ref.keys())[0]]) 
+                            & (df[list(row_ref.keys())[1]] == row_ref[list(row_ref.keys())[1]])]
+    method_run_value = df.loc[(df[list(row_run.keys())[0]] == row_run[list(row_run.keys())[0]]) 
+                            & (df[list(row_run.keys())[1]] == row_run[list(row_run.keys())[1]])]
+    cb_ct_combinations = method_ref_value[['cb', 'ct']].values
+    #将cb_ct_combinations转换为Pandas的DataFrame
+    cb_ct_combinations_df = pd.DataFrame(cb_ct_combinations, columns=['cb', 'ct'])
+    #删除重复组合
+    cb_ct_combinations_unique = cb_ct_combinations_df.drop_duplicates()
+    # 初始化结果列表
+    result = []
+    # 遍历每个cb、ct组合
+    for _, row_ref in cb_ct_combinations_unique.iterrows():
+        cb = row_ref['cb']
+        ct = row_ref['ct']
+        # 找到符合当前cb、ct组合的行
+        method_ref_value_filtered = method_ref_value[(method_ref_value['cb'] == cb) & (method_ref_value['ct'] == ct)]
+        # print(method_8bits_value_filtered)
+        # 找到n_train_sam列数值最大的那个值
+        max_n_train_sam = method_ref_value_filtered['n_train_sam'].max()
+        # 将结果添加到结果列表中
+        result.append(max_n_train_sam)
+    # 使用assign方法将result列表添加到cb_ct_combinations_unique数据帧的最后一列
+    cb_ct_ntr_combinations_unique = cb_ct_combinations_unique.assign(n_train_sam=result)
+    # 遍历每个cb、ct、n_train_sam组合，排除已经运行的目标点
+    for _, row_ref in cb_ct_ntr_combinations_unique.iterrows():
+        cb = row_ref['cb']
+        ct = row_ref['ct']
+        n_train_sam = row_ref['n_train_sam']
+        # 找到excel中符合当前cb、ct、n_train_sam组合的行
+        method_run_value_filtered = method_run_value[(method_run_value['cb'] == cb) 
+                                & (method_run_value['ct'] == ct) & (method_run_value['n_train_sam'] == n_train_sam)
+                                & (method_run_value[theotherparam] == theotherparam_val)]
+        # 获取AMM相乘结果路径下的所有文件和文件夹的名称列表
+        names = os.listdir(res_path)
+        # 创建一个空列表，用于保存文件名
+        AMM_predict_files = []
+        # 遍历名称列表，筛选出文件名
+        for name in names:
+            if os.path.isfile(os.path.join(res_path, name)):
+                AMM_predict_files.append(name)
+        # 使用 any() 函数判断AMM相乘结果列表中是否存在cb_ct_ntr_combinations_unique中待运行的点
+        AMM_predict_files_already_exist1 = any('%s%i' % (param2change, param_goal) in name and '%s%i' % (theotherparam, theotherparam_val) in name 
+                            and 'trsam%i'%n_train_sam in name and 'fb%i'%feedback_bits in name and 'cb%i'%cb in name
+                            and 'ct%i'%ct in name for name in AMM_predict_files) # param在AMM相乘结果文件名中没有用缩写
+        AMM_predict_files_already_exist2 = any('%s%i' % (param2change_abbr, param_goal) in name and '%s%i' % (theotherparam_abbr, theotherparam_val) in name 
+                            and 'trsam%i'%n_train_sam in name and 'fb%i'%feedback_bits in name and 'cb%i'%cb in name
+                            and 'ct%i'%ct in name for name in AMM_predict_files) # param在AMM相乘结果文件名中用了缩写
+        AMM_predict_files_already_exist = AMM_predict_files_already_exist1 or AMM_predict_files_already_exist2 # param在AMM相乘结果文件名用没用缩写都要考虑
+        
+        if flag == "performance_test": # 如果在“全连接层xxx替换性能fxxx.ipynb”文件中运行时，不需要考虑AMM相乘结果文件是否已存在
+            AMM_predict_files_already_exist = False
 
+        if (not method_run_value_filtered.empty) or AMM_predict_files_already_exist:# 如果要运行比特数的部分点已经运行，则在待运行dataframe中删除该点
+            # 可以使用df.loc方法选取出列名“cb”的对应值、“ct”的对应值的所有行：
+            selected_rows = cb_ct_ntr_combinations_unique.loc[(cb_ct_ntr_combinations_unique['cb'] == cb) 
+                                                            & (cb_ct_ntr_combinations_unique['ct'] == ct)
+                                                            & (cb_ct_ntr_combinations_unique['n_train_sam'] == n_train_sam)]
+            # 使用df.drop方法删除选取出的行，代码如下：
+            cb_ct_ntr_combinations_unique.drop(selected_rows.index, inplace=True)
+            
+    return cb_ct_ntr_combinations_unique
