@@ -1,9 +1,9 @@
 *.pkl
 *.mat
 *.npy
-dft_main_*.csv
+experiments/python/results/*.csv
+experiments/python/results/*.txt
 *.svg
-dft_main_*.txt
 Figure*.txt
 awgn_autoencoder_weights_conventional_training
 awgn_autoencoder_results
