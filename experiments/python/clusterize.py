@@ -1986,7 +1986,6 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
 
     if return_buckets:
         return all_splits, all_centroids, all_buckets
-    print("learn_mithral\nall_centroids:\n", all_centroids)
     return all_splits, all_centroids
 
 

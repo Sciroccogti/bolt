@@ -48,6 +48,7 @@ def reconstruct_X_pq(assignments, codebooks):
 
 
 def _dists_elemwise_sq(x, q):
+    # 平方距离（欧式距）
     diffs = x - q
     return diffs * diffs
 
@@ -83,6 +84,7 @@ def _encode_X_pq(X, codebooks, elemwise_dist_func=_dists_elemwise_sq):
         row = row.reshape((1, nsubvects, subvect_len))
         dists = elemwise_dist_func(codebooks, row)
         dists = np.sum(dists, axis=2)
+        # 以上都还是 float32，存到 idxs 的时候转为 int
         idxs[i, :] = np.argmin(dists, axis=0)
 
     return idxs  # [N x nsubvects]

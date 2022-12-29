@@ -293,7 +293,8 @@ class Transceiver:
                                      ncodebooks=self.params["ncodebooks"],
                                      ncentroids=self.params["ncentroids"],
                                      X_path="IDFT_X.npy", W_path="IDFT_W.npy", Y_path="IDFT_Y.npy",
-                                     dir="dft", quantize_lut=self.quantize_lut)
+                                     dir="dft", nbits=self.params["nbits"],
+                                     quantize_lut=self.quantize_lut)
         else:
             assert self.matmul_method == METHOD_EXACT, "Other methods not supported!"
         for i, SNR in enumerate(SNRs):
