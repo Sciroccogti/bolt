@@ -275,7 +275,7 @@ def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, p
     df = pd.read_excel(excel_path)
     # print(df)
     row_ref = { "AMM_method": method, param2change: param_trained} # 运行参考的训练集大小的行
-    row_run = { "AMM_method": method, param2change: param_goal} # 运行的目标行，用于排除已运行的
+    row_run = { "AMM_method": method, param2change: param_goal, } # 运行的目标行，用于排除已运行的
     # excel中符合row值的行
     method_ref_value = df.loc[(df[list(row_ref.keys())[0]] == row_ref[list(row_ref.keys())[0]]) 
                             & (df[list(row_ref.keys())[1]] == row_ref[list(row_ref.keys())[1]])]
@@ -286,6 +286,7 @@ def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, p
     cb_ct_combinations_df = pd.DataFrame(cb_ct_combinations, columns=['cb', 'ct'])
     #删除重复组合
     cb_ct_combinations_unique = cb_ct_combinations_df.drop_duplicates()
+    # print("cb_ct_combinations_unique:\n", cb_ct_combinations_unique)
     # 初始化结果列表
     result = []
     # 遍历每个cb、ct组合
@@ -301,12 +302,14 @@ def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, p
         result.append(max_n_train_sam)
     # 使用assign方法将result列表添加到cb_ct_combinations_unique数据帧的最后一列
     cb_ct_ntr_combinations_unique = cb_ct_combinations_unique.assign(n_train_sam=result)
+    # print("cb_ct_ntr_combinations_unique:\n", cb_ct_ntr_combinations_unique)
     # 遍历每个cb、ct、n_train_sam组合，排除已经运行的目标点
     for _, row_ref in cb_ct_ntr_combinations_unique.iterrows():
         cb = row_ref['cb']
         ct = row_ref['ct']
         n_train_sam = row_ref['n_train_sam']
         # 找到excel中符合当前cb、ct、n_train_sam组合的行
+        # print("method_run_value:\n",method_run_value)
         method_run_value_filtered = method_run_value[(method_run_value['cb'] == cb) 
                                 & (method_run_value['ct'] == ct) & (method_run_value['n_train_sam'] == n_train_sam)
                                 & (method_run_value[theotherparam] == theotherparam_val)]
@@ -337,5 +340,6 @@ def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, p
                                                             & (cb_ct_ntr_combinations_unique['n_train_sam'] == n_train_sam)]
             # 使用df.drop方法删除选取出的行，代码如下：
             cb_ct_ntr_combinations_unique.drop(selected_rows.index, inplace=True)
+            # print("row_ref已存在，删除:\n",row_ref)
             
     return cb_ct_ntr_combinations_unique
