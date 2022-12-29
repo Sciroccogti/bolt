@@ -480,10 +480,11 @@ class PlutoMatmul(VQMatmul):
 
 class MithralMatmul(VQMatmul):
 
-    def __init__(self, ncodebooks, ncentroids: int = 16, nonzeros_heuristic="pq", \
-        lut_work_const=-1, quantize_lut=True, nbits = 8):
+    def __init__(self, ncodebooks, ncentroids: int = 16, nonzeros_heuristic="pq",
+                 lut_work_const=-1, upcast_every=16, quantize_lut=True, nbits = 8):
         self.nonzeros_heuristic = nonzeros_heuristic
         self.lut_work_const = lut_work_const
+        self.upcast_every = upcast_every
         self.quantize_lut = quantize_lut
         if (lut_work_const is not None) and (lut_work_const > 0) and (
                 lut_work_const > ncodebooks):
@@ -505,6 +506,7 @@ class MithralMatmul(VQMatmul):
             ncentroids=self.ncentroids,
             nonzeros_heuristic=self.nonzeros_heuristic,
             lut_work_const=self.lut_work_const,
+            upcast_every=self.upcast_every,
             quantize_lut=self.quantize_lut,
             nbits=self.nbits
         )
