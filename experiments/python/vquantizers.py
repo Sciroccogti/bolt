@@ -111,7 +111,7 @@ def ensure_num_cols_multiple_of(X, multiple_of):
     return X
 
 
-def _learn_best_quantization(luts, nbits=8):  # TODO how can nbits change
+def _learn_best_quantization(luts, nbits=8):
     assert luts.ndim == 2  # luts can be a bunch of vstacked luts, but not 3D
     best_loss = np.inf
     best_alpha = None
@@ -480,7 +480,7 @@ class PQEncoder(MultiCodebookEncoder):
                 lut = np.maximum(0, lut - self.lut_offsets)
                 lut = np.floor(lut * self.scale_by).astype(np.int)
                 # lut = np.minimum(lut, 255)
-                lut = np.minimum(lut, quantize_max_level-1)  # 量化级数由8bit的255改为自定义
+                lut = np.minimum(lut, quantize_max_level - 1)  # 量化级数由8bit的255改为自定义
             luts[i] = lut.T
         return luts
 
