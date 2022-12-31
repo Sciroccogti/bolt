@@ -3,13 +3,16 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-29 13:27:52
-@modified: 2022-12-30 22:52:41
+@modified: 2022-12-31 23:56:06
 '''
 
 import clusterize
 import numpy as np
 import vquantizers as vq
+from dpq.dpq_nn import DPQNetwork
+import torch
 
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 class DPQEncoder(vq.MultiCodebookEncoder):
     def __init__(self, ncodebooks, ncentroids=256, quantize_lut=True, nbits=8, upcast_every=-1, accumulate_how='sum'):
@@ -44,15 +47,28 @@ class DPQEncoder(vq.MultiCodebookEncoder):
         # PQ style
         self.subvect_len = int(np.ceil(X.shape[1] / self.ncodebooks))
         X = vq.ensure_num_cols_multiple_of(X, self.ncodebooks)
+        # encode_algo: None
+        self.centroids = vq._learn_centroids(
+            X, self.ncentroids, self.ncodebooks, self.subvect_len)  # (K, C, subvect_len)
+        # encode_algo: multisplit
         # self.encode_algo = "multisplits"
         # self.splits_lists, self.centroids = clusterize.learn_splits_in_subspaces(
         #     X, subvect_len=self.subvect_len, nsplits_per_subs=self.code_bits,
         #     algo=self.encode_algo)
-        self.centroids = vq._learn_centroids(X, self.ncentroids, self.ncodebooks, self.subvect_len)
+
+        print(f"Using {device} device")
+        model = DPQNetwork(
+            ncentroids=self.ncentroids,
+            ncodebooks=self.ncodebooks,
+            subvect_len=self.subvect_len,
+            centroids=torch.from_numpy(self.centroids.transpose((1, 0, 2))).to(device),
+        ).to(device)
+        X = torch.from_numpy(X.reshape((-1, self.ncodebooks, self.subvect_len))).to(device)
+        model.forward(X)
 
     def encode_Q(self, Q):
         '''
-        generate luts
+        generate luts using centroids
 
         :param Q:
         '''
@@ -70,13 +86,16 @@ class DPQEncoder(vq.MultiCodebookEncoder):
 
     def encode_X(self, X):
         '''
-        encode left matrix online
+        encode left matrix online, currently all from PQEncoder
+
         :param X: online left matrix
         '''
         # PQ style
         X = vq.ensure_num_cols_multiple_of(X, self.ncodebooks)
-        # idxs = clusterize.encode_using_splits(X, self.subvect_len, self.splits_lists, "multi")
+        # encode_algo: None
         idxs = vq.pq._encode_X_pq(X, codebooks=self.centroids)
+        # encode_algo: multisplit
+        # idxs = clusterize.encode_using_splits(X, self.subvect_len, self.splits_lists, "multi")
 
         # self.offsets is set in MultiCodebookEncoder.__init__
         return idxs + self.offsets
