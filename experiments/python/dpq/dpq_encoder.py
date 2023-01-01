@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-29 13:27:52
-@modified: 2022-12-31 23:56:06
+@modified: 2023-01-01 23:34:49
 '''
 
 import clusterize
@@ -12,7 +12,8 @@ import vquantizers as vq
 from dpq.dpq_nn import DPQNetwork
 import torch
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
+device = "cuda" if torch.cuda.is_available() else "cpu"  # TODO: set in params
+
 
 class DPQEncoder(vq.MultiCodebookEncoder):
     def __init__(self, ncodebooks, ncentroids=256, quantize_lut=True, nbits=8, upcast_every=-1, accumulate_how='sum'):
@@ -61,10 +62,23 @@ class DPQEncoder(vq.MultiCodebookEncoder):
             ncentroids=self.ncentroids,
             ncodebooks=self.ncodebooks,
             subvect_len=self.subvect_len,
-            centroids=torch.from_numpy(self.centroids.transpose((1, 0, 2))).to(device),
+            centroids=torch.from_numpy(self.centroids.transpose((1, 0, 2))).float().to(device),
+            query_metric="euclidean",
         ).to(device)
+
+        # loss should be tot_sse / tot_sse_using_mean
+        # TODO: can reuse that in _learn_centroids
+        X_bar = X - np.mean(X, axis=0)
+        col_sses = np.sum(X_bar * X_bar, axis=0) + 1e-14
+        tot_sse_using_mean = np.sum(col_sses)
+        print(tot_sse_using_mean)
+
         X = torch.from_numpy(X.reshape((-1, self.ncodebooks, self.subvect_len))).to(device)
-        model.forward(X)
+        codes, mse, kpq_centroids = model.forward(X)
+        self.centroids = kpq_centroids.transpose(0, 1).cpu().numpy()
+        tot_mse = np.sum(mse.cpu().numpy())
+        loss = tot_mse / tot_sse_using_mean
+        print("--- loss: mse / var(X): {:.3g}".format(loss))
 
     def encode_Q(self, Q):
         '''
