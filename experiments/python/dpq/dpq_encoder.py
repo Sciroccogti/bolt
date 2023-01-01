@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-29 13:27:52
-@modified: 2023-01-01 23:34:49
+@modified: 2023-01-02 00:25:45
 '''
 
 import clusterize
@@ -46,11 +46,13 @@ class DPQEncoder(vq.MultiCodebookEncoder):
         #     nonzeros_heuristic=self.nonzeros_heuristic)
 
         # PQ style
-        self.subvect_len = int(np.ceil(X.shape[1] / self.ncodebooks))
-        X = vq.ensure_num_cols_multiple_of(X, self.ncodebooks)
+        len_PQ = 51200
+        X_PQ = X[:len_PQ, :]
+        self.subvect_len = int(np.ceil(X_PQ.shape[1] / self.ncodebooks))
+        X_PQ = vq.ensure_num_cols_multiple_of(X_PQ, self.ncodebooks)
         # encode_algo: None
         self.centroids = vq._learn_centroids(
-            X, self.ncentroids, self.ncodebooks, self.subvect_len)  # (K, C, subvect_len)
+            X_PQ, self.ncentroids, self.ncodebooks, self.subvect_len)  # (K, C, subvect_len)
         # encode_algo: multisplit
         # self.encode_algo = "multisplits"
         # self.splits_lists, self.centroids = clusterize.learn_splits_in_subspaces(
@@ -72,13 +74,16 @@ class DPQEncoder(vq.MultiCodebookEncoder):
         col_sses = np.sum(X_bar * X_bar, axis=0) + 1e-14
         tot_sse_using_mean = np.sum(col_sses)
         print(tot_sse_using_mean)
+        batch_size = 5120  # TODO
 
-        X = torch.from_numpy(X.reshape((-1, self.ncodebooks, self.subvect_len))).to(device)
-        codes, mse, kpq_centroids = model.forward(X)
-        self.centroids = kpq_centroids.transpose(0, 1).cpu().numpy()
-        tot_mse = np.sum(mse.cpu().numpy())
-        loss = tot_mse / tot_sse_using_mean
-        print("--- loss: mse / var(X): {:.3g}".format(loss))
+        for i in range(0, X.shape[0], batch_size):
+            inputs = torch.from_numpy(
+                X[i:i+1, :].reshape((-1, self.ncodebooks, self.subvect_len))).to(device)
+            codes, mse, kpq_centroids = model.forward(inputs)
+            self.centroids = kpq_centroids.transpose(0, 1).cpu().numpy()
+            tot_mse = np.sum(mse.cpu().numpy())
+            loss = tot_mse * (X.shape[0] / batch_size) / tot_sse_using_mean
+            print("--- loss: mse / var(X): {:.3g}".format(loss))
 
     def encode_Q(self, Q):
         '''
