@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-29 13:27:52
-@modified: 2023-01-02 00:25:45
+@modified: 2023-01-02 18:34:01
 '''
 
 import clusterize
@@ -16,7 +16,8 @@ device = "cuda" if torch.cuda.is_available() else "cpu"  # TODO: set in params
 
 
 class DPQEncoder(vq.MultiCodebookEncoder):
-    def __init__(self, ncodebooks, ncentroids=256, quantize_lut=True, nbits=8, upcast_every=-1, accumulate_how='sum'):
+    def __init__(self, ncodebooks, ncentroids: int = 16,
+                 quantize_lut=True, nbits=8, upcast_every=-1, accumulate_how='sum'):
         super().__init__(ncodebooks=ncodebooks, ncentroids=ncentroids, quantize_lut=quantize_lut,
                          nbits=nbits, upcast_every=upcast_every, accumulate_how=accumulate_how)
 
@@ -51,8 +52,8 @@ class DPQEncoder(vq.MultiCodebookEncoder):
         self.subvect_len = int(np.ceil(X_PQ.shape[1] / self.ncodebooks))
         X_PQ = vq.ensure_num_cols_multiple_of(X_PQ, self.ncodebooks)
         # encode_algo: None
-        self.centroids = vq._learn_centroids(
-            X_PQ, self.ncentroids, self.ncodebooks, self.subvect_len)  # (K, C, subvect_len)
+        self.centroids, tot_sse_using_mean = vq._learn_centroids(
+            X_PQ, self.ncentroids, self.ncodebooks, self.subvect_len, return_tot_mse=True)  # (K, C, subvect_len)
         # encode_algo: multisplit
         # self.encode_algo = "multisplits"
         # self.splits_lists, self.centroids = clusterize.learn_splits_in_subspaces(
@@ -64,26 +65,28 @@ class DPQEncoder(vq.MultiCodebookEncoder):
             ncentroids=self.ncentroids,
             ncodebooks=self.ncodebooks,
             subvect_len=self.subvect_len,
-            centroids=torch.from_numpy(self.centroids.transpose((1, 0, 2))).float().to(device),
+            centroids=self.centroids.transpose((1, 0, 2)),
             query_metric="euclidean",
         ).to(device)
 
         # loss should be tot_sse / tot_sse_using_mean
-        # TODO: can reuse that in _learn_centroids
-        X_bar = X - np.mean(X, axis=0)
-        col_sses = np.sum(X_bar * X_bar, axis=0) + 1e-14
-        tot_sse_using_mean = np.sum(col_sses)
-        print(tot_sse_using_mean)
-        batch_size = 5120  # TODO
+        batch_size = 256  # TODO
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+        mse_per_batch = torch.tensor(tot_sse_using_mean / len_PQ * batch_size, device=device)
 
         for i in range(0, X.shape[0], batch_size):
+            optimizer.zero_grad()
             inputs = torch.from_numpy(
-                X[i:i+1, :].reshape((-1, self.ncodebooks, self.subvect_len))).to(device)
+                X[i:i+batch_size, :].reshape((-1, self.ncodebooks, self.subvect_len))
+            ).to(device).requires_grad_()
             codes, mse, kpq_centroids = model.forward(inputs)
-            self.centroids = kpq_centroids.transpose(0, 1).cpu().numpy()
-            tot_mse = np.sum(mse.cpu().numpy())
-            loss = tot_mse * (X.shape[0] / batch_size) / tot_sse_using_mean
-            print("--- loss: mse / var(X): {:.3g}".format(loss))
+            self.centroids = kpq_centroids.transpose(0, 1).cpu().detach().numpy()
+            tot_mse = torch.sum(mse)
+            loss = tot_mse / mse_per_batch
+            loss.backward()
+            # print("--- loss: mse / var(X): {:.3g}".format(loss))
+            optimizer.step()
+            # TODO: lr adjust
 
     def encode_Q(self, Q):
         '''
@@ -118,7 +121,3 @@ class DPQEncoder(vq.MultiCodebookEncoder):
 
         # self.offsets is set in MultiCodebookEncoder.__init__
         return idxs + self.offsets
-
-
-if __name__ == "__main__":
-    DPQEncoder().fit()
