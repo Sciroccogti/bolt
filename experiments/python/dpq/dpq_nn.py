@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-31 12:41:49
-@modified: 2023-01-02 18:37:12
+@modified: 2023-01-04 16:27:39
 '''
 
 import numpy as np
@@ -69,7 +69,8 @@ class DPQNetwork(torch.nn.Module):
 
         # TODO: other metrics
         if self._query_metric == "euclidean":
-            response = torch.cdist(inputs.transpose(0, 1), self._centroids_k, 2).transpose(0, 1)
+            # should be negative in order to select the closest via max
+            response = -torch.cdist(inputs.transpose(0, 1), self._centroids_k, 2).transpose(0, 1)
         elif self._query_metric == "dot":
             # (C, bs, subvect_len) * (C, subvect_len, K) = (C, bs, K)
             response = torch.matmul(inputs.transpose(0, 1), self._centroids_k.transpose(1, 2))

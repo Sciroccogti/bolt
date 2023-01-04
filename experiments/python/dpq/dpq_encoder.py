@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-29 13:27:52
-@modified: 2023-01-02 18:34:01
+@modified: 2023-01-04 18:02:39
 '''
 
 import clusterize
@@ -11,6 +11,7 @@ import numpy as np
 import vquantizers as vq
 from dpq.dpq_nn import DPQNetwork
 import torch
+from tqdm import tqdm
 
 device = "cuda" if torch.cuda.is_available() else "cpu"  # TODO: set in params
 
@@ -66,24 +67,27 @@ class DPQEncoder(vq.MultiCodebookEncoder):
             ncodebooks=self.ncodebooks,
             subvect_len=self.subvect_len,
             centroids=self.centroids.transpose((1, 0, 2)),
+            # centroids=np.random.random((self.centroids.transpose((1, 0, 2))).shape) * 10 - 5,
             query_metric="euclidean",
         ).to(device)
 
         # loss should be tot_sse / tot_sse_using_mean
-        batch_size = 256  # TODO
-        optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+        batch_size = 2**14  # TODO
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
         mse_per_batch = torch.tensor(tot_sse_using_mean / len_PQ * batch_size, device=device)
 
-        for i in range(0, X.shape[0], batch_size):
+        bar = tqdm(range(0, X.shape[0], batch_size))
+        for i in bar:
             optimizer.zero_grad()
             inputs = torch.from_numpy(
                 X[i:i+batch_size, :].reshape((-1, self.ncodebooks, self.subvect_len))
             ).to(device).requires_grad_()
-            codes, mse, kpq_centroids = model.forward(inputs)
+            codes, mse, kpq_centroids = model.forward(inputs, True)
             self.centroids = kpq_centroids.transpose(0, 1).cpu().detach().numpy()
             tot_mse = torch.sum(mse)
             loss = tot_mse / mse_per_batch
             loss.backward()
+            bar.set_description_str("loss={:.3g}".format(loss))
             # print("--- loss: mse / var(X): {:.3g}".format(loss))
             optimizer.step()
             # TODO: lr adjust
