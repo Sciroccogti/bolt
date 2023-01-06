@@ -298,8 +298,8 @@ def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, p
         # print(method_8bits_value_filtered)
         # 找到n_train_sam列数值最大的那个值
         max_n_train_sam = method_ref_value_filtered['n_train_sam'].max()
-        if cb == 64 and ct == 128:
-            max_n_train_sam-=25
+        # if cb == 64 and ct == 128:
+        #     max_n_train_sam-=25
         # 将结果添加到结果列表中
         result.append(max_n_train_sam)
     # 使用assign方法将result列表添加到cb_ct_combinations_unique数据帧的最后一列

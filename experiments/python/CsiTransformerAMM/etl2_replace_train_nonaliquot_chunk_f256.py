@@ -50,9 +50,9 @@ for method in [METHOD_PQ, METHOD_MITHRAL]:
             upcast_goal = 16
     else:
         if method == METHOD_MITHRAL:
-            upcast_goal = 16
-        else:
             upcast_goal = -1
+        else:
+            upcast_goal = 16
 
 
     nbits_trained = 8
