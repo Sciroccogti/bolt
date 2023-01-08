@@ -180,7 +180,7 @@ class Transceiver:
             xn = xp  # TODO
         return xn, NMSE_idft
 
-    def IDFTSplit(self, Xk, N, ests_: list = None, slice: int = 4):
+    def IDFTSplit(self, Xk, N, ests_: list, slice: int = 4):
         """
         代替ifft
         [A1 A2 A3 A4] * [B1; B2; B3; B4] = [A1B1 + A2B2 + A3B3 + A4B4]
@@ -294,7 +294,9 @@ class Transceiver:
                                      ncentroids=self.params["ncentroids"],
                                      X_path="IDFT_X.npy", W_path="IDFT_W.npy", Y_path="IDFT_Y.npy",
                                      dir="dft", nbits=self.params["nbits"],
-                                     quantize_lut=self.quantize_lut)
+                                     quantize_lut=self.quantize_lut,
+                                     genDataFunc=self.gen_IDFTTrain,
+                                     )
         else:
             assert self.matmul_method == METHOD_EXACT, "Other methods not supported!"
         for i, SNR in enumerate(SNRs):
@@ -389,6 +391,7 @@ class Transceiver:
         rawH_NMSE = np.zeros((1, len(SNRs)))
         ErrorFrame = self.params['ErrorFrame']
         TestFrame = self.params['TestFrame']
+        Bitlen = self.qAry * self.Ncarrier * self.Symbol_num
 
         dft_est = None
         idft_ests_ = []
@@ -412,7 +415,7 @@ class Transceiver:
             while FER[0][i] < ErrorFrame or ns < TestFrame:
                 ns += 1
                 # 生成信息比特、调制
-                BitStream = self.Bit_create()
+                BitStream = self.Bit_create(int(Bitlen * self.ldpc_rate))
                 X = np.zeros((1, self.Ncarrier), dtype=complex)
                 for nf in range(self.Ncarrier):
                     X[0, nf] = self.Modulation(BitStream[0, 2 * nf:2 * nf + 2])
@@ -469,6 +472,24 @@ class Transceiver:
                 writer.writerow([SNR, BER[0][i], FER[0][i], NMSE_dft[0][i],
                                  NMSE_idft[0][i], H_NMSE[0][i], rawH_NMSE[0][i]])
         return BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE
+
+    def gen_IDFTTrain(self, sample: int, SNR: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        IDFT_Xtrain = np.zeros((sample, self.Nifft), dtype=complex)
+        IDFT_Ytrain = np.zeros((sample, 20), dtype=complex)
+        IDFT_W = self.IDFTm[:, 0:20]  # 128*20
+        sigma_2 = np.power(10, (SNR / 10))
+        for i in range(sample):
+            H = self.Channel_create()
+            noise = np.random.randn(self.Ncarrier, 1) + \
+                1j * np.random.randn(self.Ncarrier, 1)
+            Ypilot = np.dot(H, self.Xpilot) + np.sqrt(sigma_2 / 2) * noise
+            Hest = Ypilot / self.Xpilot
+            Xk = np.transpose(Hest)
+            IDFT_Xtrain[i] = Xk
+            xn = np.dot(Xk, IDFT_W)
+            IDFT_Ytrain[i] = xn
+        return IDFT_Xtrain, IDFT_Ytrain, IDFT_W
+
 
     def create_Traindata(self, SNR):
         sample = 25000
@@ -606,6 +627,7 @@ class Transceiver:
             (1, len(SNRs), self.params["L"]), dtype=np.complex128)
         ErrorFrame = self.params['ErrorFrame']
         TestFrame = self.params['TestFrame']
+        Bitlen = self.qAry * self.Ncarrier * self.Symbol_num
 
         dft_est = None
         idft_est = None
@@ -627,7 +649,7 @@ class Transceiver:
             while FER[0][i] < ErrorFrame or ns < TestFrame:
                 ns += 1
                 # 生成信息比特、调制
-                BitStream = self.Bit_create()
+                BitStream = self.Bit_create(int(Bitlen * self.ldpc_rate))
                 X = np.zeros((1, self.Ncarrier), dtype=complex)
                 for nf in range(self.Ncarrier):
                     X[0, nf] = self.Modulation(BitStream[0, 2 * nf:2 * nf + 2])
@@ -772,7 +794,7 @@ if __name__ == '__main__':
     else:  # pathDetect
         params["PathGain"] = np.array(
             [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-        FER, NMSE_idft = myTransceiver.pathDetect()
+        FER, NMSE_idft = myTransceiver.pathDetect(foutName)
         print("FER", FER)
         print("NMSE_idft", NMSE_idft)
 

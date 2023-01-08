@@ -3,14 +3,14 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-29 13:27:52
-@modified: 2023-01-04 18:02:39
+@modified: 2023-01-08 20:17:52
 '''
 
-import clusterize
 import numpy as np
+import torch
 import vquantizers as vq
 from dpq.dpq_nn import DPQNetwork
-import torch
+from torch.utils.tensorboard.writer import SummaryWriter
 from tqdm import tqdm
 
 device = "cuda" if torch.cuda.is_available() else "cpu"  # TODO: set in params
@@ -18,9 +18,12 @@ device = "cuda" if torch.cuda.is_available() else "cpu"  # TODO: set in params
 
 class DPQEncoder(vq.MultiCodebookEncoder):
     def __init__(self, ncodebooks, ncentroids: int = 16,
-                 quantize_lut=True, nbits=8, upcast_every=-1, accumulate_how='sum'):
+                 quantize_lut=True, nbits=8, upcast_every=-1, accumulate_how='sum',
+                 genDataFunc=None,
+                 ):
         super().__init__(ncodebooks=ncodebooks, ncentroids=ncentroids, quantize_lut=quantize_lut,
                          nbits=nbits, upcast_every=upcast_every, accumulate_how=accumulate_how)
+        self.genDataFunc = genDataFunc
 
     def name(self):
         return "{}_{}".format('DPQ', super().name())
@@ -46,15 +49,18 @@ class DPQEncoder(vq.MultiCodebookEncoder):
         # self.splits_lists, self.centroids = learn_mithral(
         #     X, self.ncodebooks, ncentroids=self.ncentroids, lut_work_const=self.lut_work_const,
         #     nonzeros_heuristic=self.nonzeros_heuristic)
+        writer = SummaryWriter()
+        loss_type = "mse"
 
         # PQ style
-        len_PQ = 51200
+        len_PQ = 51200  # TODO
         X_PQ = X[:len_PQ, :]
         self.subvect_len = int(np.ceil(X_PQ.shape[1] / self.ncodebooks))
         X_PQ = vq.ensure_num_cols_multiple_of(X_PQ, self.ncodebooks)
         # encode_algo: None
+        # centroids: (K, C, subvect_len)
         self.centroids, tot_sse_using_mean = vq._learn_centroids(
-            X_PQ, self.ncentroids, self.ncodebooks, self.subvect_len, return_tot_mse=True)  # (K, C, subvect_len)
+            X_PQ, self.ncentroids, self.ncodebooks, self.subvect_len, return_tot_mse=True)
         # encode_algo: multisplit
         # self.encode_algo = "multisplits"
         # self.splits_lists, self.centroids = clusterize.learn_splits_in_subspaces(
@@ -66,31 +72,51 @@ class DPQEncoder(vq.MultiCodebookEncoder):
             ncentroids=self.ncentroids,
             ncodebooks=self.ncodebooks,
             subvect_len=self.subvect_len,
-            centroids=self.centroids.transpose((1, 0, 2)),
-            # centroids=np.random.random((self.centroids.transpose((1, 0, 2))).shape) * 10 - 5,
+            # centroids=self.centroids.transpose((1, 0, 2)),
+            centroids=np.random.random(
+                (self.ncodebooks, self.ncentroids, self.subvect_len)) * 10 - 5,
+            # tie_in_n_out=False,
             query_metric="euclidean",
         ).to(device)
 
-        # loss should be tot_sse / tot_sse_using_mean
-        batch_size = 2**14  # TODO
-        optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
+        batch_size = 4096  # TODO
+        epoch = 100000
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.9)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, "min", factor=0.8, patience=50, verbose=True)
+        # scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, 0.9)
         mse_per_batch = torch.tensor(tot_sse_using_mean / len_PQ * batch_size, device=device)
 
-        bar = tqdm(range(0, X.shape[0], batch_size))
+        bar = tqdm(range(0, epoch))
+        genEvery = 50
+        X_multi, _, _ = self.genDataFunc(batch_size * genEvery, 0.0)
         for i in bar:
-            optimizer.zero_grad()
-            inputs = torch.from_numpy(
-                X[i:i+batch_size, :].reshape((-1, self.ncodebooks, self.subvect_len))
-            ).to(device).requires_grad_()
-            codes, mse, kpq_centroids = model.forward(inputs, True)
-            self.centroids = kpq_centroids.transpose(0, 1).cpu().detach().numpy()
-            tot_mse = torch.sum(mse)
-            loss = tot_mse / mse_per_batch
-            loss.backward()
-            bar.set_description_str("loss={:.3g}".format(loss))
-            # print("--- loss: mse / var(X): {:.3g}".format(loss))
-            optimizer.step()
-            # TODO: lr adjust
+            try:
+                if i % genEvery == 0 and i > 0:
+                    X_multi, _, _ = self.genDataFunc(batch_size * genEvery, 0.0)
+                X = X_multi[(i % genEvery) * batch_size:(1 + i % genEvery) * batch_size]
+                optimizer.zero_grad()
+                inputs = torch.from_numpy(
+                    X.reshape((-1, self.ncodebooks, self.subvect_len))
+                ).to(device).requires_grad_()
+                outputs, mse, kpq_centroids = model.forward(inputs, True)
+                self.centroids = kpq_centroids.transpose(0, 1).cpu().detach().numpy()
+                if loss_type == "ce":
+                    lossfn = torch.nn.CrossEntropyLoss()
+                    loss = lossfn(inputs, outputs)
+                else:
+                    assert loss_type == "mse"
+                    tot_mse = torch.sum(mse)
+                    # TODO: cross entropy loss is also a choice
+                    loss = tot_mse / mse_per_batch
+                writer.add_scalar("Loss/train", loss, i)
+                loss.backward()
+                bar.set_description_str("loss={:.3g}".format(loss))
+                optimizer.step()
+                scheduler.step(loss)
+            except KeyboardInterrupt:
+                print("Training stopped manually at epoch %d/%d" % (i, epoch))
+                break
 
     def encode_Q(self, Q):
         '''

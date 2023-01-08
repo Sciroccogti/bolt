@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-31 12:41:49
-@modified: 2023-01-04 16:27:39
+@modified: 2023-01-08 19:42:46
 '''
 
 import numpy as np
@@ -18,7 +18,7 @@ class DPQNetwork(torch.nn.Module):
     def __init__(self, ncentroids: int, ncodebooks: int, subvect_len: int,
                  centroids: np.ndarray,
                  tie_in_n_out: bool = True, query_metric: str = "dot", shared_centroids: bool = False,
-                 beta: float = 0.0, tau: float = 1.0, softmax_BN: bool = True) -> None:
+                 beta: float = 0.0, tau: float = 1.0, softmax_BN: bool = False) -> None:
         '''
         :param ncentroids: K
         :param ncodebooks: C in mithral, or D in kpq
@@ -80,13 +80,13 @@ class DPQNetwork(torch.nn.Module):
             raise NotImplementedError
         assert(response.size(1) == self._ncodebooks and response.size(2) == self._ncentroids)
 
-        # TODO: softmax_BN
         if self._softmax_BN:
             response = self.bn(response)
         response_prob = torch.softmax(response / self._tau, dim=-1)
 
-        mse, codes = torch.max(response, -1)  # (batch_size, C)
+        neg_mse, codes = torch.max(response, -1)  # (batch_size, C)
 
+        # TODO: sampling
         # neighbour_idxs = codes
 
         if self._tie_in_n_out:
@@ -97,7 +97,7 @@ class DPQNetwork(torch.nn.Module):
                 neighbour_idxs = D_base + codes
             else:
                 neighbour_idxs = codes
-            # centroids_v = centroids_v.reshape((-1, self._subvect_len))# (C, K, subvect_len)
+            # outputs are nearest centroids of inputs
             outputs = torch.index_select(
                 self._centroids_v.reshape((-1, self._subvect_len)), 0, neighbour_idxs.reshape((-1)))
             outputs = outputs.reshape((-1, self._ncodebooks, self._subvect_len))
@@ -116,8 +116,8 @@ class DPQNetwork(torch.nn.Module):
         else:
             neighbour_idxs = codes
             nb_idxs_onehot = torch.tensor(
-                F.one_hot(neighbour_idxs, self._ncentroids), device=device, requires_grad=True)
-            nb_idxs_onehot = response_prob - (response_prob - nb_idxs_onehot).requires_grad_(False)
+                F.one_hot(neighbour_idxs, self._ncentroids), dtype=torch.float32, device=device, requires_grad=True)
+            nb_idxs_onehot = response_prob - (response_prob - nb_idxs_onehot).detach()
             outputs = torch.matmul(nb_idxs_onehot.transpose(0, 1), self._centroids_v)
             outputs_final = outputs.transpose(0, 1)
 
@@ -126,4 +126,4 @@ class DPQNetwork(torch.nn.Module):
                 reg = - beta * torch.mean(
                     torch.mean(nb_idxs_onehot * torch.log(response_prob + 1e-10), dim=2))
 
-        return codes, mse, self._centroids_v
+        return outputs_final, -neg_mse, self._centroids_v

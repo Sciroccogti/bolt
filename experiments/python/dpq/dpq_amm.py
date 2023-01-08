@@ -3,20 +3,27 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-29 14:05:49
-@modified: 2023-01-02 13:55:52
+@modified: 2023-01-08 20:15:08
 '''
 
 from vq_amm import VQMatmul
 from dpq.dpq_encoder import DPQEncoder
+from collections.abc import Callable
 
 
 class DPQMatmul(VQMatmul):
-    def __init__(self, ncodebooks, ncentroids: int = 16, quantize_lut=True, nbits=8, upcast_every=-1):
+    def __init__(
+        self, ncodebooks, ncentroids: int = 16, quantize_lut=True, nbits=8, upcast_every=-1,
+        genDataFunc=None,
+    ):
         if (quantize_lut or upcast_every != -1):
             raise NotImplementedError("quantize and upcast not yet available for DPQ!")
+        self.ncentroids = ncentroids
+        # if genDataFunc: # TODO
+        #     assert type(genDataFunc) == Callable
+        self.genDataFunc = genDataFunc
         super().__init__(ncodebooks=ncodebooks, ncentroids=ncentroids,
                          quantize_lut=quantize_lut, nbits=nbits, upcast_every=upcast_every)
-        self.ncentroids = ncentroids
 
     def _get_ncentroids(self):
         return self.ncentroids
@@ -30,6 +37,7 @@ class DPQMatmul(VQMatmul):
             quantize_lut=self.quantize_lut,
             nbits=self.nbits,
             upcast_every=self.upcast_every,
+            genDataFunc=self.genDataFunc
         )
 
     def set_B(self, B):
