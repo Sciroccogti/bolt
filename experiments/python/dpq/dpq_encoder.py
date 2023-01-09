@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-29 13:27:52
-@modified: 2023-01-09 23:03:49
+@modified: 2023-01-09 23:09:42
 '''
 
 from collections.abc import Callable
@@ -12,11 +12,19 @@ import numpy as np
 import torch
 import tqdm
 import vquantizers as vq
-from dpq.dpq_amm import sliceData
 from dpq.dpq_nn import DPQNetwork
 from torch.utils.tensorboard.writer import SummaryWriter
 
 device = "cuda" if torch.cuda.is_available() else "cpu"  # TODO: set in params
+
+_sliceData_lastpos = 0
+
+
+def sliceData(sample: int, snr: float, X: np.ndarray | None) -> np.ndarray:
+    global _sliceData_lastpos
+    assert X is not None
+    _sliceData_lastpos += sample
+    return X[_sliceData_lastpos-sample:_sliceData_lastpos]
 
 
 class DPQEncoder(vq.MultiCodebookEncoder):
@@ -59,6 +67,9 @@ class DPQEncoder(vq.MultiCodebookEncoder):
         len_PQ = 51200  # TODO
         X_PQ = X[:len_PQ, :]
         self.subvect_len = int(np.ceil(X_PQ.shape[1] / self.ncodebooks))
+        # self.centroids = np.random.random(
+        #     (self.ncentroids, self.ncodebooks, self.subvect_len)) * 10 - 5
+        # return
         X_PQ = vq.ensure_num_cols_multiple_of(X_PQ, self.ncodebooks)
         # encode_algo: None
         # centroids: (K, C, subvect_len)
@@ -75,9 +86,9 @@ class DPQEncoder(vq.MultiCodebookEncoder):
             ncentroids=self.ncentroids,
             ncodebooks=self.ncodebooks,
             subvect_len=self.subvect_len,
-            # centroids=self.centroids.transpose((1, 0, 2)),
-            centroids=np.random.random(
-                (self.ncodebooks, self.ncentroids, self.subvect_len)) * 10 - 5,
+            centroids=self.centroids.transpose((1, 0, 2)),
+            # centroids=np.random.random(
+            #     (self.ncodebooks, self.ncentroids, self.subvect_len)) * 10 - 5,
             # tie_in_n_out=False,
             query_metric="euclidean",
         ).to(device)
@@ -88,6 +99,10 @@ class DPQEncoder(vq.MultiCodebookEncoder):
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, "min", factor=0.5, patience=50, verbose=True)
         mse_per_batch = torch.tensor(tot_sse_using_mean / len_PQ * batch_size, device=device)
+        print("mse_per_batch ", mse_per_batch)
+
+        # if self.genDataFunc == None:
+        #     self.genDataFunc = lambda x :
 
         bar = tqdm.tqdm(range(0, epoch))
         genEvery = 50

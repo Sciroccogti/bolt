@@ -3,22 +3,13 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-29 14:05:49
-@modified: 2023-01-09 23:03:19
+@modified: 2023-01-09 23:09:37
 '''
 
 from vq_amm import VQMatmul
-from dpq.dpq_encoder import DPQEncoder
+from dpq.dpq_encoder import DPQEncoder, sliceData
 from collections.abc import Callable
 import numpy as np
-
-_sliceData_lastpos = 0
-
-
-def sliceData(sample: int, snr: float, X: np.ndarray | None) -> np.ndarray:
-    global _sliceData_lastpos
-    assert X is not None
-    _sliceData_lastpos += sample
-    return X[_sliceData_lastpos-sample:_sliceData_lastpos]
 
 
 class DPQMatmul(VQMatmul):

@@ -15,7 +15,7 @@ import scipy
 from amm_methods import *
 from joblib import Memory
 from Logger import *
-from dpq.dpq_amm import sliceData
+from dpq.dpq_encoder import sliceData
 # std_out重定向
 # sys.stdout = Logger("./log/caltech/Figure7_log.txt", sys.stdout)
 # sys.stderr = Logger("./log/caltech/Figure7_debug.txt", sys.stderr)
