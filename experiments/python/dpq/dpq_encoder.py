@@ -3,15 +3,18 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-29 13:27:52
-@modified: 2023-01-08 20:17:52
+@modified: 2023-01-09 23:03:49
 '''
+
+from collections.abc import Callable
 
 import numpy as np
 import torch
+import tqdm
 import vquantizers as vq
+from dpq.dpq_amm import sliceData
 from dpq.dpq_nn import DPQNetwork
 from torch.utils.tensorboard.writer import SummaryWriter
-from tqdm import tqdm
 
 device = "cuda" if torch.cuda.is_available() else "cpu"  # TODO: set in params
 
@@ -19,7 +22,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"  # TODO: set in params
 class DPQEncoder(vq.MultiCodebookEncoder):
     def __init__(self, ncodebooks, ncentroids: int = 16,
                  quantize_lut=True, nbits=8, upcast_every=-1, accumulate_how='sum',
-                 genDataFunc=None,
+                 genDataFunc: Callable[[int, float, np.ndarray | None], np.ndarray] = sliceData,
                  ):
         super().__init__(ncodebooks=ncodebooks, ncentroids=ncentroids, quantize_lut=quantize_lut,
                          nbits=nbits, upcast_every=upcast_every, accumulate_how=accumulate_how)
@@ -86,20 +89,20 @@ class DPQEncoder(vq.MultiCodebookEncoder):
             optimizer, "min", factor=0.5, patience=50, verbose=True)
         mse_per_batch = torch.tensor(tot_sse_using_mean / len_PQ * batch_size, device=device)
 
-        bar = tqdm(range(0, epoch))
+        bar = tqdm.tqdm(range(0, epoch))
         genEvery = 50
-        X_multi, _, _ = self.genDataFunc(batch_size * genEvery, 0.0)
+        X_multi, _, _ = self.genDataFunc(batch_size * genEvery, 0.0, X)
+        kpq_centroids = None
         for i in bar:
             try:
                 if i % genEvery == 0 and i > 0:
-                    X_multi, _, _ = self.genDataFunc(batch_size * genEvery, 0.0)
+                    X_multi, _, _ = self.genDataFunc(batch_size * genEvery, 0.0, X)
                 X = X_multi[(i % genEvery) * batch_size:(1 + i % genEvery) * batch_size]
                 optimizer.zero_grad()
                 inputs = torch.from_numpy(
                     X.reshape((-1, self.ncodebooks, self.subvect_len))
                 ).to(device).requires_grad_()
                 outputs, mse, kpq_centroids = model.forward(inputs, True)
-                self.centroids = kpq_centroids.transpose(0, 1).cpu().detach().numpy()
                 if loss_type == "ce":
                     lossfn = torch.nn.CrossEntropyLoss()
                     loss = lossfn(inputs, outputs)
@@ -115,6 +118,8 @@ class DPQEncoder(vq.MultiCodebookEncoder):
             except KeyboardInterrupt:
                 print("Training stopped manually at epoch %d/%d" % (i, epoch))
                 break
+        if kpq_centroids != None:
+            self.centroids = kpq_centroids.transpose(0, 1).cpu().detach().numpy()
 
     def encode_Q(self, Q):
         '''
