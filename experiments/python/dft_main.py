@@ -473,8 +473,7 @@ class Transceiver:
                                  NMSE_idft[0][i], H_NMSE[0][i], rawH_NMSE[0][i]])
         return BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE
 
-    def gen_IDFTTrain(self, sample: int, SNR: float, inputs: np.ndarray | None
-                      ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def gen_IDFTTrain(self, sample: int, SNR: float, inputs: np.ndarray | None) -> np.ndarray:
         """
         for DPQ to generate training data
 
@@ -494,7 +493,7 @@ class Transceiver:
             IDFT_Xtrain[i] = Xk
             xn = np.dot(Xk, IDFT_W)
             IDFT_Ytrain[i] = xn
-        return IDFT_Xtrain, IDFT_Ytrain, IDFT_W
+        return IDFT_Xtrain
 
 
     def create_Traindata(self, SNR):
