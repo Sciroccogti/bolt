@@ -83,8 +83,7 @@ class DPQEncoder(vq.MultiCodebookEncoder):
         epoch = 100000
         optimizer = torch.optim.SGD(model.parameters(), lr=0.9)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, "min", factor=0.8, patience=50, verbose=True)
-        # scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, 0.9)
+            optimizer, "min", factor=0.5, patience=50, verbose=True)
         mse_per_batch = torch.tensor(tot_sse_using_mean / len_PQ * batch_size, device=device)
 
         bar = tqdm(range(0, epoch))
@@ -107,10 +106,9 @@ class DPQEncoder(vq.MultiCodebookEncoder):
                 else:
                     assert loss_type == "mse"
                     tot_mse = torch.sum(mse)
-                    # TODO: cross entropy loss is also a choice
                     loss = tot_mse / mse_per_batch
                 writer.add_scalar("Loss/train", loss, i)
-                loss.backward()
+                # loss.backward()
                 bar.set_description_str("loss={:.3g}".format(loss))
                 optimizer.step()
                 scheduler.step(loss)

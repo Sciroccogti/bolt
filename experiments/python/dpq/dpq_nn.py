@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-31 12:41:49
-@modified: 2023-01-08 19:42:46
+@modified: 2023-01-09 21:50:25
 '''
 
 import numpy as np
@@ -18,13 +18,17 @@ class DPQNetwork(torch.nn.Module):
     def __init__(self, ncentroids: int, ncodebooks: int, subvect_len: int,
                  centroids: np.ndarray,
                  tie_in_n_out: bool = True, query_metric: str = "dot", shared_centroids: bool = False,
-                 beta: float = 0.0, tau: float = 1.0, softmax_BN: bool = False) -> None:
+                 beta: float = 0.0, tau: float = 1.0, softmax_BN: bool = False,
+                 use_EMA: bool = True,
+                 ) -> None:
         '''
         :param ncentroids: K
         :param ncodebooks: C in mithral, or D in kpq
         :param subvect_len: D/C in mithral, or d_in, d_out in kpq
         :param centroids: (ncodebooks, ncentroids, subvect_len)
         :param query_metric: "euclidean" or "dot"
+
+        :param use_EMA: use Exponential Moving Average to update centroids, or use regularization
         '''
         if shared_centroids or beta != 0.0:
             raise NotImplementedError(
@@ -42,16 +46,22 @@ class DPQNetwork(torch.nn.Module):
         self._query_metric = query_metric
         self._shared_centroids = shared_centroids
         self._beta = beta
-        self._tau = Parameter(torch.tensor(
-            [1.0], device=device), requires_grad=False)  # constant
+        self._tau = Parameter(torch.tensor([1.0], device=device), requires_grad=False)
         self._softmax_BN = softmax_BN
-        self._centroids_k = Parameter(torch.from_numpy(centroids).float().to(device))
+        # (C, K, subvect_len)
+        self._centroids_k = Parameter(torch.from_numpy(
+            centroids).float().to(device), requires_grad=False)
         if self._tie_in_n_out:
             self._centroids_v = self._centroids_k
         else:
-            self._centroids_v = Parameter(torch.zeros_like(self._centroids_k))
+            self._centroids_v = Parameter(torch.zeros_like(self._centroids_k), requires_grad=False)
         if self._softmax_BN:
             self.bn = torch.nn.BatchNorm1d(self._ncodebooks, device=device)
+        minaxis = [0, 1] if self._shared_centroids else [0]
+        self.minaxis = torch.tensor(minaxis, device=device, requires_grad=False)
+        self.counts = None
+        self.use_EMA = use_EMA
+        self.reg = Parameter(torch.tensor([1.0], device=device), requires_grad=not use_EMA)
 
     def forward(self, inputs: torch.Tensor, is_training: bool = True
                 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -64,8 +74,6 @@ class DPQNetwork(torch.nn.Module):
             f"inputs must be (batch_size, ncodebooks, subvect_len), current is {inputs.size()}"
         if inputs.dtype != torch.float:
             inputs = inputs.float()
-        # centroids_k = self._centroids_k  # (C, K, subvect_len)
-        # centroids_v = self._centroids_v
 
         # TODO: other metrics
         if self._query_metric == "euclidean":
@@ -84,11 +92,13 @@ class DPQNetwork(torch.nn.Module):
             response = self.bn(response)
         response_prob = torch.softmax(response / self._tau, dim=-1)
 
-        neg_mse, codes = torch.max(response, -1)  # (batch_size, C)
+        neg_mse, codes = torch.max(response, -1)  # codes: (batch_size, C)
 
         # TODO: sampling
         # neighbour_idxs = codes
 
+        # (bs, C, K)
+        nb_idxs_onehot = F.one_hot(codes, num_classes=self._ncentroids).float()
         if self._tie_in_n_out:
             if not self._shared_centroids:
                 D_base = torch.from_numpy(
@@ -104,19 +114,40 @@ class DPQNetwork(torch.nn.Module):
             inputs_nograd = inputs.clone().detach()
             outputs_nograd = outputs.clone().detach()
             outputs_final = outputs_nograd - inputs_nograd + inputs
-            if is_training:
-                alpha = 1.0
-                beta = self._beta
-                gamma = 0.0
 
-                reg = alpha * torch.mean((outputs - inputs_nograd)**2)
-                reg += beta * torch.mean((outputs_nograd - inputs)**2)
-                reg += gamma * torch.mean(torch.mean(-response, [0]))
+            if is_training:
+                if not self.use_EMA:
+                    alpha = 1.0
+                    beta = self._beta
+                    gamma = 0.0
+
+                    # TODO: still don't know how to set as a Parameter
+                    reg = alpha * torch.mean((outputs - inputs_nograd)**2)
+                    reg += beta * torch.mean((outputs_nograd - inputs)**2)
+                    reg += gamma * torch.mean(torch.min(-response, self.minaxis))
+                else:
+                    # http://arxiv.org/abs/1803.03382 equation9
+                    # do a Exponential Moving Average on centroids
+                    decay = torch.tensor(0.999, device=device, requires_grad=False)
+                    # counts (C, K): the number of inputs that take centroid[k] as its nearest
+                    new_counts = torch.sum(nb_idxs_onehot, dim=0).detach()
+                    if self.counts == None:
+                        self.counts = new_counts
+                    else:
+                        self.counts = decay * self.counts + (1 - decay) * new_counts
+                    # (C, K, subvect_len)
+                    inputs_each_cent = torch.sum(
+                        torch.matmul(
+                            nb_idxs_onehot.reshape(-1, self._ncodebooks, self._ncentroids, 1),
+                            inputs.reshape(-1, self._ncodebooks, 1, self._subvect_len)
+                        ), dim=0).detach()
+                    new_centroids = torch.divide(
+                        inputs_each_cent, self.counts.unsqueeze(dim=-1).expand(inputs_each_cent.shape))
+                    new_centroids[new_centroids != new_centroids] = 0  # set where 0 / 0 = nan to 0
+                    self._centroids_k *= decay
+                    self._centroids_k += (1 - decay) * new_centroids
 
         else:
-            neighbour_idxs = codes
-            nb_idxs_onehot = torch.tensor(
-                F.one_hot(neighbour_idxs, self._ncentroids), dtype=torch.float32, device=device, requires_grad=True)
             nb_idxs_onehot = response_prob - (response_prob - nb_idxs_onehot).detach()
             outputs = torch.matmul(nb_idxs_onehot.transpose(0, 1), self._centroids_v)
             outputs_final = outputs.transpose(0, 1)
@@ -126,4 +157,4 @@ class DPQNetwork(torch.nn.Module):
                 reg = - beta * torch.mean(
                     torch.mean(nb_idxs_onehot * torch.log(response_prob + 1e-10), dim=2))
 
-        return outputs_final, -neg_mse, self._centroids_v
+        return outputs_final, -neg_mse, self._centroids_k
