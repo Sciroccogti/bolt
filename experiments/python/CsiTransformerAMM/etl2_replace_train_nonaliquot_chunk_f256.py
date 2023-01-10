@@ -85,7 +85,7 @@ for method in [METHOD_PQ, METHOD_MITHRAL]:
         param_trained = upcast_trained
         param_goal = upcast_goal
 
-        cb_ct_ntr_combinations_unique = change_param_auto_run_list(linear_name, method, feedback_bits, param2change, param_trained, param_goal, "nbits", 8)
+        cb_ct_ntr_combinations_unique = change_param_auto_run_list(linear_name, method, feedback_bits, param2change, param_trained, param_goal, "nbits", nbits_goal)
         print(cb_ct_ntr_combinations_unique)
 
     # 遍历每个cb、ct、n_train_sam组合
