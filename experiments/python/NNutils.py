@@ -132,7 +132,7 @@ def join_from_intermediate(intermediate_path, dir_t, dire_train, bits, intermedi
         
 
 # 从已合成训练/测试集中提取更小的1个训练/测试集
-def join_from_joined(dir_t, intermediate_name, bits, joined_sam_num, sam_num, batch_size, trainortest, S1 = 1):# 从已合成训练/测试集中提取更小的训练测试集
+def join_from_joined(dir_t, dir_train, intermediate_name, bits, joined_sam_num, sam_num, batch_size, trainortest, S1 = 1):# 从已合成训练/测试集中提取更小的训练测试集
     # 例:intermediate_name:'ex_linear1in'
     # joined_sam_num：已合成训练/测试集的样本数
     # sam_num：提取出的训练/测试集的样本数
@@ -240,7 +240,7 @@ def dataset_prepare(direc, linear_name_full, feedback_bits, sam_num_list, batch_
                 
                 if sam_num < max_sam_num:# 有更大的数据集
                     print("有比输入样本数更大的数据集，从中提取新数据集")
-                    join_from_joined(dire, intermediate_name, feedback_bits, max_sam_num, sam_num, batch_size, train_or_test, S1)
+                    join_from_joined(dire, dire_train, intermediate_name, feedback_bits, max_sam_num, sam_num, batch_size, train_or_test, S1)
                 else:# 没有更大的数据集
                     print("没有比输入样本数更大的数据集，从样本合成新数据集")
                     if linear_name_full in in_transformer_list: # transformer子模块内的全连接层需要把数据集第一维合并，外的不需要合并

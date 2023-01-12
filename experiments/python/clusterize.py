@@ -1784,7 +1784,8 @@ def _learn_mithral_initialization(X, ncodebooks, ncentroids: int=16,
         # print("_learn_mithral_initialization\nall_centroids:\n", all_centroids)
         # print("X_res mse / X mse: ",
         #       (X_res * X_res).mean() / (X_orig * X_orig).mean())
-
+    
+    print(all_centroids)
     return X_res, all_splits, all_centroids, all_buckets
 
 
@@ -1975,6 +1976,11 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
 
         all_centroids_delta = W.reshape(ncodebooks, ncentroids_per_codebook, D)
         all_centroids += all_centroids_delta
+        if "verbose" in kwargs.keys():
+            if kwargs["verbose"] > 3:
+                np.set_printoptions(threshold=np.inf)
+                print('all_centroids_delta\n', all_centroids_delta)
+                print('all_centroids\n', all_centroids)
 
         # check how much improvement we got
         X_res -= _XW_encoded(X_enc, W)  # if we fit to X_res

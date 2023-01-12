@@ -30,9 +30,9 @@ import socket # Obtain the current host name, which can be used to select differ
 quantize_lut = False
 for method in [METHOD_MITHRAL, METHOD_PQ]:
 
-    linear_name = 'etl1'
+    linear_name = 'fc1'
     feedback_bits = 256
-    linear_name_full = "ex_linear1"
+    linear_name_full = "fc1"
 
     auto_train_change_nbits = False # 是否根据已运行的训练性能结果改变nbits自动训练，（train_sam_num取已训练的最大值）
     auto_train_change_upcast = True # 是否根据已运行的训练性能结果改变upcast自动训练，（train_sam_num取已训练的最大值）
@@ -125,7 +125,7 @@ for method in [METHOD_MITHRAL, METHOD_PQ]:
 
         print(y_out_last)
         print("y_out_last.shape: ", y_out_last.shape)
-        y_out_last_re = y_out_last.reshape(test_sam_num, batch_size, -1, y_out_last.shape[-1]) #AMM字典模式需要复原y大小
+        y_out_last_re = y_out_last.reshape(test_sam_num, -1, y_out_last.shape[-1])
         print("y_out_last_re.shape: ", y_out_last_re.shape)
         if method == METHOD_SCALAR_QUANTIZE:
             np.save(os.path.join(AMM_train_dirs["dir_result"], '%s%s_trsam%i_tesam%i_fb%i_nbits%i.npy' % 
