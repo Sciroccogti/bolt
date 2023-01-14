@@ -3,13 +3,13 @@ import math
 import os
 import time
 
+import matmul as mm
 import numpy as np
 import tensorflow as tf
+import torch
+from amm_methods import *
 from sionna.fec.ldpc.decoding import LDPC5GDecoder, LDPC5GEncoder
 from tqdm import tqdm
-
-import matmul as mm
-from amm_methods import *
 
 # from tensorflow.python.ops.numpy_ops import np_config
 
@@ -86,7 +86,7 @@ class Transceiver:
             output_modu = (QAM_input_I + 1j * QAM_input_Q) / np.sqrt(42)
         return output_modu
 
-    def Channel_create(self):
+    def Channel_create(self) -> np.ndarray:
         L = self.params['L']
         PathGain = self.params['PathGain']
         # PathGain = PathGain/sum(PathGain)
@@ -295,7 +295,7 @@ class Transceiver:
                                      X_path="IDFT_X.npy", W_path="IDFT_W.npy", Y_path="IDFT_Y.npy",
                                      dir="dft", nbits=self.params["nbits"],
                                      quantize_lut=self.quantize_lut,
-                                     genDataFunc=self.gen_IDFTTrain,
+                                     genDataFunc=self.gen_IDFTTrainTorch,
                                      )
         else:
             assert self.matmul_method == METHOD_EXACT, "Other methods not supported!"
@@ -495,9 +495,57 @@ class Transceiver:
             IDFT_Ytrain[i] = xn
         return IDFT_Xtrain
 
+    def Channel_createTorch(self, device: str) -> torch.Tensor:
+        L = self.params['L']
+        try:
+            self.PathGainTorchSqrt
+        except:
+            self.PathGainTorchSqrt = torch.sqrt(
+                torch.tensor(self.params["PathGain"], dtype=torch.double, device=device))
+        ht = self.PathGainTorchSqrt * (0.5 ** 0.5) *\
+            (torch.randn((1, L), device=device) + 1j * torch.randn((1, L), device=device))
+        H = torch.fft.fft2(ht, [1, self.Nifft])
+        H = torch.diag(H.squeeze())
+        return H
+
+    def gen_IDFTTrainTorch(self, sample: int, SNR: float, inputs: np.ndarray | None) -> torch.Tensor:
+        """
+        for DPQ to generate training data directly in cuda tensor
+        actually not faster than CPU version
+
+        :param inputs: just placeholder, not used
+        """
+        device = "cuda"
+
+        IDFT_Xtrain = torch.zeros((sample, self.Nifft), dtype=torch.complex64, device=device)
+        # IDFT_W = torch.tensor(self.IDFTm[:, 0:20], device=device)
+        sigma_2 = 10 ** (SNR / 10)
+        s = (sigma_2 / 2) ** 0.5
+        try:
+            self.XpilotTorch
+        except:
+            # (1, Nifft)
+            self.XpilotTorch = torch.tensor(self.Xpilot, device=device).transpose(0, 1)
+
+        # noise = torch.randn((sample, self.Nifft), device=device) + 1j * \
+        #     torch.randn((sample, self.Nifft), device=device)
+        # Ypilot = torch.matmul(self.XpilotTorch.expand_as(noise), H) + s * noise  # (sample, Nifft)
+        # Hest = Ypilot / self.XpilotTorch.expand_as(noise)
+        # IDFT_Xtrain = Hest
+
+        for i in range(sample):
+            H = self.Channel_createTorch(device)  # (Nifft, Nifft)
+            noise = torch.randn((1, self.Nifft), device=device) + 1j * \
+                torch.randn((1, self.Nifft), device=device)
+            Ypilot = torch.matmul(self.XpilotTorch, H) + s * noise
+            Hest = Ypilot / self.XpilotTorch
+            # Xk = torch.transpose(Hest, 0, 1)
+            IDFT_Xtrain[i] = Hest
+
+        return IDFT_Xtrain
 
     def create_Traindata(self, SNR):
-        sample = 25000
+        sample = 512000
         DFT_Xtrain = np.zeros((sample, 20), dtype=complex)
         DFT_Ytrain = np.zeros((sample, self.Nifft), dtype=complex)
         DFT_W = self.DFTm[0:20]  # 20*128
@@ -739,19 +787,20 @@ params = {
     'qAry': 2,
     'Symbol_len': 128,
     'Symbol_num': 1,
-    'ldpc_rate': 0.5,
+    'ldpc_rate': 1,
     'L': 16,
     # 'PathGain': np.array([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
     # 'PathGain': [0.7432358676242078,0.9453056768750847,0.03936564739705284,0.04485075815177875,0.7474396724970536,0.24430572962343622,0.8110458033559482,0.8293422474904226,0.39356716943821934,0.8027501479321497,0.27315030042606303,0.18789834683016238,0.3941687035467426,0.6888936766683286,0.2435882240357481,0.0008258433002652499],
     'PathGain': np.linspace(1, 0.1, 16).tolist(),
     'SNR': np.linspace(-20, 10, 13).tolist(),
-    'ErrorFrame': 50,
+    'ErrorFrame': 200,
     'TestFrame': 20000,
-    'LDPC_iter': 50,
+    'LDPC_iter': 20,
     'ncodebooks': 64,
     'ncentroids': 16,
     'quantize_lut': True,
-    'matmul_method': METHOD_MITHRAL
+    'nbits': 8,
+    'matmul_method': METHOD_PQ
 }
 
 if __name__ == '__main__':

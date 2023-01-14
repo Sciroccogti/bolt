@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-29 13:27:52
-@modified: 2023-01-09 23:09:42
+@modified: 2023-01-14 21:05:50
 '''
 
 from collections.abc import Callable
@@ -30,7 +30,8 @@ def sliceData(sample: int, snr: float, X: np.ndarray | None) -> np.ndarray:
 class DPQEncoder(vq.MultiCodebookEncoder):
     def __init__(self, ncodebooks, ncentroids: int = 16,
                  quantize_lut=True, nbits=8, upcast_every=-1, accumulate_how='sum',
-                 genDataFunc: Callable[[int, float, np.ndarray | None], np.ndarray] = sliceData,
+                 genDataFunc: Callable[[int, float, np.ndarray | None],
+                                       np.ndarray | torch.Tensor] = sliceData,
                  ):
         super().__init__(ncodebooks=ncodebooks, ncentroids=ncentroids, quantize_lut=quantize_lut,
                          nbits=nbits, upcast_every=upcast_every, accumulate_how=accumulate_how)
@@ -47,7 +48,7 @@ class DPQEncoder(vq.MultiCodebookEncoder):
                 'upcast_every': self.upcast_every,
                 }
 
-    def fit(self, X, Q):
+    def fit(self, X: np.ndarray, Q) -> None:
         '''
         use DPQ to learn centroids
 
@@ -86,37 +87,42 @@ class DPQEncoder(vq.MultiCodebookEncoder):
             ncentroids=self.ncentroids,
             ncodebooks=self.ncodebooks,
             subvect_len=self.subvect_len,
-            centroids=self.centroids.transpose((1, 0, 2)),
-            # centroids=np.random.random(
-            #     (self.ncodebooks, self.ncentroids, self.subvect_len)) * 10 - 5,
+            # centroids=self.centroids.transpose((1, 0, 2)),
+            centroids=np.random.random(
+                (self.ncodebooks, self.ncentroids, self.subvect_len)) * 10 - 5,
             # tie_in_n_out=False,
             query_metric="euclidean",
+            use_EMA=True,
         ).to(device)
 
-        batch_size = 4096  # TODO
+        batch_size = 2**8  # TODO
         epoch = 100000
         optimizer = torch.optim.SGD(model.parameters(), lr=0.9)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, "min", factor=0.5, patience=50, verbose=True)
         mse_per_batch = torch.tensor(tot_sse_using_mean / len_PQ * batch_size, device=device)
         print("mse_per_batch ", mse_per_batch)
-
-        # if self.genDataFunc == None:
-        #     self.genDataFunc = lambda x :
+        print("Press Ctrl+C to stop training and continue")
 
         bar = tqdm.tqdm(range(0, epoch))
-        genEvery = 50
-        X_multi, _, _ = self.genDataFunc(batch_size * genEvery, 0.0, X)
+        genEvery = 1
+        X_multi = self.genDataFunc(batch_size * genEvery, 0.0, X)
         kpq_centroids = None
         for i in bar:
             try:
                 if i % genEvery == 0 and i > 0:
-                    X_multi, _, _ = self.genDataFunc(batch_size * genEvery, 0.0, X)
-                X = X_multi[(i % genEvery) * batch_size:(1 + i % genEvery) * batch_size]
+                    X_multi = self.genDataFunc(batch_size * genEvery, 0.0, X)
+                X_single = X_multi[(i % genEvery) * batch_size:(1 + i % genEvery) * batch_size]
+                if isinstance(X_single, np.ndarray):
+                    inputs = torch.from_numpy(
+                        X_single.reshape((-1, self.ncodebooks, self.subvect_len))
+                    ).to(device).requires_grad_()
+                else:
+                    assert isinstance(X_single, torch.Tensor)
+                    inputs = X_single.reshape(
+                        (-1, self.ncodebooks, self.subvect_len)).requires_grad_()
+
                 optimizer.zero_grad()
-                inputs = torch.from_numpy(
-                    X.reshape((-1, self.ncodebooks, self.subvect_len))
-                ).to(device).requires_grad_()
                 outputs, mse, kpq_centroids = model.forward(inputs, True)
                 if loss_type == "ce":
                     lossfn = torch.nn.CrossEntropyLoss()
@@ -136,11 +142,12 @@ class DPQEncoder(vq.MultiCodebookEncoder):
         if kpq_centroids != None:
             self.centroids = kpq_centroids.transpose(0, 1).cpu().detach().numpy()
 
-    def encode_Q(self, Q):
+    def encode_Q(self, Q: np.ndarray) -> np.ndarray:
         '''
         generate luts using centroids
 
         :param Q:
+        :return luts
         '''
         # PQ style
         Q = np.atleast_2d(Q)
@@ -154,9 +161,9 @@ class DPQEncoder(vq.MultiCodebookEncoder):
             luts[i] = lut.T
         return luts
 
-    def encode_X(self, X):
+    def encode_X(self, X: np.ndarray) -> np.ndarray:
         '''
-        encode left matrix online, currently all from PQEncoder
+        encode left matrix online, currently all copied from PQEncoder
 
         :param X: online left matrix
         '''

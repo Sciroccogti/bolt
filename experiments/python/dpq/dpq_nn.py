@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-31 12:41:49
-@modified: 2023-01-09 21:50:25
+@modified: 2023-01-12 13:40:01
 '''
 
 import numpy as np
@@ -122,9 +122,10 @@ class DPQNetwork(torch.nn.Module):
                     gamma = 0.0
 
                     # TODO: still don't know how to set as a Parameter
-                    reg = alpha * torch.mean((outputs - inputs_nograd)**2)
-                    reg += beta * torch.mean((outputs_nograd - inputs)**2)
-                    reg += gamma * torch.mean(torch.min(-response, self.minaxis))
+                    reg = torch.tensor(alpha * torch.mean((outputs - inputs_nograd) ** 2)
+                                       + beta * torch.mean((outputs_nograd - inputs)**2)
+                                       + gamma * torch.mean(torch.min(-response, self.minaxis)),
+                                       device=device, requires_grad=True)
                 else:
                     # http://arxiv.org/abs/1803.03382 equation9
                     # do a Exponential Moving Average on centroids

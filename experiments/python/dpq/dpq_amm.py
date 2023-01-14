@@ -3,19 +3,20 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-29 14:05:49
-@modified: 2023-01-09 23:09:37
+@modified: 2023-01-14 16:19:50
 '''
 
 from vq_amm import VQMatmul
 from dpq.dpq_encoder import DPQEncoder, sliceData
 from collections.abc import Callable
 import numpy as np
+from torch import Tensor
 
 
 class DPQMatmul(VQMatmul):
     def __init__(
         self, ncodebooks, ncentroids: int = 16, quantize_lut=True, nbits=8, upcast_every=-1,
-        genDataFunc: Callable[[int, float, np.ndarray | None], np.ndarray] = sliceData,
+        genDataFunc: Callable[[int, float, np.ndarray | None], np.ndarray | Tensor] = sliceData,
     ):
         if (quantize_lut or upcast_every != -1):
             raise NotImplementedError("quantize and upcast not yet available for DPQ!")
