@@ -1951,8 +1951,8 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
     # optimize centroids discriminatively conditioned on assignments
     # Algorithm 1:Maddness Hash   ——Blalock, Davis, and John Guttag. "Multiplying matrices without multiplying." International Conference on Machine Learning. PMLR, 2021.
     # X_enc = mithral_encode(X, all_splits)
-    # print("len all_splits\n", len(all_splits))
-    # print("all_splits\n", all_splits)
+    print("len all_splits\n", len(all_splits))
+    print("all_splits\n", all_splits)
     
     # print("X_enc\n",X_enc)
 
