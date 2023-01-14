@@ -124,6 +124,9 @@ class Bucket(object):
     def optimal_split_val(self, X, dim, possible_vals=None, X_orig=None,
                           return_possible_vals_losses=False):
         if self.N < 2 or self.point_ids is None:
+            # print("bucket.N < 2 return split_val 0:", self.N)
+            if self.point_ids is None:
+                print("bucket.point_ids is None:",self.point_ids is None)
             if return_possible_vals_losses:
                 return 0, 0, np.zeros(len(possible_vals), dtype=X.dtype)
             return 0, 0
@@ -911,6 +914,10 @@ def _XW_encoded(X_enc, W, K=16):
 @numba.njit(fastmath=True, cache=True)
 def _densify_X_enc(X_enc, K=16):
     """
+    针对原型进行one-hot编码
+    ——源自Blalock, Davis, and John Guttag. "Multiplying matrices without multiplying." 
+    International Conference on Machine Learning. PMLR, 2021.的4.3节
+
     Args:
         X_enc: (N, n_codebooks)
 
@@ -1784,7 +1791,7 @@ def _learn_mithral_initialization(X, ncodebooks, ncentroids: int=16,
         # print("_learn_mithral_initialization\nall_centroids:\n", all_centroids)
         # print("X_res mse / X mse: ",
         #       (X_res * X_res).mean() / (X_orig * X_orig).mean())
-
+    
     return X_res, all_splits, all_centroids, all_buckets
 
 
@@ -1941,8 +1948,6 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
         X_res, all_splits, all_centroids, all_buckets = (
             X_res0, all_splits0, all_centroids0, all_buckets0)
 
-    # optimize centroids discriminatively conditioned on assignments
-    X_enc = mithral_encode(X, all_splits)
 
     if lut_work_const != 1:  # if it's 1, equivalent to just doing PQ
         #
@@ -1956,7 +1961,10 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
 
         #
         # shrink W towards initial centroids
-        #
+        ## optimize centroids discriminatively conditioned on assignments
+        # Algorithm 1:Maddness Hash   ——Blalock, Davis, and John Guttag. "Multiplying matrices without multiplying." International Conference on Machine Learning. PMLR, 2021.
+        X_enc = mithral_encode(X, all_splits)
+
         if lut_work_const < 0:
             print("fitting dense lstsq to X_res")
             print(f"  with X_enc:{X_enc.shape} Y:{X_res.shape}")
@@ -1975,6 +1983,11 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
 
         all_centroids_delta = W.reshape(ncodebooks, ncentroids_per_codebook, D)
         all_centroids += all_centroids_delta
+        if "verbose" in kwargs.keys():
+            if kwargs["verbose"] > 3:
+                np.set_printoptions(threshold=np.inf)
+                print('all_centroids_delta\n', all_centroids_delta)
+                print('all_centroids\n', all_centroids)
 
         # check how much improvement we got
         X_res -= _XW_encoded(X_enc, W)  # if we fit to X_res
