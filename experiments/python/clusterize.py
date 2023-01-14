@@ -1948,13 +1948,6 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
         X_res, all_splits, all_centroids, all_buckets = (
             X_res0, all_splits0, all_centroids0, all_buckets0)
 
-    # optimize centroids discriminatively conditioned on assignments
-    # Algorithm 1:Maddness Hash   ——Blalock, Davis, and John Guttag. "Multiplying matrices without multiplying." International Conference on Machine Learning. PMLR, 2021.
-    # X_enc = mithral_encode(X, all_splits)
-    # print("len all_splits\n", len(all_splits))
-    # print("all_splits\n", all_splits)
-    
-    # print("X_enc\n",X_enc)
 
     if lut_work_const != 1:  # if it's 1, equivalent to just doing PQ
         #
@@ -1968,12 +1961,9 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
 
         #
         # shrink W towards initial centroids
-        #
+        ## optimize centroids discriminatively conditioned on assignments
+        # Algorithm 1:Maddness Hash   ——Blalock, Davis, and John Guttag. "Multiplying matrices without multiplying." International Conference on Machine Learning. PMLR, 2021.
         X_enc = mithral_encode(X, all_splits)
-        print("len all_splits\n", len(all_splits))
-        print("all_splits\n", all_splits)
-        
-        print("X_enc\n",X_enc)
 
         if lut_work_const < 0:
             print("fitting dense lstsq to X_res")
