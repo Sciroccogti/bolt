@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-29 14:05:49
-@modified: 2023-01-14 16:19:50
+@modified: 2023-01-15 17:15:41
 '''
 
 from vq_amm import VQMatmul
@@ -16,13 +16,12 @@ from torch import Tensor
 class DPQMatmul(VQMatmul):
     def __init__(
         self, ncodebooks, ncentroids: int = 16, quantize_lut=True, nbits=8, upcast_every=-1,
-        genDataFunc: Callable[[int, float, np.ndarray | None], np.ndarray | Tensor] = sliceData,
+        genDataFunc: Callable[[int, float, np.ndarray | None],
+                              tuple[np.ndarray, np.ndarray | None, np.ndarray | None]] = sliceData,
     ):
         if (quantize_lut or upcast_every != -1):
             raise NotImplementedError("quantize and upcast not yet available for DPQ!")
         self.ncentroids = ncentroids
-        # if genDataFunc: # TODO
-        #     assert type(genDataFunc) == Callable
         self.genDataFunc = genDataFunc
         super().__init__(ncodebooks=ncodebooks, ncentroids=ncentroids,
                          quantize_lut=quantize_lut, nbits=nbits, upcast_every=upcast_every)

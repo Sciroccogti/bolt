@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-29 13:27:52
-@modified: 2023-01-14 21:05:50
+@modified: 2023-01-15 22:25:32
 '''
 
 from collections.abc import Callable
@@ -20,19 +20,21 @@ device = "cuda" if torch.cuda.is_available() else "cpu"  # TODO: set in params
 _sliceData_lastpos = 0
 
 
-def sliceData(sample: int, snr: float, X: np.ndarray | None) -> np.ndarray:
+def sliceData(sample: int, snr: float, X: np.ndarray | None
+              ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray | None]:
     global _sliceData_lastpos
     assert X is not None
     _sliceData_lastpos += sample
-    return X[_sliceData_lastpos-sample:_sliceData_lastpos]
+    return X[_sliceData_lastpos-sample:_sliceData_lastpos], None, None
 
 
 class DPQEncoder(vq.MultiCodebookEncoder):
-    def __init__(self, ncodebooks, ncentroids: int = 16,
-                 quantize_lut=True, nbits=8, upcast_every=-1, accumulate_how='sum',
-                 genDataFunc: Callable[[int, float, np.ndarray | None],
-                                       np.ndarray | torch.Tensor] = sliceData,
-                 ):
+    def __init__(
+        self, ncodebooks, ncentroids: int = 16,
+        quantize_lut=True, nbits=8, upcast_every=-1, accumulate_how='sum',
+        genDataFunc: Callable[[int, float, np.ndarray | None],
+                              tuple[np.ndarray, np.ndarray | None, np.ndarray | None]] = sliceData,
+    ):
         super().__init__(ncodebooks=ncodebooks, ncentroids=ncentroids, quantize_lut=quantize_lut,
                          nbits=nbits, upcast_every=upcast_every, accumulate_how=accumulate_how)
         self.genDataFunc = genDataFunc
@@ -53,7 +55,7 @@ class DPQEncoder(vq.MultiCodebookEncoder):
         use DPQ to learn centroids
 
         :param X: left matrix, just used to train
-        :param Q: right matrix, should be the same as the online Q
+        :param Q: right matrix, not used, should be the same as the online Q
         '''
         # TODO: query_metric, shared_centroids, tau
 
@@ -87,16 +89,19 @@ class DPQEncoder(vq.MultiCodebookEncoder):
             ncentroids=self.ncentroids,
             ncodebooks=self.ncodebooks,
             subvect_len=self.subvect_len,
-            # centroids=self.centroids.transpose((1, 0, 2)),
-            centroids=np.random.random(
-                (self.ncodebooks, self.ncentroids, self.subvect_len)) * 10 - 5,
+            centroids=self.centroids.transpose((1, 0, 2)),
+            # centroids=np.random.random(
+            #     (self.ncodebooks, self.ncentroids, self.subvect_len)) * 10 - 5,
             # tie_in_n_out=False,
             query_metric="euclidean",
             use_EMA=True,
         ).to(device)
 
-        batch_size = 2**8  # TODO
+        batch_size = 2**12  # TODO
         epoch = 100000
+        is_end2end = True
+        genEvery = 50
+
         optimizer = torch.optim.SGD(model.parameters(), lr=0.9)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, "min", factor=0.5, patience=50, verbose=True)
@@ -105,13 +110,12 @@ class DPQEncoder(vq.MultiCodebookEncoder):
         print("Press Ctrl+C to stop training and continue")
 
         bar = tqdm.tqdm(range(0, epoch))
-        genEvery = 1
-        X_multi = self.genDataFunc(batch_size * genEvery, 0.0, X)
+        X_multi, Y_multi, W = self.genDataFunc(batch_size * genEvery, 0.0, X)
         kpq_centroids = None
         for i in bar:
             try:
                 if i % genEvery == 0 and i > 0:
-                    X_multi = self.genDataFunc(batch_size * genEvery, 0.0, X)
+                    X_multi, Y_multi, W = self.genDataFunc(batch_size * genEvery, 0.0, X)
                 X_single = X_multi[(i % genEvery) * batch_size:(1 + i % genEvery) * batch_size]
                 if isinstance(X_single, np.ndarray):
                     inputs = torch.from_numpy(
@@ -123,14 +127,23 @@ class DPQEncoder(vq.MultiCodebookEncoder):
                         (-1, self.ncodebooks, self.subvect_len)).requires_grad_()
 
                 optimizer.zero_grad()
-                outputs, mse, kpq_centroids = model.forward(inputs, True)
-                if loss_type == "ce":
-                    lossfn = torch.nn.CrossEntropyLoss()
-                    loss = lossfn(inputs, outputs)
+                outputs, mse, kpq_centroids = model.forward(inputs, is_training=True)
+                if is_end2end:
+                    assert Y_multi is not None and W is not None
+                    self.centroids = kpq_centroids.transpose(0, 1).cpu().detach().numpy()
+                    Y_single = Y_multi[(i % genEvery) * batch_size:(1 + i % genEvery) * batch_size]
+                    X_enc = self.encode_X(X_single)
+                    luts = self.encode_Q(W.T)
+                    Y_est = self.dists_enc(X_enc, luts, self.quantize_lut)
+                    loss = np.mean((Y_single - Y_est)**2) / np.var(Y_single)
                 else:
-                    assert loss_type == "mse"
-                    tot_mse = torch.sum(mse)
-                    loss = tot_mse / mse_per_batch
+                    if loss_type == "ce":
+                        lossfn = torch.nn.CrossEntropyLoss()
+                        loss = lossfn(inputs, outputs)
+                    else:
+                        assert loss_type == "mse"
+                        tot_mse = torch.sum(mse)
+                        loss = tot_mse / mse_per_batch
                 writer.add_scalar("Loss/train", loss, i)
                 # loss.backward()
                 bar.set_description_str("loss={:.3g}".format(loss))

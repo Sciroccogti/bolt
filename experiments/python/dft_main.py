@@ -295,7 +295,7 @@ class Transceiver:
                                      X_path="IDFT_X.npy", W_path="IDFT_W.npy", Y_path="IDFT_Y.npy",
                                      dir="dft", nbits=self.params["nbits"],
                                      quantize_lut=self.quantize_lut,
-                                     genDataFunc=self.gen_IDFTTrainTorch,
+                                     genDataFunc=self.gen_IDFTTrain,
                                      )
         else:
             assert self.matmul_method == METHOD_EXACT, "Other methods not supported!"
@@ -473,17 +473,19 @@ class Transceiver:
                                  NMSE_idft[0][i], H_NMSE[0][i], rawH_NMSE[0][i]])
         return BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE
 
-    def gen_IDFTTrain(self, sample: int, SNR: float, inputs: np.ndarray | None) -> np.ndarray:
+    def gen_IDFTTrain(self, sample: int, SNR: float, inputs: np.ndarray | None
+                      ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         for DPQ to generate training data
 
         :param inputs: just placeholder, not used
+        :return X, Y, W
         """
-        IDFT_Xtrain = np.zeros((sample, self.Nifft), dtype=complex)
-        IDFT_Ytrain = np.zeros((sample, 20), dtype=complex)
+        IDFT_Xtrain = np.zeros((sample//2, self.Nifft), dtype=complex)
+        IDFT_Ytrain = np.zeros((sample//2, 20), dtype=complex)
         IDFT_W = self.IDFTm[:, 0:20]  # 128*20
         sigma_2 = np.power(10, (SNR / 10))
-        for i in range(sample):
+        for i in range(sample//2):
             H = self.Channel_create()
             noise = np.random.randn(self.Ncarrier, 1) + \
                 1j * np.random.randn(self.Ncarrier, 1)
@@ -493,7 +495,7 @@ class Transceiver:
             IDFT_Xtrain[i] = Xk
             xn = np.dot(Xk, IDFT_W)
             IDFT_Ytrain[i] = xn
-        return IDFT_Xtrain
+        return convert_complexToReal_X(IDFT_Xtrain), convert_complexToReal_Y(IDFT_Ytrain), convert_complexToReal_W(IDFT_W)
 
     def Channel_createTorch(self, device: str) -> torch.Tensor:
         L = self.params['L']
@@ -748,10 +750,18 @@ def save_mat(mat, fname):
     np.save(fname, mat)
 
 
-def convert_complexToReal_X(X):
+def convert_complexToReal_X(X: np.ndarray):
+    """
+    |X.real,  -X.imag|
+
+    |X.imag,   X.real|
+    """
     X_real = X.real
     X_img = X.imag
-    return np.concatenate([np.concatenate([X_real, -X_img], 1), np.concatenate([X_img, X_real], 1)], 0)
+    return np.concatenate([
+        np.concatenate([X_real, -X_img], 1),
+        np.concatenate([X_img, X_real], 1)
+    ], 0)
 
 
 def convert_complexToReal_W(W):

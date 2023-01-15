@@ -247,13 +247,14 @@ def _fitted_est_for_hparams(method_id, hparams_dict, X_train, W_train,
     return est
 
 
-def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
-               verbose=1, limit_ntasks=-1, tasks_all_same_shape=False, tasks=None,
-               X_path="", W_path="", Y_path="", bias_path="", dir="",
-               nbits=8, quantize_lut=True, upcast_every=None,
-               genDataFunc: Callable[[int, float, np.ndarray | None],
-                                     np.ndarray | Tensor] = sliceData,
-               ):
+def estFactory(
+    methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
+    verbose=1, limit_ntasks=-1, tasks_all_same_shape=False, tasks=None,
+    X_path="", W_path="", Y_path="", bias_path="", dir="",
+    nbits=8, quantize_lut=True, upcast_every=None,
+    genDataFunc: Callable[[int, float, np.ndarray | None],
+                          tuple[np.ndarray, np.ndarray | None, np.ndarray | None]] = sliceData,
+):
     methods = methods.DEFAULT_METHODS if methods is None else methods
     tasks = md.load_dft_train(X_path, W_path, Y_path, dir, bias_path) if tasks is None else tasks
     if isinstance(methods, str):
