@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-29 13:27:52
-@modified: 2023-01-15 22:25:32
+@modified: 2023-01-18 20:46:49
 '''
 
 from collections.abc import Callable
@@ -97,12 +97,13 @@ class DPQEncoder(vq.MultiCodebookEncoder):
             use_EMA=True,
         ).to(device)
 
-        batch_size = 2**12  # TODO
+        batch_size = 2**13  # TODO
         epoch = 100000
         is_end2end = True
         genEvery = 50
+        lr = 0.001  # if use random centroids, suggest 0.9; PQ centroids, suggest 0.001
 
-        optimizer = torch.optim.SGD(model.parameters(), lr=0.9)
+        optimizer = torch.optim.SGD(model.parameters(), lr=lr)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, "min", factor=0.5, patience=50, verbose=True)
         mse_per_batch = torch.tensor(tot_sse_using_mean / len_PQ * batch_size, device=device)
