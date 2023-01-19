@@ -105,12 +105,32 @@ class Bucket(object):
         # print("my_idxs shape, dtype", my_idxs.shape, my_idxs.dtype)
         X = X[my_idxs]
         X_orig = X if X_orig is None else X_orig[my_idxs]
-        mask = X_orig[:, dim] < val # X_orig的dim列小于val的值所在的行（返回值为布尔向量）
+        mask = X_orig[:, dim] <= val # X_orig的dim列小于val的值所在的行（返回值为布尔向量）TODO
         not_mask = ~mask
         X0 = X[mask] # X_orig的dim列小于val的值所在的行取出来
         X1 = X[not_mask] # X_orig的dim列大于等于val的值所在的行取出来
         ids0 = my_idxs[mask] # X_orig的dim列小于val的值所在的行的序号
         ids1 = my_idxs[not_mask] # X_orig的dim列大于等于val的值所在的行的序号
+        nonzero_counts = np.count_nonzero(X_orig[:, dim])
+        # if self.N > 0:
+        #     if nonzero_counts / self.N < 0.01:
+
+        # print("当前桶序号：\n", self.id)
+        # print("当前桶行数：\n", self.N)
+        # print("当前矩阵大小:\n", X_orig.shape)
+        # print("当前分割的列号：\n", dim)
+        
+        # print("当前分割的列的非零元素个数：\n", nonzero_counts)
+        # print("当前分割的列的分割阈值：\n", val)
+        # print("分割后桶1序号：\n", id0)
+        # print("分割后桶1行数：\n", len(ids0))
+        # nonzero_counts = np.count_nonzero(X0[:, dim])
+        # print("分割后桶1对应列的非零元素个数：\n", nonzero_counts)
+        # print("分割后桶2序号：\n", id1)
+        # print("分割后桶2行数：\n", len(ids1))
+        # nonzero_counts = np.count_nonzero(X1[:, dim])
+        # print("分割后桶1对应列的非零元素个数：\n", nonzero_counts)
+        
 
         def create_bucket(points, ids, bucket_id):
             sumX = points.sum(axis=0) if len(ids) else None
@@ -723,7 +743,17 @@ def learn_multisplits(
             col_losses[:] = 0
             for buck in buckets:
                 col_losses += buck.col_sum_sqs()
-            try_dims = np.argsort(col_losses)[-try_ndims:] # 寻找损失最大的4列
+
+            # nonzero_counts = np.count_nonzero(X, axis=0)#TODO
+            # try_dims_nonzero_ratio = nonzero_counts/N#TODO
+            # th = 0.01 #TODO
+            # mask = try_dims_nonzero_ratio > th #TODO
+            # indices = np.where(mask)[0] #TODO
+            # if len(indices) <= 4:
+            #     print(len(indices))
+            # loss = col_losses[indices] #TODO
+            # try_dims = indices[np.argsort(-loss)][:try_ndims] #TODO
+            try_dims = np.argsort(col_losses)[-try_ndims:] # 寻找损失最大的4列 #TODO
         elif dim_heuristic == 'kurtosis':
             # compute X_res
             if s > 0:
@@ -772,7 +802,11 @@ def learn_multisplits(
 
         # determine best dim to split on, and pull out associated split
         # vals for all buckets
-        best_tried_dim_idx = np.argmin(losses)
+        # nonzero_counts = np.count_nonzero(X, axis=0)#TODO
+        # try_dims_nonzero_ratio = nonzero_counts[try_dims]/N#TODO
+        # mask = data[0, :] > th
+        # best_tried_dim_idx = np.argmin(losses[try_dims_nonzero_ratio>0.1])#TODO
+        best_tried_dim_idx = np.argmin(losses)#TODO
         best_dim = try_dims[best_tried_dim_idx]
         use_split_vals = all_split_vals[best_tried_dim_idx] # 分割后性能最好的列的分割阈值
         split = MultiSplit(dim=best_dim, vals=use_split_vals) # MultiSplit类：记录列号和该列分割阈值, 可设定偏移值和放缩因子
