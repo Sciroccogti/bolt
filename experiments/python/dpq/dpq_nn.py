@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-31 12:41:49
-@modified: 2023-01-12 13:40:01
+@modified: 2023-01-25 22:14:10
 '''
 
 import numpy as np
@@ -30,9 +30,6 @@ class DPQNetwork(torch.nn.Module):
 
         :param use_EMA: use Exponential Moving Average to update centroids, or use regularization
         '''
-        if shared_centroids or beta != 0.0:
-            raise NotImplementedError(
-                "shared_centroids, beta haven't been implemented yet")
         assert np.shape(centroids) == (ncodebooks, ncentroids, subvect_len)
         assert query_metric in ["dot", "euclidean"], "query_metric only supports dot and euclidean"
         super(DPQNetwork, self).__init__()
@@ -61,10 +58,9 @@ class DPQNetwork(torch.nn.Module):
         self.minaxis = torch.tensor(minaxis, device=device, requires_grad=False)
         self.counts = None
         self.use_EMA = use_EMA
-        self.reg = Parameter(torch.tensor([1.0], device=device), requires_grad=not use_EMA)
 
     def forward(self, inputs: torch.Tensor, is_training: bool = True
-                ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+                ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         '''
         :param inputs: (batch_size, ncodebooks, subvect_len)
         '''
@@ -96,17 +92,17 @@ class DPQNetwork(torch.nn.Module):
 
         # TODO: sampling
         # neighbour_idxs = codes
+        if not self._shared_centroids:
+            D_base = torch.from_numpy(
+                np.array([self._ncentroids*d for d in range(self._ncodebooks)])
+            ).to(device)
+            neighbour_idxs = D_base + codes
+        else:
+            neighbour_idxs = codes
 
         # (bs, C, K)
         nb_idxs_onehot = F.one_hot(codes, num_classes=self._ncentroids).float()
         if self._tie_in_n_out:
-            if not self._shared_centroids:
-                D_base = torch.from_numpy(
-                    np.array([self._ncentroids*d for d in range(self._ncodebooks)])
-                ).to(device)
-                neighbour_idxs = D_base + codes
-            else:
-                neighbour_idxs = codes
             # outputs are nearest centroids of inputs
             outputs = torch.index_select(
                 self._centroids_v.reshape((-1, self._subvect_len)), 0, neighbour_idxs.reshape((-1)))
@@ -122,10 +118,9 @@ class DPQNetwork(torch.nn.Module):
                     gamma = 0.0
 
                     # TODO: still don't know how to set as a Parameter
-                    reg = torch.tensor(alpha * torch.mean((outputs - inputs_nograd) ** 2)
-                                       + beta * torch.mean((outputs_nograd - inputs)**2)
-                                       + gamma * torch.mean(torch.min(-response, self.minaxis)),
-                                       device=device, requires_grad=True)
+                    reg = (alpha * torch.mean((outputs - inputs_nograd) ** 2)
+                           + beta * torch.mean((outputs_nograd - inputs)**2)
+                           + gamma * torch.mean(torch.min(-response, self.minaxis))).clone().detach().requires_grad_()
                 else:
                     # http://arxiv.org/abs/1803.03382 equation9
                     # do a Exponential Moving Average on centroids
@@ -158,4 +153,4 @@ class DPQNetwork(torch.nn.Module):
                 reg = - beta * torch.mean(
                     torch.mean(nb_idxs_onehot * torch.log(response_prob + 1e-10), dim=2))
 
-        return outputs_final, -neg_mse, self._centroids_k
+        return outputs_final, -neg_mse, self._centroids_k, codes

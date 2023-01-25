@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-29 13:27:52
-@modified: 2023-01-18 20:46:49
+@modified: 2023-01-25 22:19:16
 '''
 
 from collections.abc import Callable
@@ -84,8 +84,17 @@ class DPQEncoder(vq.MultiCodebookEncoder):
         #     X, subvect_len=self.subvect_len, nsplits_per_subs=self.code_bits,
         #     algo=self.encode_algo)
 
+        batch_size = 2**13  # TODO
+        epoch = 100000
+        is_end2end = True
+        genEvery = 1
+        lr = 0.001  # if use random centroids, suggest 0.9; PQ centroids, suggest 0.001
+
+        X_multi, Y_multi, W = self.genDataFunc(batch_size * genEvery, 0.0, X)
+        W_torch = torch.from_numpy(W).to(device).float()
+
         print(f"Using {device} device")
-        model = DPQNetwork(
+        self.model = DPQNetwork(
             ncentroids=self.ncentroids,
             ncodebooks=self.ncodebooks,
             subvect_len=self.subvect_len,
@@ -94,16 +103,11 @@ class DPQEncoder(vq.MultiCodebookEncoder):
             #     (self.ncodebooks, self.ncentroids, self.subvect_len)) * 10 - 5,
             # tie_in_n_out=False,
             query_metric="euclidean",
+            shared_centroids=False,
             use_EMA=True,
         ).to(device)
 
-        batch_size = 2**13  # TODO
-        epoch = 100000
-        is_end2end = True
-        genEvery = 50
-        lr = 0.001  # if use random centroids, suggest 0.9; PQ centroids, suggest 0.001
-
-        optimizer = torch.optim.SGD(model.parameters(), lr=lr)
+        optimizer = torch.optim.SGD(self.model.parameters(), lr=lr)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, "min", factor=0.5, patience=50, verbose=True)
         mse_per_batch = torch.tensor(tot_sse_using_mean / len_PQ * batch_size, device=device)
@@ -111,7 +115,6 @@ class DPQEncoder(vq.MultiCodebookEncoder):
         print("Press Ctrl+C to stop training and continue")
 
         bar = tqdm.tqdm(range(0, epoch))
-        X_multi, Y_multi, W = self.genDataFunc(batch_size * genEvery, 0.0, X)
         kpq_centroids = None
         for i in bar:
             try:
@@ -128,15 +131,18 @@ class DPQEncoder(vq.MultiCodebookEncoder):
                         (-1, self.ncodebooks, self.subvect_len)).requires_grad_()
 
                 optimizer.zero_grad()
-                outputs, mse, kpq_centroids = model.forward(inputs, is_training=True)
+                outputs, mse, kpq_centroids, codes = self.model.forward(inputs, is_training=True)
                 if is_end2end:
                     assert Y_multi is not None and W is not None
-                    self.centroids = kpq_centroids.transpose(0, 1).cpu().detach().numpy()
-                    Y_single = Y_multi[(i % genEvery) * batch_size:(1 + i % genEvery) * batch_size]
-                    X_enc = self.encode_X(X_single)
-                    luts = self.encode_Q(W.T)
-                    Y_est = self.dists_enc(X_enc, luts, self.quantize_lut)
-                    loss = np.mean((Y_single - Y_est)**2) / np.var(Y_single)
+                    # self.centroids = kpq_centroids.transpose(0, 1).cpu().detach().numpy()
+                    Y_single = torch.from_numpy(
+                        Y_multi[(i % genEvery) * batch_size:(1 + i % genEvery) * batch_size]).to(device)
+                    # X_enc = self.encode_X(X_single)
+                    # luts = self.encode_Q(W.T)
+                    # Y_est = self.dists_enc(X_enc, luts, self.quantize_lut)
+
+                    Y_est = torch.matmul(outputs.reshape(-1, W_torch.shape[0]), W_torch)
+                    loss = torch.mean((Y_single - Y_est)**2) / torch.var(Y_single)
                 else:
                     if loss_type == "ce":
                         lossfn = torch.nn.CrossEntropyLoss()
@@ -182,11 +188,18 @@ class DPQEncoder(vq.MultiCodebookEncoder):
         :param X: online left matrix
         '''
         # PQ style
-        X = vq.ensure_num_cols_multiple_of(X, self.ncodebooks)
+
+        # X = vq.ensure_num_cols_multiple_of(X, self.ncodebooks)
+
         # encode_algo: None
-        idxs = vq.pq._encode_X_pq(X, codebooks=self.centroids)
+        # idxs = vq.pq._encode_X_pq(X, codebooks=self.centroids)
         # encode_algo: multisplit
         # idxs = clusterize.encode_using_splits(X, self.subvect_len, self.splits_lists, "multi")
+
+        # DPQ
+        _, _, _, idxs = self.model.forward(torch.from_numpy(
+            X).reshape((-1, self.ncodebooks, self.subvect_len)).to(device), False)
+        idxs = idxs.cpu().numpy()
 
         # self.offsets is set in MultiCodebookEncoder.__init__
         return idxs + self.offsets
