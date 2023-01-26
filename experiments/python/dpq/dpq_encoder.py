@@ -3,10 +3,11 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-29 13:27:52
-@modified: 2023-01-25 22:19:16
+@modified: 2023-01-26 16:09:59
 '''
 
 from collections.abc import Callable
+from multiprocessing import Process, Queue
 
 import numpy as np
 import torch
@@ -26,6 +27,19 @@ def sliceData(sample: int, snr: float, X: np.ndarray | None
     assert X is not None
     _sliceData_lastpos += sample
     return X[_sliceData_lastpos-sample:_sliceData_lastpos], None, None
+
+
+def inputGen(
+    q: Queue,
+    # stop: sharedctypes.SynchronizedBase[int],
+    genDataFunc: Callable[[int, float, np.ndarray | None],
+                          tuple[np.ndarray, np.ndarray | None, np.ndarray | None]],
+    sample: int,
+    snr: float,
+):
+    while True:
+        if not q.full():
+            q.put(genDataFunc(sample, snr, None))
 
 
 class DPQEncoder(vq.MultiCodebookEncoder):
@@ -87,17 +101,27 @@ class DPQEncoder(vq.MultiCodebookEncoder):
         batch_size = 2**13  # TODO
         epoch = 100000
         is_end2end = True
-        genEvery = 1
+        genEvery = 50
         lr = 0.001  # if use random centroids, suggest 0.9; PQ centroids, suggest 0.001
 
-        X_multi, Y_multi, W = self.genDataFunc(batch_size * genEvery, 0.0, X)
-        W_torch = torch.from_numpy(W).to(device).float()
+        # X_multi, Y_multi, W = self.genDataFunc(batch_size * genEvery, 0.0, X)
+        # assert Y_multi is not None and W is not None
+        # W_torch = torch.from_numpy(W).to(device).float()
+
+        inputQueue = Queue(genEvery)
+        # stopFlag = Value('B', 0)
+        inputGenProc = Process(target=inputGen, args=(
+            inputQueue, self.genDataFunc, batch_size, 0.0))
+        inputGenProc.start()
+
+        _, _, W = inputQueue.get()
 
         print(f"Using {device} device")
         self.model = DPQNetwork(
             ncentroids=self.ncentroids,
             ncodebooks=self.ncodebooks,
             subvect_len=self.subvect_len,
+            W=W,
             centroids=self.centroids.transpose((1, 0, 2)),
             # centroids=np.random.random(
             #     (self.ncodebooks, self.ncentroids, self.subvect_len)) * 10 - 5,
@@ -115,12 +139,12 @@ class DPQEncoder(vq.MultiCodebookEncoder):
         print("Press Ctrl+C to stop training and continue")
 
         bar = tqdm.tqdm(range(0, epoch))
-        kpq_centroids = None
         for i in bar:
             try:
-                if i % genEvery == 0 and i > 0:
-                    X_multi, Y_multi, W = self.genDataFunc(batch_size * genEvery, 0.0, X)
-                X_single = X_multi[(i % genEvery) * batch_size:(1 + i % genEvery) * batch_size]
+                # if i % genEvery == 0 and i > 0:
+                #     X_multi, Y_multi, W = self.genDataFunc(batch_size * genEvery, 0.0, X)
+                # X_single = X_multi[(i % genEvery) * batch_size:(1 + i % genEvery) * batch_size]
+                X_single, Y_single, _ = inputQueue.get(block=True)
                 if isinstance(X_single, np.ndarray):
                     inputs = torch.from_numpy(
                         X_single.reshape((-1, self.ncodebooks, self.subvect_len))
@@ -131,18 +155,17 @@ class DPQEncoder(vq.MultiCodebookEncoder):
                         (-1, self.ncodebooks, self.subvect_len)).requires_grad_()
 
                 optimizer.zero_grad()
-                outputs, mse, kpq_centroids, codes = self.model.forward(inputs, is_training=True)
+                outputs, mse, codes = self.model.forward(inputs, is_training=True)
                 if is_end2end:
-                    assert Y_multi is not None and W is not None
-                    # self.centroids = kpq_centroids.transpose(0, 1).cpu().detach().numpy()
-                    Y_single = torch.from_numpy(
-                        Y_multi[(i % genEvery) * batch_size:(1 + i % genEvery) * batch_size]).to(device)
+                    Y_groundtruth = torch.from_numpy(Y_single).to(device)
+                    # Y_single = torch.from_numpy(
+                    #     Y_multi[(i % genEvery) * batch_size:(1 + i % genEvery) * batch_size]).to(device)
                     # X_enc = self.encode_X(X_single)
                     # luts = self.encode_Q(W.T)
                     # Y_est = self.dists_enc(X_enc, luts, self.quantize_lut)
 
-                    Y_est = torch.matmul(outputs.reshape(-1, W_torch.shape[0]), W_torch)
-                    loss = torch.mean((Y_single - Y_est)**2) / torch.var(Y_single)
+                    # Y_est = torch.matmul(outputs.reshape(-1, W_torch.shape[0]), W_torch)
+                    loss = torch.mean((Y_groundtruth - outputs)**2) / torch.var(Y_groundtruth)
                 else:
                     if loss_type == "ce":
                         lossfn = torch.nn.CrossEntropyLoss()
@@ -159,8 +182,9 @@ class DPQEncoder(vq.MultiCodebookEncoder):
             except KeyboardInterrupt:
                 print("Training stopped manually at epoch %d/%d" % (i, epoch))
                 break
-        if kpq_centroids != None:
-            self.centroids = kpq_centroids.transpose(0, 1).cpu().detach().numpy()
+        inputGenProc.kill()
+        kpq_centroids, weight = self.model.get_data()
+        self.centroids = kpq_centroids.transpose(0, 1).cpu().detach().numpy()
 
     def encode_Q(self, Q: np.ndarray) -> np.ndarray:
         '''
@@ -197,9 +221,17 @@ class DPQEncoder(vq.MultiCodebookEncoder):
         # idxs = clusterize.encode_using_splits(X, self.subvect_len, self.splits_lists, "multi")
 
         # DPQ
-        _, _, _, idxs = self.model.forward(torch.from_numpy(
+        _, _, idxs = self.model.forward(torch.from_numpy(
             X).reshape((-1, self.ncodebooks, self.subvect_len)).to(device), False)
         idxs = idxs.cpu().numpy()
 
         # self.offsets is set in MultiCodebookEncoder.__init__
         return idxs + self.offsets
+
+    def product(self, X: np.ndarray) -> np.ndarray:
+        '''
+        direct use nn to return product
+        '''
+        product, _, _ = self.model.forward(torch.from_numpy(
+            X).reshape((-1, self.ncodebooks, self.subvect_len)).to(device), False)
+        return product.detach().cpu().numpy()

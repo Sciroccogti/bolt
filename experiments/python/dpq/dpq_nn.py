@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-31 12:41:49
-@modified: 2023-01-25 22:14:10
+@modified: 2023-01-26 12:52:31
 '''
 
 import numpy as np
@@ -16,7 +16,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 class DPQNetwork(torch.nn.Module):
     def __init__(self, ncentroids: int, ncodebooks: int, subvect_len: int,
-                 centroids: np.ndarray,
+                 W: np.ndarray, centroids: np.ndarray,
                  tie_in_n_out: bool = True, query_metric: str = "dot", shared_centroids: bool = False,
                  beta: float = 0.0, tau: float = 1.0, softmax_BN: bool = False,
                  use_EMA: bool = True,
@@ -31,6 +31,7 @@ class DPQNetwork(torch.nn.Module):
         :param use_EMA: use Exponential Moving Average to update centroids, or use regularization
         '''
         assert np.shape(centroids) == (ncodebooks, ncentroids, subvect_len)
+        assert np.shape(W)[0] == ncodebooks*subvect_len and len(np.shape(W)) == 2
         assert query_metric in ["dot", "euclidean"], "query_metric only supports dot and euclidean"
         super(DPQNetwork, self).__init__()
 
@@ -45,6 +46,7 @@ class DPQNetwork(torch.nn.Module):
         self._beta = beta
         self._tau = Parameter(torch.tensor([1.0], device=device), requires_grad=False)
         self._softmax_BN = softmax_BN
+
         # (C, K, subvect_len)
         self._centroids_k = Parameter(torch.from_numpy(
             centroids).float().to(device), requires_grad=False)
@@ -59,8 +61,11 @@ class DPQNetwork(torch.nn.Module):
         self.counts = None
         self.use_EMA = use_EMA
 
+        self.fc = torch.nn.Linear(np.shape(W)[0], np.shape(W)[1], bias=False, device=device)
+        self.fc.weight.data = torch.from_numpy(W.T).float().to(device)
+
     def forward(self, inputs: torch.Tensor, is_training: bool = True
-                ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+                ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         '''
         :param inputs: (batch_size, ncodebooks, subvect_len)
         '''
@@ -153,4 +158,9 @@ class DPQNetwork(torch.nn.Module):
                 reg = - beta * torch.mean(
                     torch.mean(nb_idxs_onehot * torch.log(response_prob + 1e-10), dim=2))
 
-        return outputs_final, -neg_mse, self._centroids_k, codes
+        product = self.fc(outputs_final.reshape(-1, self._ncodebooks*self._subvect_len))
+
+        return product, -neg_mse, codes
+
+    def get_data(self) -> tuple[torch.Tensor, torch.Tensor]:
+        return self._centroids_k, self.fc.weight.data
