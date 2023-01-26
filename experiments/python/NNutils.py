@@ -282,6 +282,7 @@ def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, p
     method_run_value = df.loc[(df[list(row_run.keys())[0]] == row_run[list(row_run.keys())[0]]) 
                             & (df[list(row_run.keys())[1]] == row_run[list(row_run.keys())[1]])]
     cb_ct_combinations = method_ref_value[['cb', 'ct']].values
+    print(method_ref_value)
     #将cb_ct_combinations转换为Pandas的DataFrame
     cb_ct_combinations_df = pd.DataFrame(cb_ct_combinations, columns=['cb', 'ct'])
     #删除重复组合
