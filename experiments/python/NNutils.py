@@ -268,6 +268,7 @@ def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, p
     '''
     excel_path = os.path.join(dir_now, '../../../../csi_transformer/performance','%s_f%i.xls' % (linear_name, feedback_bits))
     res_path = os.path.join(dir_now, "../../../res/%s/f%i/%s" % (method, feedback_bits, linear_name))
+    create_dir(res_path)
     param2change_abbr_dict = {"nbits":"nb", "upcast_every":"uc"}
     param2change_abbr = param2change_abbr_dict[param2change] # 新运行的点的要更改的参数在文件名中的缩写
     theotherparam_abbr = param2change_abbr_dict[theotherparam]
@@ -282,7 +283,7 @@ def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, p
     method_run_value = df.loc[(df[list(row_run.keys())[0]] == row_run[list(row_run.keys())[0]]) 
                             & (df[list(row_run.keys())[1]] == row_run[list(row_run.keys())[1]])]
     cb_ct_combinations = method_ref_value[['cb', 'ct']].values
-    print(method_ref_value)
+    # print(method_ref_value)
     #将cb_ct_combinations转换为Pandas的DataFrame
     cb_ct_combinations_df = pd.DataFrame(cb_ct_combinations, columns=['cb', 'ct'])
     #删除重复组合
