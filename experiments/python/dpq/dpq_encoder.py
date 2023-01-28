@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-29 13:27:52
-@modified: 2023-01-26 16:09:59
+@modified: 2023-01-28 16:38:57
 '''
 
 from collections.abc import Callable
@@ -98,21 +98,24 @@ class DPQEncoder(vq.MultiCodebookEncoder):
         #     X, subvect_len=self.subvect_len, nsplits_per_subs=self.code_bits,
         #     algo=self.encode_algo)
 
-        batch_size = 2**13  # TODO
+        batch_size = 2**17  # TODO
         epoch = 100000
         is_end2end = True
         genEvery = 50
         lr = 0.001  # if use random centroids, suggest 0.9; PQ centroids, suggest 0.001
+        nThreads = 8
 
         # X_multi, Y_multi, W = self.genDataFunc(batch_size * genEvery, 0.0, X)
         # assert Y_multi is not None and W is not None
         # W_torch = torch.from_numpy(W).to(device).float()
 
         inputQueue = Queue(genEvery)
-        # stopFlag = Value('B', 0)
-        inputGenProc = Process(target=inputGen, args=(
-            inputQueue, self.genDataFunc, batch_size, 0.0))
-        inputGenProc.start()
+        inputGens_ = []
+        for _ in range(nThreads):
+            inputGenProc = Process(target=inputGen, args=(
+                inputQueue, self.genDataFunc, batch_size, 0.0))
+            inputGens_.append(inputGenProc)
+            inputGenProc.start()
 
         _, _, W = inputQueue.get()
 
@@ -182,7 +185,8 @@ class DPQEncoder(vq.MultiCodebookEncoder):
             except KeyboardInterrupt:
                 print("Training stopped manually at epoch %d/%d" % (i, epoch))
                 break
-        inputGenProc.kill()
+        for pr in inputGens_:
+            pr.kill()
         kpq_centroids, weight = self.model.get_data()
         self.centroids = kpq_centroids.transpose(0, 1).cpu().detach().numpy()
 
