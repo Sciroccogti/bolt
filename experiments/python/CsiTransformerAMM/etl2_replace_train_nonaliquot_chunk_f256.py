@@ -57,7 +57,7 @@ for method in [METHOD_MITHRAL]:
 
     nbits_trained = 0
     
-    nbits_goal = 16
+    nbits_goal = 10
     if quantize_lut == False:
         nbits_goal = 0
     nbits = nbits_goal # 要运行的量化比特数
