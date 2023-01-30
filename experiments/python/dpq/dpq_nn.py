@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-31 12:41:49
-@modified: 2023-01-26 12:52:31
+@modified: 2023-01-29 15:48:06
 '''
 
 import numpy as np
@@ -64,7 +64,7 @@ class DPQNetwork(torch.nn.Module):
         self.fc = torch.nn.Linear(np.shape(W)[0], np.shape(W)[1], bias=False, device=device)
         self.fc.weight.data = torch.from_numpy(W.T).float().to(device)
 
-    def forward(self, inputs: torch.Tensor, is_training: bool = True
+    def forward(self, inputs: torch.Tensor, is_training: bool = True, lr: float = 0.001
                 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         '''
         :param inputs: (batch_size, ncodebooks, subvect_len)
@@ -129,13 +129,12 @@ class DPQNetwork(torch.nn.Module):
                 else:
                     # http://arxiv.org/abs/1803.03382 equation9
                     # do a Exponential Moving Average on centroids
-                    decay = torch.tensor(0.999, device=device, requires_grad=False)
                     # counts (C, K): the number of inputs that take centroid[k] as its nearest
                     new_counts = torch.sum(nb_idxs_onehot, dim=0).detach()
                     if self.counts == None:
                         self.counts = new_counts
                     else:
-                        self.counts = decay * self.counts + (1 - decay) * new_counts
+                        self.counts = (1 - lr) * self.counts + lr * new_counts
                     # (C, K, subvect_len)
                     inputs_each_cent = torch.sum(
                         torch.matmul(
@@ -145,8 +144,8 @@ class DPQNetwork(torch.nn.Module):
                     new_centroids = torch.divide(
                         inputs_each_cent, self.counts.unsqueeze(dim=-1).expand(inputs_each_cent.shape))
                     new_centroids[new_centroids != new_centroids] = 0  # set where 0 / 0 = nan to 0
-                    self._centroids_k *= decay
-                    self._centroids_k += (1 - decay) * new_centroids
+                    self._centroids_k *= 1 - lr
+                    self._centroids_k += lr * new_centroids
 
         else:
             nb_idxs_onehot = response_prob - (response_prob - nb_idxs_onehot).detach()

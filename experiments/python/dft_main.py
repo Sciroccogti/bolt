@@ -304,7 +304,7 @@ class Transceiver:
             # sigma_2 = 0 # back-to-back
             ns = 0
             print("SNR: ", SNR)
-            bar = tqdm(range(TestFrame))
+            bar = tqdm(range(TestFrame), ncols=100)
             for ns in bar:
                 bar.set_description_str("%.2fdB" % SNR)
                 bar.set_postfix_str("FER: %.2e" % (FER[0][i] / ns))
@@ -481,10 +481,10 @@ class Transceiver:
         :param inputs: just placeholder, not used
         :return X, Y, W
         """
-        IDFT_Xtrain = np.zeros((sample//2, self.Nifft), dtype=complex)
-        IDFT_Ytrain = np.zeros((sample//2, 20), dtype=complex)
-        IDFT_W = self.IDFTm[:, 0:20]  # 128*20
-        sigma_2 = np.power(10, (SNR / 10))
+        IDFT_Xtrain = np.zeros((sample, self.Nifft * 2), dtype=float)
+        IDFT_Ytrain = np.zeros((sample, 16), dtype=float)
+        IDFT_W = self.IDFTm[:, 0:16]  # 128*20
+        sigma_2 = np.power(10, (-SNR / 10))
         for i in range(sample//2):
             H = self.Channel_create()
             noise = np.random.randn(self.Ncarrier, 1) + \
@@ -492,10 +492,12 @@ class Transceiver:
             Ypilot = np.dot(H, self.Xpilot) + np.sqrt(sigma_2 / 2) * noise
             Hest = Ypilot / self.Xpilot
             Xk = np.transpose(Hest)
-            IDFT_Xtrain[i] = Xk
+            IDFT_Xtrain[i*2] = np.concatenate([Xk.real, -Xk.imag], 1)
+            IDFT_Xtrain[i*2 + 1] = np.concatenate([Xk.imag, Xk.real], 1)
             xn = np.dot(Xk, IDFT_W)
-            IDFT_Ytrain[i] = xn
-        return convert_complexToReal_X(IDFT_Xtrain), convert_complexToReal_Y(IDFT_Ytrain), convert_complexToReal_W(IDFT_W)
+            IDFT_Ytrain[i*2] = xn.real
+            IDFT_Ytrain[i*2 + 1] = xn.imag
+        return IDFT_Xtrain, IDFT_Ytrain, np.concatenate([IDFT_W.real, IDFT_W.imag], 0)
 
     def Channel_createTorch(self, device: str) -> torch.Tensor:
         L = self.params['L']

@@ -3,11 +3,12 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-12-29 13:27:52
-@modified: 2023-01-28 16:38:57
+@modified: 2023-01-30 15:21:06
 '''
 
 from collections.abc import Callable
-from multiprocessing import Process, Queue
+from datetime import datetime
+from multiprocessing import Process, Queue, get_context
 
 import numpy as np
 import torch
@@ -77,11 +78,12 @@ class DPQEncoder(vq.MultiCodebookEncoder):
         # self.splits_lists, self.centroids = learn_mithral(
         #     X, self.ncodebooks, ncentroids=self.ncentroids, lut_work_const=self.lut_work_const,
         #     nonzeros_heuristic=self.nonzeros_heuristic)
-        writer = SummaryWriter()
+        current_time = datetime.now().strftime("%b%d_%H-%M-%S")
+        writer = SummaryWriter("runs/" + current_time + "/")
         loss_type = "mse"
 
         # PQ style
-        len_PQ = 51200  # TODO
+        len_PQ = 512000  # TODO
         X_PQ = X[:len_PQ, :]
         self.subvect_len = int(np.ceil(X_PQ.shape[1] / self.ncodebooks))
         # self.centroids = np.random.random(
@@ -98,26 +100,24 @@ class DPQEncoder(vq.MultiCodebookEncoder):
         #     X, subvect_len=self.subvect_len, nsplits_per_subs=self.code_bits,
         #     algo=self.encode_algo)
 
-        batch_size = 2**17  # TODO
+        # TODO
+        batch_size = 2**15 # K=16 C=64: 2**17, K=64 C=64: 2**15
         epoch = 100000
         is_end2end = True
         genEvery = 50
-        lr = 0.001  # if use random centroids, suggest 0.9; PQ centroids, suggest 0.001
+        lr = 1  # if use random centroids, suggest 0.9; PQ centroids, suggest 0.001
         nThreads = 8
+        training_SNR = 10.0
 
-        # X_multi, Y_multi, W = self.genDataFunc(batch_size * genEvery, 0.0, X)
-        # assert Y_multi is not None and W is not None
-        # W_torch = torch.from_numpy(W).to(device).float()
-
-        inputQueue = Queue(genEvery)
+        inputQueue = get_context("spawn").Queue(genEvery)
         inputGens_ = []
         for _ in range(nThreads):
-            inputGenProc = Process(target=inputGen, args=(
-                inputQueue, self.genDataFunc, batch_size, 0.0))
+            inputGenProc = get_context("spawn").Process(target=inputGen, args=(
+                inputQueue, self.genDataFunc, batch_size, training_SNR))
             inputGens_.append(inputGenProc)
             inputGenProc.start()
 
-        _, _, W = inputQueue.get()
+        _, _, W = self.genDataFunc(1, training_SNR, None)
 
         print(f"Using {device} device")
         self.model = DPQNetwork(
@@ -134,14 +134,17 @@ class DPQEncoder(vq.MultiCodebookEncoder):
             use_EMA=True,
         ).to(device)
 
-        optimizer = torch.optim.SGD(self.model.parameters(), lr=lr)
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, "min", factor=0.5, patience=50, verbose=True)
+            optimizer, "min", factor=0.1, patience=10, verbose=True)
         mse_per_batch = torch.tensor(tot_sse_using_mean / len_PQ * batch_size, device=device)
         print("mse_per_batch ", mse_per_batch)
+
+        bestLoss = 1.0
+
         print("Press Ctrl+C to stop training and continue")
 
-        bar = tqdm.tqdm(range(0, epoch))
+        bar = tqdm.tqdm(range(0, epoch), ncols=100)
         for i in bar:
             try:
                 # if i % genEvery == 0 and i > 0:
@@ -158,7 +161,7 @@ class DPQEncoder(vq.MultiCodebookEncoder):
                         (-1, self.ncodebooks, self.subvect_len)).requires_grad_()
 
                 optimizer.zero_grad()
-                outputs, mse, codes = self.model.forward(inputs, is_training=True)
+                outputs, mse, codes = self.model.forward(inputs, is_training=True, lr=optimizer.param_groups[0]["lr"])
                 if is_end2end:
                     Y_groundtruth = torch.from_numpy(Y_single).to(device)
                     # Y_single = torch.from_numpy(
@@ -182,13 +185,36 @@ class DPQEncoder(vq.MultiCodebookEncoder):
                 bar.set_description_str("loss={:.3g}".format(loss))
                 optimizer.step()
                 scheduler.step(loss)
+
+                if i % 100 == 0 and loss < bestLoss:
+                    bestLoss = loss
+                    torch.save(self.model.state_dict(), "runs/" + current_time + "/" + "%d_loss%.4f.pth" % (i, bestLoss))
+
             except KeyboardInterrupt:
                 print("Training stopped manually at epoch %d/%d" % (i, epoch))
                 break
         for pr in inputGens_:
             pr.kill()
+        torch.save(self.model.state_dict(), "runs/" + current_time + "/" + "final_loss%.4f.pth" % (bestLoss))
         kpq_centroids, weight = self.model.get_data()
         self.centroids = kpq_centroids.transpose(0, 1).cpu().detach().numpy()
+
+        writer.add_hparams(
+            {
+                "bsize": batch_size,
+                "lr": lr,
+                "is_end2end": is_end2end,
+                "genEvery": genEvery,
+                "nThreads": nThreads,
+                "K": self.ncentroids,
+                "C": self.ncodebooks,
+                "quantize_lut": self.quantize_lut,
+                "training_SNR": training_SNR,
+                "len_PQ": len_PQ,
+            }, {
+                "hparam/loss": bestLoss
+            }
+        )
 
     def encode_Q(self, Q: np.ndarray) -> np.ndarray:
         '''
