@@ -523,7 +523,7 @@ class Transceiver:
 
         IDFT_Xtrain = torch.zeros((sample, self.Nifft), dtype=torch.complex64, device=device)
         # IDFT_W = torch.tensor(self.IDFTm[:, 0:20], device=device)
-        sigma_2 = 10 ** (SNR / 10)
+        sigma_2 = 10 ** (-SNR / 10)
         s = (sigma_2 / 2) ** 0.5
         try:
             self.XpilotTorch
@@ -557,7 +557,7 @@ class Transceiver:
         IDFT_Xtrain = np.zeros((sample, self.Nifft), dtype=complex)
         IDFT_Ytrain = np.zeros((sample, 20), dtype=complex)
         IDFT_W = self.IDFTm[:, 0:20]  # 128*20
-        sigma_2 = np.power(10, (SNR / 10))
+        sigma_2 = np.power(10, (-SNR / 10))
         for i in range(sample):
             H = self.Channel_create()
             noise = np.random.randn(self.Ncarrier, 1) + \
