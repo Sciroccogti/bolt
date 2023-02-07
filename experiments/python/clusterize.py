@@ -21,10 +21,17 @@ import myopq as myopq
 from joblib import Memory
 _memory = Memory('.', verbose=0)
 
+from random import random
 # def bucket_id_to_new_bucket_ids(old_id):
 #     i = 2 * old_id
 #     return i, i + 1
 
+def flip_mask(mask, possibility=0.5):
+    '''布尔向量中的True以50%的概率变为False'''
+    for i in range(len(mask)):
+        if mask[i] == True and random() <= possibility:
+            mask[i] = False
+        return mask
 
 class Bucket(object):
     __slots__ = 'N D id sumX sumX2 point_ids support_add_and_remove'.split()
@@ -106,12 +113,14 @@ class Bucket(object):
         X = X[my_idxs]
         X_orig = X if X_orig is None else X_orig[my_idxs]
         mask = X_orig[:, dim] <= val # X_orig的dim列小于val的值所在的行（返回值为布尔向量）TODO
+        if val == 0:
+            mask = flip_mask(mask, 0.5)
         not_mask = ~mask
         X0 = X[mask] # X_orig的dim列小于val的值所在的行取出来
         X1 = X[not_mask] # X_orig的dim列大于等于val的值所在的行取出来
         ids0 = my_idxs[mask] # X_orig的dim列小于val的值所在的行的序号
         ids1 = my_idxs[not_mask] # X_orig的dim列大于等于val的值所在的行的序号
-        nonzero_counts = np.count_nonzero(X_orig[:, dim])
+        # nonzero_counts = np.count_nonzero(X_orig[:, dim])
         # if self.N > 0:
         #     if nonzero_counts / self.N < 0.01:
 
