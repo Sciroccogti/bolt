@@ -21,17 +21,53 @@ import myopq as myopq
 from joblib import Memory
 _memory = Memory('.', verbose=0)
 
-from random import random
+import sys
+import os
+# 获取当前文件所在的文件夹路径
+if "__file__" in globals():
+    # 获取__file__变量的值
+    file_path = __file__
+    # 获取当前文件所在的文件夹路径
+    dir_now = os.path.dirname(file_path)
+else:
+    # 获取当前工作目录
+    dir_now = os.getcwd()
+sys.path.append(dir_now)
+sys.path.append(os.path.join(dir_now, '../../../../ridge'))
+import ridge
+# from random import random
 # def bucket_id_to_new_bucket_ids(old_id):
 #     i = 2 * old_id
 #     return i, i + 1
 
-def flip_mask(mask, possibility=0.5):
-    '''布尔向量中的True以50%的概率变为False'''
+# def flip_mask(mask, possibility=0.5):
+#     '''布尔向量中的True以50%的概率变为False'''
+#     for i in range(len(mask)):
+#         if mask[i] == True and random() <= possibility:
+#             mask[i] = False
+#         return mask
+
+def change_every_nth_true_to_false(mask, n):
+    '''每n个True的最后一个变为False'''
+    change_next = n
     for i in range(len(mask)):
-        if mask[i] == True and random() <= possibility:
+        if mask[i] and change_next == 1:
             mask[i] = False
-        return mask
+            change_next = n
+        elif mask[i]:
+            change_next -= 1
+    return mask
+
+def change_every_nth_false_to_true(mask, n, vals):
+    '''每n个False的最后一个变为True,同时要求满足对应位置vals分隔值为0才纳入考虑'''
+    change_next = n
+    for i in range(len(mask)):
+        if ~mask[i] and change_next == 1 and vals[i]==0:
+            mask[i] = True
+            change_next = n
+        elif ~mask[i] and vals[i]==0:
+            change_next -= 1
+    return mask
 
 class Bucket(object):
     __slots__ = 'N D id sumX sumX2 point_ids support_add_and_remove'.split()
@@ -113,8 +149,8 @@ class Bucket(object):
         X = X[my_idxs]
         X_orig = X if X_orig is None else X_orig[my_idxs]
         mask = X_orig[:, dim] <= val # X_orig的dim列小于val的值所在的行（返回值为布尔向量）TODO
-        if val == 0:
-            mask = flip_mask(mask, 0.5)
+        # if val == 0:
+        #     mask = change_every_nth_true_to_false(mask, 2)
         not_mask = ~mask
         X0 = X[mask] # X_orig的dim列小于val的值所在的行取出来
         X1 = X[not_mask] # X_orig的dim列大于等于val的值所在的行取出来
@@ -979,13 +1015,17 @@ def _densify_X_enc(X_enc, K=16):
     return out
 
 
-def _fit_ridge_enc(X_enc=None, Y=None, K=16, lamda=1, X_bin=None):
+def _fit_ridge_enc(X_enc=None, Y=None, K=16, lamda=1, X_bin=None, mode=1):
     if X_bin is None:
         X_bin = _densify_X_enc(X_enc, K=K)
-    est = linear_model.Ridge(fit_intercept=False, alpha=lamda)
-    est.fit(X_bin, Y)
-    # return est.coef_.T
-    sk_result = est.coef_.T
+    if mode == 1:
+        est = linear_model.Ridge(fit_intercept=False, alpha=lamda, solver="spare_cg")
+        est.fit(X_bin, Y)
+        # return est.coef_.T
+        sk_result = est.coef_.T
+    else:
+        coef = ridge.ridge(stim=X_bin, resp=Y, alpha=lamda)
+        sk_result = coef.T
     """
     G = torch.from_numpy(X_bin.astype(np.float32))
     A_res = torch.from_numpy(Y)
@@ -1225,7 +1265,7 @@ def encoded_lstsq(X_enc=None, X_bin=None, Y=None, K=16, XtX=None, XtY=None,
                   precondition=True, stable_ridge=True):
 
     if stable_ridge:
-        return _fit_ridge_enc(X_enc=X_enc, Y=Y, X_bin=X_bin, K=K, lamda=1)
+        return _fit_ridge_enc(X_enc=X_enc, Y=Y, X_bin=X_bin, K=K, lamda=1,mode=1)
     print("not doing sklearn")
     exit(0)
 
@@ -2503,6 +2543,9 @@ def assignments_from_multisplits(X, splits):
         #     x = x * split.scaleby
         # indicators = x > vals
         indicators = split.preprocess_x(X[:, split.dim]) > vals
+        # print("split.preprocess_x(X[:, split.dim]):\n",split.preprocess_x(X[:, split.dim]))#TODO：remove
+        # print("vals:\n",vals) #TODO：remove
+        # indicators = change_every_nth_false_to_true(indicators,2,vals)
         group_ids = (group_ids * 2) + indicators
 
     if nsplits <= nsplits_affecting_group_id:
@@ -2521,6 +2564,7 @@ def assignments_from_multisplits(X, splits):
         #     x = x * split.scaleby
         # indicators = x > vals
         indicators = split.preprocess_x(X[:, split.dim]) > vals
+        # indicators = change_every_nth_false_to_true(indicators,2,vals)
         assignments = (assignments * 2) + indicators
 
     return assignments

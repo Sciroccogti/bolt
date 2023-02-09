@@ -266,7 +266,7 @@ def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, p
     output:
     cb_ct_ntr_combinations_unique: 码本数、质心数、训练集batch数组合的DataFrame
     '''
-    excel_path = os.path.join(dir_now, '../../../../csi_transformer/performance','%s_f%i.xls' % (linear_name, feedback_bits))
+    excel_path = os.path.join(dir_now, '../../../../csi_transformer/performance','%s_f%i ridge_opt.xls' % (linear_name, feedback_bits))
     res_path = os.path.join(dir_now, "../../../res/%s/f%i/%s" % (method, feedback_bits, linear_name))
     create_dir(res_path)
     param2change_abbr_dict = {"nbits":"nb", "upcast_every":"uc"}

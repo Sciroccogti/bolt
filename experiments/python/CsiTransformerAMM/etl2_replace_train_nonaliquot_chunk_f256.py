@@ -38,13 +38,13 @@ for method in [METHOD_MITHRAL]:
     feedback_bits = 256
     linear_name_full = "ex_linear2"
 
-    auto_train_change_nbits = True # 是否根据已运行的训练性能结果改变nbits自动训练，（train_sam_num取已训练的最大值）
-    auto_train_change_upcast = False # 是否根据已运行的训练性能结果改变upcast自动训练，（train_sam_num取已训练的最大值）
+    auto_train_change_nbits = False # 是否根据已运行的训练性能结果改变nbits自动训练，（train_sam_num取已训练的最大值）
+    auto_train_change_upcast = True # 是否根据已运行的训练性能结果改变upcast自动训练，（train_sam_num取已训练的最大值）
 
     if auto_train_change_upcast == True:
         if method == METHOD_MITHRAL:
-            upcast_trained = -1
-            upcast_goal = 16
+            upcast_trained = 16
+            upcast_goal = -1
         else:
             upcast_trained = -1
             upcast_goal = 16
@@ -57,7 +57,7 @@ for method in [METHOD_MITHRAL]:
 
     nbits_trained = 0
     
-    nbits_goal = 10
+    nbits_goal = 16
     if quantize_lut == False:
         nbits_goal = 0
     nbits = nbits_goal # 要运行的量化比特数
@@ -97,6 +97,7 @@ for method in [METHOD_MITHRAL]:
         ncodebooks = int(row_ref['cb'])
         ncentroids = int(row_ref['ct'])
         train_sam_num = int(row_ref['n_train_sam'])
+        train_sam_num -= 25
 
         batch_size = 32
         if method == METHOD_EXACT:
