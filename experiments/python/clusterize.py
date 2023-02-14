@@ -1019,7 +1019,7 @@ def _fit_ridge_enc(X_enc=None, Y=None, K=16, lamda=1, X_bin=None, mode=1):
     if X_bin is None:
         X_bin = _densify_X_enc(X_enc, K=K)
     if mode == 1:
-        est = linear_model.Ridge(fit_intercept=False, alpha=lamda, solver="spare_cg")
+        est = linear_model.Ridge(fit_intercept=False, alpha=lamda, solver="auto")
         est.fit(X_bin, Y)
         # return est.coef_.T
         sk_result = est.coef_.T

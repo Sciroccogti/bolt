@@ -57,8 +57,8 @@ upcast_every = upcast_goal # 要运行的upcast
 test_sam_num = 1000 # 测试集样本数(如需修改，请同时修改下面的读取文件，现文件默认1000个样本)
 
 if not auto_train_change_nbits and not auto_train_change_upcast:
-    ncodebooks = 32 # max:512
-    ncentroids = 64
+    ncodebooks = 16 # max:512
+    ncentroids = 16
     train_sam_num = 1000 # 训练集样本数
 elif auto_train_change_nbits:
     param2change = "nbits"
