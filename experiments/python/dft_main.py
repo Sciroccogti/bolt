@@ -10,6 +10,7 @@ import torch
 from amm_methods import *
 from sionna.fec.ldpc.decoding import LDPC5GDecoder, LDPC5GEncoder
 from tqdm import tqdm
+from scipy.linalg import toeplitz
 
 # from tensorflow.python.ops.numpy_ops import np_config
 
@@ -91,8 +92,39 @@ class Transceiver:
         PathGain = self.params['PathGain']
         # PathGain = PathGain/sum(PathGain)
         ht = np.sqrt(PathGain) * (np.sqrt(1 / 2) *
-                                  (np.random.randn(1, L) + 1j * np.random.randn(1, L)))
-        H = np.fft.fft(ht, self.Nifft)
+                                  (np.random.randn(1, L) + 1j * np.random.randn(1, L)))  # （1，L）
+        H = np.fft.fft(ht, self.Nifft)  # (1, Nifft)
+        H = np.diag(np.squeeze(H))  # (Nifft, Nifft)
+        return H
+
+    def CorreChannel_create(self) -> np.ndarray:
+        # Correlation-based stochastic model
+        # 定义信道参数
+        n_tx = 4  # 发射天线数
+        n_rx = 4  # 接收天线数
+        n_paths = self.params["L"]  # 信道路径数
+        corr_tx = 0.5  # 发射端相关系数
+        corr_rx = 0.5  # 接收端相关系数
+        # # 路径增益（dB）
+        # path_gains = np.array([3, -1, -2, -3, -4, -5, -6, -7, -8, -9, -10, -11, -12, -13, -14, -15])
+
+        # 生成相关矩阵
+        corr_matrix_tx = exp_corr_mat(corr_tx, n_tx)  # 发射端相关矩阵
+        corr_matrix_rx = exp_corr_mat(corr_rx, n_rx)  # 接收端相关矩阵
+        corr_matrix = np.kron(corr_matrix_tx, corr_matrix_rx)  # 信道相关矩阵 (MIMO 的 H)
+        # 生成相关信道路径增益
+        n_samples = 1  # 采样数
+        # path_gains_linear = 10**(path_gains/10)  # 路径增益（线性）
+        path_gains_linear = self.params["PathGain"]
+        path_gains_matrix = np.diag(path_gains_linear)  # 路径增益矩阵
+        # channel_path_gains = np.zeros((n_tx*n_rx, n_samples))  # 信道路径增益矩阵
+        # for i in range(n_samples):
+        #     noise = np.random.normal(size=(n_paths,))  # 生成高斯噪声
+        #     # 计算信道路径增益
+        #     channel_path_gains[:, i] = np.dot(corr_matrix, np.dot(path_gains_matrix, noise))
+        noise = np.random.normal(size=(n_paths,))
+        ht = np.dot(corr_matrix, np.dot(path_gains_matrix, noise))
+        H = np.fft.fft(ht, n=self.Nifft)
         H = np.diag(np.squeeze(H))
         return H
 
@@ -318,7 +350,7 @@ class Transceiver:
                 for nf in range(self.Ncarrier):
                     X[0, nf] = self.Modulation(BitStream[0, 2 * nf:2 * nf + 2])
                 # 生成信道矩阵，DFT信道估计
-                H = self.Channel_create()
+                H = self.CorreChannel_create()
                 noise = np.random.randn(
                     self.Ncarrier, 1)+1j * np.random.randn(self.Ncarrier, 1)
                 Ypilot = np.dot(H, self.Xpilot) + np.sqrt(sigma_2/2) * noise
@@ -559,7 +591,7 @@ class Transceiver:
         IDFT_W = self.IDFTm[:, 0:20]  # 128*20
         sigma_2 = np.power(10, (-SNR / 10))
         for i in range(sample):
-            H = self.Channel_create()
+            H = self.CorreChannel_create()
             noise = np.random.randn(self.Ncarrier, 1) + \
                 1j * np.random.randn(self.Ncarrier, 1)
             Ypilot = np.dot(H, self.Xpilot) + np.sqrt(sigma_2 / 2) * noise
@@ -793,6 +825,17 @@ def cal_NMSE(A, A_hat):
     return normalized_mse
 
 
+def exp_corr_mat(a: float | complex, n: int):
+    assert(np.abs(a) < 1 and a != 0)
+    exp = np.arange(n)
+    # First column of R
+    col = np.power(a, exp)
+    # First row of R
+    row = np.conj(col)
+    r = toeplitz(col, row)
+    return r
+
+
 params = {
     'Nifft': 128,
     'Ncarrier': 128,
@@ -842,7 +885,7 @@ if __name__ == '__main__':
     myTransceiver = Transceiver(params)
 
     if doTrain:
-        myTransceiver.create_Traindata(0)
+        myTransceiver.create_Traindata(10.0)
     elif not doPathDetect:
         BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE = myTransceiver.FER(
             foutName)
