@@ -1,7 +1,7 @@
-# %% [markdown]
+#  [markdown]
 # encoder transformer层的linear2层（etl2）替换为近似矩阵乘法
 
-# %%
+# 
 import numpy as np
 import os
 import sys
@@ -24,7 +24,7 @@ from NNutils import *
 from amm_methods import *
 import socket # Obtain the current host name, which can be used to select different data directories and result saving directories
 
-# %%
+# 
 method = METHOD_MITHRAL
 # method = METHOD_PQ
 # method = METHOD_PLUTO
@@ -33,7 +33,7 @@ method = METHOD_MITHRAL
 # method = METHOD_SCALAR_QUANTIZE
 # for method in [METHOD_MITHRAL, METHOD_PQ]:
 
-# %%
+# 
 linear_name = 'etl2'
 feedback_bits = 256
 linear_name_full = "ex_linear2"
@@ -68,8 +68,8 @@ elif auto_train_change_nbits:
     print(cb_ct_ntr_combinations_unique)
     # 遍历每个cb、ct、n_train_sam组合
     # for _, row_ref in cb_ct_ntr_combinations_unique.iterrows():
-    #     ncodebooks = int(row_ref['cb'])
-        # ncentroids = int(row_ref['ct'])
+    #     ncodebooks = int(row_ref['ncodebooks'])
+        # ncentroids = int(row_ref['ncentroids'])
         # train_sam_num = int(row_ref['n_train_sam'])
 elif auto_train_change_upcast:
     param2change = "upcast_every"
@@ -79,8 +79,8 @@ elif auto_train_change_upcast:
     print(cb_ct_ntr_combinations_unique)
     # 遍历每个cb、ct、n_train_sam组合
     # for _, row_ref in cb_ct_ntr_combinations_unique.iterrows():
-    #     ncodebooks = int(row_ref['cb'])
-        # ncentroids = int(row_ref['ct'])
+    #     ncodebooks = int(row_ref['ncodebooks'])
+        # ncentroids = int(row_ref['ncentroids'])
         # train_sam_num = int(row_ref['n_train_sam'])
 
 batch_size = 32
@@ -88,64 +88,72 @@ if method == METHOD_EXACT:
     ncodebooks = 0
     ncentroids = 0
 
-# %%
-AMM_train_dirs = get_AMM_train_dirs(linear_name, linear_name_full, method, feedback_bits, train_sam_num, test_sam_num)
-create_dir(AMM_train_dirs["dir_result"])
+for ncodebooks in [16,32,64,128,256,512]:
+    ctmax = min(512*16/ncodebooks,256)
+    ct_list = [16]
+    while ct_list[-1] * 2 <= ctmax:
+        ct_list.append(ct_list[-1] * 2)
+    for ncentroids in ct_list:
+        print("ncodebooks:",ncodebooks)
+        print("ncentroids:",ncentroids)
+        # 
+        AMM_train_dirs = get_AMM_train_dirs(linear_name, linear_name_full, method, feedback_bits, train_sam_num, test_sam_num)
+        create_dir(AMM_train_dirs["dir_result"])
 
 
-# %%
-dataset_prepare(AMM_train_dirs["dir_joined"], linear_name_full, feedback_bits, [train_sam_num, test_sam_num], 
-                batch_size, S1 = S1_dict[linear_name])
+        # 
+        dataset_prepare(AMM_train_dirs["dir_joined"], linear_name_full, feedback_bits, [train_sam_num, test_sam_num], 
+                        batch_size, S1 = S1_dict[linear_name])
 
-# %%
-if method == METHOD_PLUTO:
-    est3 = mm.estFactory(X_path=AMM_train_dirs["linearin_path_train"], W_path=AMM_train_dirs["weightpath"], 
-                        Y_path=AMM_train_dirs["y_train"], dir= AMM_train_dirs["dir_train"], ncodebooks=ncodebooks, 
-                        ncentroids=ncentroids, methods=[method], nbits=nbits, quantize_lut = quantize_lut, 
-                        upcast_every=upcast_every, bias_path=AMM_train_dirs["biaspath"],lut_work_const=-1)
-elif method == METHOD_MITHRAL:
-    est3 = mm.estFactory(X_path=AMM_train_dirs["linearin_path_train"], W_path=AMM_train_dirs["weightpath"], 
-                        Y_path=AMM_train_dirs["y_train"], dir= AMM_train_dirs["dir_train"], ncodebooks=ncodebooks, 
-                        ncentroids=ncentroids, methods=[method], nbits=nbits, quantize_lut = quantize_lut,
-                        upcast_every=upcast_every, lut_work_const=lut_work_const)
-else:
-    est3 = mm.estFactory(X_path=AMM_train_dirs["linearin_path_train"], W_path=AMM_train_dirs["weightpath"], 
-                        Y_path=AMM_train_dirs["y_train"], dir= AMM_train_dirs["dir_train"], ncodebooks=ncodebooks, 
-                        ncentroids=ncentroids, methods=[method], nbits=nbits, quantize_lut = quantize_lut,
-                        upcast_every=upcast_every)
+        # 
+        if method == METHOD_PLUTO:
+            est3 = mm.estFactory(X_path=AMM_train_dirs["linearin_path_train"], W_path=AMM_train_dirs["weightpath"], 
+                                Y_path=AMM_train_dirs["y_train"], dir= AMM_train_dirs["dir_train"], ncodebooks=ncodebooks, 
+                                ncentroids=ncentroids, methods=[method], nbits=nbits, quantize_lut = quantize_lut, 
+                                upcast_every=upcast_every, bias_path=AMM_train_dirs["biaspath"],lut_work_const=-1)
+        elif method == METHOD_MITHRAL:
+            est3 = mm.estFactory(X_path=AMM_train_dirs["linearin_path_train"], W_path=AMM_train_dirs["weightpath"], 
+                                Y_path=AMM_train_dirs["y_train"], dir= AMM_train_dirs["dir_train"], ncodebooks=ncodebooks, 
+                                ncentroids=ncentroids, methods=[method], nbits=nbits, quantize_lut = quantize_lut,
+                                upcast_every=upcast_every, lut_work_const=lut_work_const)
+        else:
+            est3 = mm.estFactory(X_path=AMM_train_dirs["linearin_path_train"], W_path=AMM_train_dirs["weightpath"], 
+                                Y_path=AMM_train_dirs["y_train"], dir= AMM_train_dirs["dir_train"], ncodebooks=ncodebooks, 
+                                ncentroids=ncentroids, methods=[method], nbits=nbits, quantize_lut = quantize_lut,
+                                upcast_every=upcast_every)
 
-# %%
-x_test = np.load(AMM_train_dirs["dir_test"]+'/'+AMM_train_dirs["linearin_path_test"])
-w_test = np.load(AMM_train_dirs["dir_train"]+'/'+AMM_train_dirs["weightpath"])
-bias = np.load(AMM_train_dirs["dir_train"]+'/'+AMM_train_dirs["biaspath"])
-# print(type(est3))
-y_out_matmul = mm.eval_matmul(est3, x_test, w_test) # MADDNESS乘法的结果
-# y_out_last = mu.softmax(y_out_matmul + bias.T) # MADDNESS替换后当前层输出，即+bias并激活函数后的结果
-if method == METHOD_PLUTO:
-    y_out_last = y_out_matmul
-else:
-    y_out_last = y_out_matmul + bias.T # MADDNESS替换后当前层输出，即+bias并不需要激活函数后的结果
+        # 
+        x_test = np.load(AMM_train_dirs["dir_test"]+'/'+AMM_train_dirs["linearin_path_test"])
+        w_test = np.load(AMM_train_dirs["dir_train"]+'/'+AMM_train_dirs["weightpath"])
+        bias = np.load(AMM_train_dirs["dir_train"]+'/'+AMM_train_dirs["biaspath"])
+        # print(type(est3))
+        y_out_matmul = mm.eval_matmul(est3, x_test, w_test) # MADDNESS乘法的结果
+        # y_out_last = mu.softmax(y_out_matmul + bias.T) # MADDNESS替换后当前层输出，即+bias并激活函数后的结果
+        if method == METHOD_PLUTO:
+            y_out_last = y_out_matmul
+        else:
+            y_out_last = y_out_matmul + bias.T # MADDNESS替换后当前层输出，即+bias并不需要激活函数后的结果
 
-# %%
-print(y_out_last)
-print("y_out_last.shape: ", y_out_last.shape)
-y_out_last_re = y_out_last.reshape(test_sam_num, batch_size, -1, y_out_last.shape[-1]) #AMM字典模式需要复原y大小
-print("y_out_last_re.shape: ", y_out_last_re.shape)
-if method == METHOD_SCALAR_QUANTIZE:
-    np.save(os.path.join(AMM_train_dirs["dir_result"], '%s%s_trsam%i_tesam%i_fb%i_nbits%i.npy' % 
-                                                        (method, linear_name, train_sam_num, test_sam_num, feedback_bits, nbits)), 
-                                                        y_out_last_re.astype(np.float32))
-elif method == METHOD_MITHRAL or method == METHOD_PLUTO:
-    np.save(os.path.join(AMM_train_dirs["dir_result"], '%s%s_trsam%i_tesam%i_fb%i_cb%i_ct%i_ql%i_nb%i_uc%i_lwc%i.npy' % 
-                                                        (method, linear_name, train_sam_num, test_sam_num, feedback_bits, 
-                                                        ncodebooks, ncentroids, quantize_lut, nbits, upcast_every, lut_work_const)), y_out_last_re)
-elif method == METHOD_PQ or method == METHOD_MITHRALPQ:
-    np.save(os.path.join(AMM_train_dirs["dir_result"], '%s%s_trsam%i_tesam%i_fb%i_cb%i_ct%i_ql%i_nb%i_uc%i.npy' % 
-                                                        (method, linear_name, train_sam_num, test_sam_num, feedback_bits, 
-                                                        ncodebooks, ncentroids, quantize_lut, nbits, upcast_every)), y_out_last_re)
-else:
-    np.save(os.path.join(AMM_train_dirs["dir_result"], '%s%s_trsam%i_tesam%i_fb%i_cb%i_ct%i.npy' % 
-                                                        (method, linear_name, train_sam_num, test_sam_num, feedback_bits, 
-                                                        ncodebooks, ncentroids)), y_out_last_re)
+        # 
+        print(y_out_last)
+        print("y_out_last.shape: ", y_out_last.shape)
+        y_out_last_re = y_out_last.reshape(test_sam_num, batch_size, -1, y_out_last.shape[-1]) #AMM字典模式需要复原y大小
+        print("y_out_last_re.shape: ", y_out_last_re.shape)
+        if method == METHOD_SCALAR_QUANTIZE:
+            np.save(os.path.join(AMM_train_dirs["dir_result"], '%s%s_trsam%i_tesam%i_fb%i_nbits%i.npy' % 
+                                                                (method, linear_name, train_sam_num, test_sam_num, feedback_bits, nbits)), 
+                                                                y_out_last_re.astype(np.float32))
+        elif method == METHOD_MITHRAL or method == METHOD_PLUTO:
+            np.save(os.path.join(AMM_train_dirs["dir_result"], '%s%s_trsam%i_tesam%i_fb%i_cb%i_ct%i_ql%i_nb%i_uc%i_lwc%i.npy' % 
+                                                                (method, linear_name, train_sam_num, test_sam_num, feedback_bits, 
+                                                                ncodebooks, ncentroids, quantize_lut, nbits, upcast_every, lut_work_const)), y_out_last_re)
+        elif method == METHOD_PQ or method == METHOD_MITHRALPQ:
+            np.save(os.path.join(AMM_train_dirs["dir_result"], '%s%s_trsam%i_tesam%i_fb%i_cb%i_ct%i_ql%i_nb%i_uc%i.npy' % 
+                                                                (method, linear_name, train_sam_num, test_sam_num, feedback_bits, 
+                                                                ncodebooks, ncentroids, quantize_lut, nbits, upcast_every)), y_out_last_re)
+        else:
+            np.save(os.path.join(AMM_train_dirs["dir_result"], '%s%s_trsam%i_tesam%i_fb%i_cb%i_ct%i.npy' % 
+                                                                (method, linear_name, train_sam_num, test_sam_num, feedback_bits, 
+                                                                ncodebooks, ncentroids)), y_out_last_re)
 
 
