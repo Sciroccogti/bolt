@@ -100,11 +100,11 @@ class Transceiver:
     def CorreChannel_create(self) -> np.ndarray:
         # Correlation-based stochastic model
         # 定义信道参数
-        n_tx = 4  # 发射天线数
-        n_rx = 4  # 接收天线数
+        n_tx = 16  # 发射天线数
+        n_rx = 8  # 接收天线数
         n_paths = self.params["L"]  # 信道路径数
-        corr_tx = 0.5  # 发射端相关系数
-        corr_rx = 0.5  # 接收端相关系数
+        corr_tx = 0.00001  # 发射端相关系数
+        corr_rx = 0.00001  # 接收端相关系数
         # # 路径增益（dB）
         # path_gains = np.array([3, -1, -2, -3, -4, -5, -6, -7, -8, -9, -10, -11, -12, -13, -14, -15])
 
@@ -122,10 +122,10 @@ class Transceiver:
         #     noise = np.random.normal(size=(n_paths,))  # 生成高斯噪声
         #     # 计算信道路径增益
         #     channel_path_gains[:, i] = np.dot(corr_matrix, np.dot(path_gains_matrix, noise))
-        noise = np.random.normal(size=(n_paths,))
-        ht = np.dot(corr_matrix, np.dot(path_gains_matrix, noise))
+        noise = (np.random.randn(n_paths,) + 1j * np.random.randn(n_paths,))
+        ht = np.dot(np.sqrt(path_gains_matrix), np.sqrt(1 / 2) * noise)
         H = np.fft.fft(ht, n=self.Nifft)
-        H = np.diag(np.squeeze(H))
+        H = H * corr_matrix
         return H
 
     def Channel_est(self, Ypilot, dft_est, idft_est):
