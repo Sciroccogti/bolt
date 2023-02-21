@@ -25,8 +25,8 @@ from amm_methods import *
 import socket # Obtain the current host name, which can be used to select different data directories and result saving directories
 
 # 
-method = METHOD_MITHRAL
-# method = METHOD_PQ
+# method = METHOD_MITHRAL
+method = METHOD_PQ
 # method = METHOD_PLUTO
 # method = METHOD_MITHRALPQ
 # method = METHOD_EXACT
@@ -45,9 +45,9 @@ if auto_train_change_nbits:
     nbits_trained = 8
 if auto_train_change_upcast:
     upcast_trained = 16
-quantize_lut = False
-nbits_goal = 8
-upcast_goal = -1
+quantize_lut = True
+nbits_goal = 16
+upcast_goal = 16
 lut_work_const = -1
 if quantize_lut == False:
     nbits_goal = 0
@@ -57,8 +57,8 @@ upcast_every = upcast_goal # 要运行的upcast
 test_sam_num = 1000 # 测试集样本数(如需修改，请同时修改下面的读取文件，现文件默认1000个样本)
 
 if not auto_train_change_nbits and not auto_train_change_upcast:
-    ncodebooks = 16 # max:512
-    ncentroids = 16
+    ncodebooks = 32 # max:512
+    ncentroids = 128
     train_sam_num = 1000 # 训练集样本数
 elif auto_train_change_nbits:
     param2change = "nbits"
@@ -88,9 +88,10 @@ if method == METHOD_EXACT:
     ncodebooks = 0
     ncentroids = 0
 
-for ncodebooks in [16,32,64,128,256,512]:
-    ctmax = min(512*16/ncodebooks,256)
-    ct_list = [16]
+for ncodebooks in [256]:#[16,32,64,128,256,512]:
+    # ctmax = min(512*16/ncodebooks,256)
+    ctmax = 256
+    ct_list = [64]
     while ct_list[-1] * 2 <= ctmax:
         ct_list.append(ct_list[-1] * 2)
     for ncentroids in ct_list:
