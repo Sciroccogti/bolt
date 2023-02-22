@@ -31,8 +31,8 @@ import socket # Obtain the current host name, which can be used to select differ
 # method = METHOD_MITHRALPQ
 # method = METHOD_EXACT
 # method = METHOD_SCALAR_QUANTIZE
-quantize_lut = True
-for method in [METHOD_MITHRAL]:
+quantize_lut = False
+for method in [METHOD_PQ]:
 
     linear_name = 'etl2'
     feedback_bits = 256
@@ -52,7 +52,7 @@ for method in [METHOD_MITHRAL]:
         if method == METHOD_MITHRAL:
             upcast_goal = -1
         else:
-            upcast_goal = 16
+            upcast_goal = -1
 
 
     nbits_trained = 0
@@ -97,7 +97,6 @@ for method in [METHOD_MITHRAL]:
         ncodebooks = int(row_ref['cb'])
         ncentroids = int(row_ref['ct'])
         train_sam_num = int(row_ref['n_train_sam'])
-        train_sam_num -= 25
 
         batch_size = 32
         if method == METHOD_EXACT:
