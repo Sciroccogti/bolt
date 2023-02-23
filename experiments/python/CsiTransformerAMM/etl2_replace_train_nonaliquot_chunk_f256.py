@@ -31,15 +31,15 @@ import socket # Obtain the current host name, which can be used to select differ
 # method = METHOD_MITHRALPQ
 # method = METHOD_EXACT
 # method = METHOD_SCALAR_QUANTIZE
-quantize_lut = False
+quantize_lut = True
 for method in [METHOD_PQ]:
 
     linear_name = 'etl2'
     feedback_bits = 256
     linear_name_full = "ex_linear2"
 
-    auto_train_change_nbits = False # 是否根据已运行的训练性能结果改变nbits自动训练，（train_sam_num取已训练的最大值）
-    auto_train_change_upcast = True # 是否根据已运行的训练性能结果改变upcast自动训练，（train_sam_num取已训练的最大值）
+    auto_train_change_nbits = True # 是否根据已运行的训练性能结果改变nbits自动训练，（train_sam_num取已训练的最大值）
+    auto_train_change_upcast = False # 是否根据已运行的训练性能结果改变upcast自动训练，（train_sam_num取已训练的最大值）
 
     if auto_train_change_upcast == True:
         if method == METHOD_MITHRAL:
@@ -57,7 +57,7 @@ for method in [METHOD_PQ]:
 
     nbits_trained = 0
     
-    nbits_goal = 16
+    nbits_goal = 12
     if quantize_lut == False:
         nbits_goal = 0
     nbits = nbits_goal # 要运行的量化比特数
