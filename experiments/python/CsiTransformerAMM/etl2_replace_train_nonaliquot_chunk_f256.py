@@ -52,7 +52,7 @@ for method in [METHOD_PQ]:
         if method == METHOD_MITHRAL:
             upcast_goal = -1
         else:
-            upcast_goal = -1
+            upcast_goal = 16
 
 
     nbits_trained = 0
