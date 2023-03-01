@@ -25,8 +25,8 @@ from amm_methods import *
 import socket # Obtain the current host name, which can be used to select different data directories and result saving directories
 
 # %%
-method = METHOD_MITHRAL
-# method = METHOD_PQ
+# method = METHOD_MITHRAL
+method = METHOD_PQ
 # method = METHOD_PLUTO
 # method = METHOD_MITHRALPQ
 # method = METHOD_EXACT
@@ -53,7 +53,7 @@ else:
     if method == METHOD_MITHRAL:
         upcast_goal = -1
     else:
-        upcast_goal = 16
+        upcast_goal = -1
 
 quantize_lut = False
 nbits_trained = 0
@@ -69,7 +69,7 @@ test_sam_num = 1000 # 测试集样本数(如需修改，请同时修改下面的
 
 if not auto_train_change_nbits and not auto_train_change_upcast:
     ncodebooks = 2048 # max:2048
-    ncentroids = 32
+    ncentroids = 16
     train_sam_num = 3000 # 训练集样本数
 elif auto_train_change_nbits:
     param2change = "nbits"
