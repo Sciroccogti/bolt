@@ -3,6 +3,7 @@
 *.npy
 experiments/python/results/*.csv
 experiments/python/results/*.txt
+experiments/python/runs
 *.svg
 Figure*.txt
 awgn_autoencoder_weights_conventional_training

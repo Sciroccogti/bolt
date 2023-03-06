@@ -1,6 +1,7 @@
 #!/bin/env/python
 
 import amm, vq_amm
+from dpq import dpq_amm
 
 METHOD_EXACT = 'Exact'
 METHOD_SCALAR_QUANTIZE = 'ScalarQuantize'
@@ -33,6 +34,7 @@ METHOD_OLD_MITHRALPQ = 'OldMithralPQ'
 METHOD_MITHRAL = 'Mithral'
 METHOD_VINGILOTE = 'Vingilote'
 METHOD_PLUTO = 'Pluto'
+METHOD_DPQ = 'DPQ'
 
 # these are for trying out different perm options
 METHOD_BOLT_GEHT_COV_TOPK = 'Bolt_CovTopk'
@@ -79,6 +81,7 @@ METHOD_TO_ESTIMATOR = {
     METHOD_MITHRALPQ: vq_amm.MithralPQ,
     METHOD_MITHRAL: vq_amm.MithralMatmul,
     METHOD_PLUTO: vq_amm.PlutoMatmul,
+    METHOD_DPQ: dpq_amm.DPQMatmul,
 }
 ALL_METHODS = sorted(list(METHOD_TO_ESTIMATOR.keys()))
 ALL_METHODS.remove(METHOD_SKETCH_SQ_SAMPLE),  # always terrible results
