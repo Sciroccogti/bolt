@@ -87,50 +87,49 @@ class Transceiver:
             output_modu = (QAM_input_I + 1j * QAM_input_Q) / np.sqrt(42)
         return output_modu
 
-    def Channel_create(self) -> np.ndarray:
-        L = self.params['L']
-        PathGain = self.params['PathGain']
-        # PathGain = PathGain/sum(PathGain)
-        ht = np.sqrt(PathGain) * (np.sqrt(1 / 2) *
-                                  (np.random.randn(1, L) + 1j * np.random.randn(1, L)))  # （1，L）
-        H = np.fft.fft(ht, self.Nifft)  # (1, Nifft)
-        H = np.diag(np.squeeze(H))  # (Nifft, Nifft)
-        return H
-
-    def CorreChannel_create(self) -> np.ndarray:
+    def Channel_create(self, corr: float) -> np.ndarray:
         # Correlation-based stochastic model
         # 定义信道参数
-        n_tx = 16  # 发射天线数
-        n_rx = 8  # 接收天线数
+        n_tx = 4  # 发射天线数
+        n_rx = 4  # 接收天线数
         n_paths = self.params["L"]  # 信道路径数
-        corr_tx = 0.00001  # 发射端相关系数
-        corr_rx = 0.00001  # 接收端相关系数
+        corr_tx = corr  # 发射端相关系数
+        corr_rx = corr  # 接收端相关系数
+
         # # 路径增益（dB）
         # path_gains = np.array([3, -1, -2, -3, -4, -5, -6, -7, -8, -9, -10, -11, -12, -13, -14, -15])
-
-        # 生成相关矩阵
-        corr_matrix_tx = exp_corr_mat(corr_tx, n_tx)  # 发射端相关矩阵
-        corr_matrix_rx = exp_corr_mat(corr_rx, n_rx)  # 接收端相关矩阵
-        corr_matrix = np.kron(corr_matrix_tx, corr_matrix_rx)  # 信道相关矩阵 (MIMO 的 H)
-        # 生成相关信道路径增益
-        n_samples = 1  # 采样数
-        # path_gains_linear = 10**(path_gains/10)  # 路径增益（线性）
         path_gains_linear = self.params["PathGain"]
         path_gains_matrix = np.diag(path_gains_linear)  # 路径增益矩阵
-        # channel_path_gains = np.zeros((n_tx*n_rx, n_samples))  # 信道路径增益矩阵
-        # for i in range(n_samples):
-        #     noise = np.random.normal(size=(n_paths,))  # 生成高斯噪声
-        #     # 计算信道路径增益
-        #     channel_path_gains[:, i] = np.dot(corr_matrix, np.dot(path_gains_matrix, noise))
-        noise = (np.random.randn(n_paths,) + 1j * np.random.randn(n_paths,))
-        ht = np.dot(np.sqrt(path_gains_matrix), np.sqrt(1 / 2) * noise)
-        H = np.fft.fft(ht, n=self.Nifft)
-        H = H * corr_matrix
+        if corr == 0.0:
+            noise = (np.random.randn(n_paths,) + 1j * np.random.randn(n_paths,))
+            ht = np.dot(np.sqrt(path_gains_matrix/2), noise)
+            H = np.fft.fft(ht, self.Nifft)  # (1, Nifft)
+            H = np.diag(np.squeeze(H))  # (Nifft, Nifft)
+        else:
+            # 生成相关矩阵
+            corr_matrix_tx = exp_corr_mat(corr_tx, n_tx)  # 发射端相关矩阵
+            corr_matrix_rx = exp_corr_mat(corr_rx, n_rx)  # 接收端相关矩阵
+            corr_matrix = np.kron(corr_matrix_tx, corr_matrix_rx)  # 信道相关矩阵 (MIMO 的 H)
+            # 生成相关信道路径增益
+            n_samples = 1  # 采样数
+            # path_gains_linear = 10**(path_gains/10)  # 路径增益（线性）
+            # channel_path_gains = np.zeros((n_tx*n_rx, n_samples))  # 信道路径增益矩阵
+            # for i in range(n_samples):
+            #     noise = (np.random.randn(n_paths,) + 1j * np.random.randn(n_paths,))  # 生成高斯噪声
+            #     # 计算信道路径增益
+            #     channel_path_gains[:, i] = np.dot(corr_matrix, np.dot(path_gains_matrix, noise))
+
+            noise = (np.random.randn(n_paths,) + 1j * np.random.randn(n_paths,))
+            ht = np.dot(np.sqrt(path_gains_matrix/2), noise)
+            hh = corr_matrix * ht
+            H = np.fft.fft(hh, n=self.Nifft, axis=1)
+            H = np.diag(np.squeeze(H))  # (Nifft, Nifft)
         return H
 
     def Channel_est(self, Ypilot, dft_est, idft_est):
         Hest = Ypilot/self.Xpilot
         # h_est = np.fft.ifft(np.transpose(Hest),self.Nifft)
+        # 变换到时域后，只保留前 L 个，以消除其它时延上的噪声
         h_est, NMSE_idft = self.IDFT(
             np.transpose(Hest), self.Nifft, est=idft_est)
         h_DFTfilter = h_est
@@ -350,7 +349,7 @@ class Transceiver:
                 for nf in range(self.Ncarrier):
                     X[0, nf] = self.Modulation(BitStream[0, 2 * nf:2 * nf + 2])
                 # 生成信道矩阵，DFT信道估计
-                H = self.CorreChannel_create()
+                H = self.Channel_create(0)
                 noise = np.random.randn(
                     self.Ncarrier, 1)+1j * np.random.randn(self.Ncarrier, 1)
                 Ypilot = np.dot(H, self.Xpilot) + np.sqrt(sigma_2/2) * noise
@@ -591,7 +590,7 @@ class Transceiver:
         IDFT_W = self.IDFTm[:, 0:20]  # 128*20
         sigma_2 = np.power(10, (-SNR / 10))
         for i in range(sample):
-            H = self.CorreChannel_create()
+            H = self.Channel_create(0)
             noise = np.random.randn(self.Ncarrier, 1) + \
                 1j * np.random.randn(self.Ncarrier, 1)
             Ypilot = np.dot(H, self.Xpilot) + np.sqrt(sigma_2 / 2) * noise
@@ -836,6 +835,26 @@ def exp_corr_mat(a: float | complex, n: int):
     return r
 
 
+def IEEE802_11_model(rms: float, Ts: float, L: int) -> np.ndarray:
+    '''
+    :param rms :Root Mean Square Delay Spread，增大 rms 时延扩展可以降低频域相干性
+    :param Ts: sampling time
+    :param L: path num
+    '''
+    assert rms > 0
+    # # num of Path
+    lmax = max(math.ceil(10 * rms / Ts) + 1, L)
+    # power of the first tap
+    # sigma0_2 = (1 - math.exp(-Ts / rms)) / (1 - math.exp(-(lmax) * Ts / rms))
+    sigma0_2 = 1
+    PDP = np.array([sigma0_2 * math.exp(- l * Ts / rms) for l in range(lmax)])
+    # cut to L paths
+    ret = PDP[:L]  # / sum(PDP[:L])
+    return ret
+
+
+_rms = 75e-9
+
 params = {
     'Nifft': 128,
     'Ncarrier': 128,
@@ -846,16 +865,19 @@ params = {
     'L': 16,
     # 'PathGain': np.array([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
     # 'PathGain': [0.7432358676242078,0.9453056768750847,0.03936564739705284,0.04485075815177875,0.7474396724970536,0.24430572962343622,0.8110458033559482,0.8293422474904226,0.39356716943821934,0.8027501479321497,0.27315030042606303,0.18789834683016238,0.3941687035467426,0.6888936766683286,0.2435882240357481,0.0008258433002652499],
-    'PathGain': np.linspace(1, 0.1, 16).tolist(),
+    # 'PathGain': np.linspace(1, 0.1, 16).tolist(),
+    # 'PathGain': np.power(10, [i/10 for i in range(0, -16, -1)]),
+    'PathGain': IEEE802_11_model(_rms, 50e-9, 16),
     'SNR': np.linspace(-20, 10, 13).tolist(),
     'ErrorFrame': 200,
     'TestFrame': 20000,
     'LDPC_iter': 20,
-    'ncodebooks': 64,
-    'ncentroids': 16,
+    'ncodebooks': 16,
+    'ncentroids': 256,
     'quantize_lut': True,
     'nbits': 8,
-    'matmul_method': METHOD_PQ
+    'rms': _rms,
+    'matmul_method': METHOD_MITHRAL
 }
 
 if __name__ == '__main__':
