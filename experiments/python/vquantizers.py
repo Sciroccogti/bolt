@@ -641,7 +641,7 @@ class MithralEncoder(MultiCodebookEncoder):
     def fit(self, X, Q=None):
         self.splits_lists, self.centroids = clusterize.learn_mithral(
             X, self.ncodebooks, ncentroids=self.ncentroids, lut_work_const=self.lut_work_const,
-            nonzeros_heuristic=self.nonzeros_heuristic)
+            nonzeros_heuristic=self.nonzeros_heuristic, verbose=1)
         # self._learn_lut_quantization(X, Q)
 
     def encode_X(self, X):

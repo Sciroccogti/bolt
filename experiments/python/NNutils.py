@@ -132,7 +132,7 @@ def join_from_intermediate(intermediate_path, dir_t, dire_train, bits, intermedi
         
 
 # 从已合成训练/测试集中提取更小的1个训练/测试集
-def join_from_joined(dir_t, intermediate_name, bits, joined_sam_num, sam_num, batch_size, trainortest, S1 = 1):# 从已合成训练/测试集中提取更小的训练测试集
+def join_from_joined(dir_t, dir_train, intermediate_name, bits, joined_sam_num, sam_num, batch_size, trainortest, S1 = 1):# 从已合成训练/测试集中提取更小的训练测试集
     # 例:intermediate_name:'ex_linear1in'
     # joined_sam_num：已合成训练/测试集的样本数
     # sam_num：提取出的训练/测试集的样本数
@@ -240,7 +240,7 @@ def dataset_prepare(direc, linear_name_full, feedback_bits, sam_num_list, batch_
                 
                 if sam_num < max_sam_num:# 有更大的数据集
                     print("有比输入样本数更大的数据集，从中提取新数据集")
-                    join_from_joined(dire, intermediate_name, feedback_bits, max_sam_num, sam_num, batch_size, train_or_test, S1)
+                    join_from_joined(dire, dire_train, intermediate_name, feedback_bits, max_sam_num, sam_num, batch_size, train_or_test, S1)
                 else:# 没有更大的数据集
                     print("没有比输入样本数更大的数据集，从样本合成新数据集")
                     if linear_name_full in in_transformer_list: # transformer子模块内的全连接层需要把数据集第一维合并，外的不需要合并
@@ -275,7 +275,7 @@ def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, p
     df = pd.read_excel(excel_path)
     # print(df)
     row_ref = { "AMM_method": method, param2change: param_trained} # 运行参考的训练集大小的行
-    row_run = { "AMM_method": method, param2change: param_goal} # 运行的目标行，用于排除已运行的
+    row_run = { "AMM_method": method, param2change: param_goal, } # 运行的目标行，用于排除已运行的
     # excel中符合row值的行
     method_ref_value = df.loc[(df[list(row_ref.keys())[0]] == row_ref[list(row_ref.keys())[0]]) 
                             & (df[list(row_ref.keys())[1]] == row_ref[list(row_ref.keys())[1]])]
@@ -286,6 +286,7 @@ def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, p
     cb_ct_combinations_df = pd.DataFrame(cb_ct_combinations, columns=['cb', 'ct'])
     #删除重复组合
     cb_ct_combinations_unique = cb_ct_combinations_df.drop_duplicates()
+    # print("cb_ct_combinations_unique:\n", cb_ct_combinations_unique)
     # 初始化结果列表
     result = []
     # 遍历每个cb、ct组合
@@ -297,16 +298,20 @@ def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, p
         # print(method_8bits_value_filtered)
         # 找到n_train_sam列数值最大的那个值
         max_n_train_sam = method_ref_value_filtered['n_train_sam'].max()
+        # if cb == 64 and ct == 128:
+        #     max_n_train_sam-=25
         # 将结果添加到结果列表中
         result.append(max_n_train_sam)
     # 使用assign方法将result列表添加到cb_ct_combinations_unique数据帧的最后一列
     cb_ct_ntr_combinations_unique = cb_ct_combinations_unique.assign(n_train_sam=result)
+    # print("cb_ct_ntr_combinations_unique:\n", cb_ct_ntr_combinations_unique)
     # 遍历每个cb、ct、n_train_sam组合，排除已经运行的目标点
     for _, row_ref in cb_ct_ntr_combinations_unique.iterrows():
         cb = row_ref['cb']
         ct = row_ref['ct']
         n_train_sam = row_ref['n_train_sam']
         # 找到excel中符合当前cb、ct、n_train_sam组合的行
+        # print("method_run_value:\n",method_run_value)
         method_run_value_filtered = method_run_value[(method_run_value['cb'] == cb) 
                                 & (method_run_value['ct'] == ct) & (method_run_value['n_train_sam'] == n_train_sam)
                                 & (method_run_value[theotherparam] == theotherparam_val)]
@@ -337,5 +342,6 @@ def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, p
                                                             & (cb_ct_ntr_combinations_unique['n_train_sam'] == n_train_sam)]
             # 使用df.drop方法删除选取出的行，代码如下：
             cb_ct_ntr_combinations_unique.drop(selected_rows.index, inplace=True)
+            # print("row_ref已存在，删除:\n",row_ref)
             
     return cb_ct_ntr_combinations_unique

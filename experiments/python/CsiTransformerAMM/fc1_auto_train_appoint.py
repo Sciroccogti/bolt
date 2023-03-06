@@ -1,7 +1,3 @@
-# %% [markdown]
-# encoder transformer层的linear2层（etl2）替换为近似矩阵乘法
-
-# %%
 import numpy as np
 import os
 import sys
@@ -24,87 +20,82 @@ from NNutils import *
 from amm_methods import *
 import socket # Obtain the current host name, which can be used to select different data directories and result saving directories
 
-# %%
-# method = METHOD_MITHRAL
+method = METHOD_MITHRAL
 # method = METHOD_PQ
 # method = METHOD_PLUTO
 # method = METHOD_MITHRALPQ
 # method = METHOD_EXACT
 # method = METHOD_SCALAR_QUANTIZE
-quantize_lut = False
-for method in [METHOD_PQ, METHOD_MITHRAL]:
+quantize_lut = True
+# for method in [METHOD_MITHRAL, METHOD_PQ]:
 
-    linear_name = 'etl2'
-    feedback_bits = 256
-    linear_name_full = "ex_linear2"
+# %
+linear_name = 'fc1'
+feedback_bits = 256
+linear_name_full = "fc1"
 
-    auto_train_change_nbits = True # 是否根据已运行的训练性能结果改变nbits自动训练，（train_sam_num取已训练的最大值）
-    auto_train_change_upcast = False # 是否根据已运行的训练性能结果改变upcast自动训练，（train_sam_num取已训练的最大值）
+auto_train_change_nbits = False # 是否根据已运行的训练性能结果改变nbits自动训练，（train_sam_num取已训练的最大值）
+auto_train_change_upcast = False # 是否根据已运行的训练性能结果改变upcast自动训练，（train_sam_num取已训练的最大值）
 
-    if auto_train_change_upcast == True:
-        if method == METHOD_MITHRAL:
-            upcast_trained = 16
-            upcast_goal = -1
-        else:
-            upcast_trained = -1
-            upcast_goal = 16
-    else:
-        if method == METHOD_MITHRAL:
-            upcast_goal = -1
-        else:
-            upcast_goal = 16
-
-
+if auto_train_change_nbits:
     nbits_trained = 8
-    
-    nbits_goal = 12
-    if quantize_lut == False:
-        nbits_goal = 0
-    nbits = nbits_goal # 要运行的量化比特数
-    upcast_every = upcast_goal # 要运行的upcast
+if auto_train_change_upcast:
+    upcast_trained = 16
+nbits_goal = 8
+upcast_goal = 16
+if quantize_lut == False:
+    nbits_goal = 0
+nbits = nbits_goal # 要运行的量化比特数
+upcast_every = upcast_goal # 要运行的upcast
 
-    test_sam_num = 1000 # 测试集样本数(如需修改，请同时修改下面的读取文件，现文件默认1000个样本)
+test_sam_num = 1000 # 测试集样本数(如需修改，请同时修改下面的读取文件，现文件默认1000个样本)
 
-    if not auto_train_change_nbits and not auto_train_change_upcast:
-        ncodebooks = 512 # max:512
-        ncentroids = 16
-        train_sam_num = 50 # 训练集样本数
-    elif auto_train_change_nbits:
-        param2change = "nbits"
-        param_trained = nbits_trained
-        param_goal = nbits_goal
-        cb_ct_ntr_combinations_unique = change_param_auto_run_list(linear_name, method, feedback_bits, param2change, param_trained, param_goal, "upcast_every", upcast_every)
-        print(cb_ct_ntr_combinations_unique)
-        # 遍历每个cb、ct、n_train_sam组合
-        # for _, row_ref in cb_ct_ntr_combinations_unique.iterrows():
-        #     ncodebooks = int(row_ref['cb'])
-            # ncentroids = int(row_ref['ct'])
-            # train_sam_num = int(row_ref['n_train_sam'])
-    elif auto_train_change_upcast:
-        param2change = "upcast_every"
-        param_trained = upcast_trained
-        param_goal = upcast_goal
-
-        cb_ct_ntr_combinations_unique = change_param_auto_run_list(linear_name, method, feedback_bits, param2change, param_trained, param_goal, "nbits", nbits_goal)
-        print(cb_ct_ntr_combinations_unique)
-
+if not auto_train_change_nbits and not auto_train_change_upcast:
+    ncodebooks = 64 # max:512
+    ncentroids = 128
+    train_sam_num = 650 # 训练集样本数
+elif auto_train_change_nbits:
+    param2change = "nbits"
+    param_trained = nbits_trained
+    param_goal = nbits_goal
+    cb_ct_ntr_combinations_unique = change_param_auto_run_list(linear_name, method, feedback_bits, param2change, param_trained, param_goal, "upcast_every", 16)
+    print(cb_ct_ntr_combinations_unique)
     # 遍历每个cb、ct、n_train_sam组合
-    for _, row_ref in cb_ct_ntr_combinations_unique.iterrows():
-        ncodebooks = int(row_ref['cb'])
-        ncentroids = int(row_ref['ct'])
-        train_sam_num = int(row_ref['n_train_sam'])
+    # for _, row_ref in cb_ct_ntr_combinations_unique.iterrows():
+    #     ncodebooks = int(row_ref['cb'])
+        # ncentroids = int(row_ref['ct'])
+        # train_sam_num = int(row_ref['n_train_sam'])
+elif auto_train_change_upcast:
+    param2change = "upcast_every"
+    param_trained = upcast_trained
+    param_goal = upcast_goal
+    cb_ct_ntr_combinations_unique = change_param_auto_run_list(linear_name, method, feedback_bits, param2change, param_trained, param_goal, "nbits", 8)
+    print(cb_ct_ntr_combinations_unique)
+    # 遍历每个cb、ct、n_train_sam组合
+    # for _, row_ref in cb_ct_ntr_combinations_unique.iterrows():
+    #     ncodebooks = int(row_ref['cb'])
+        # ncentroids = int(row_ref['ct'])
+        # train_sam_num = int(row_ref['n_train_sam'])
 
-        batch_size = 32
-        if method == METHOD_EXACT:
-            ncodebooks = 0
-            ncentroids = 0
+batch_size = 32
+if method == METHOD_EXACT:
+    ncodebooks = 0
+    ncentroids = 0
+
+for ncodebooks in [512]:
+    for ncentroids in [16,64,256]:
+
+        print(ncodebooks, ncentroids, train_sam_num)
 
         AMM_train_dirs = get_AMM_train_dirs(linear_name, linear_name_full, method, feedback_bits, train_sam_num, test_sam_num)
         create_dir(AMM_train_dirs["dir_result"])
 
+
+        # %
         dataset_prepare(AMM_train_dirs["dir_joined"], linear_name_full, feedback_bits, [train_sam_num, test_sam_num], 
                         batch_size, S1 = S1_dict[linear_name])
 
+        # %
         if method == METHOD_PLUTO:
             est3 = mm.estFactory(X_path=AMM_train_dirs["linearin_path_train"], W_path=AMM_train_dirs["weightpath"], 
                                 Y_path=AMM_train_dirs["y_train"], dir= AMM_train_dirs["dir_train"], ncodebooks=ncodebooks, 
@@ -116,6 +107,7 @@ for method in [METHOD_PQ, METHOD_MITHRAL]:
                                 ncentroids=ncentroids, methods=[method], nbits=nbits, quantize_lut = quantize_lut,
                                 upcast_every=upcast_every)
 
+        # %
         x_test = np.load(AMM_train_dirs["dir_test"]+'/'+AMM_train_dirs["linearin_path_test"])
         w_test = np.load(AMM_train_dirs["dir_train"]+'/'+AMM_train_dirs["weightpath"])
         bias = np.load(AMM_train_dirs["dir_train"]+'/'+AMM_train_dirs["biaspath"])
@@ -127,9 +119,10 @@ for method in [METHOD_PQ, METHOD_MITHRAL]:
         else:
             y_out_last = y_out_matmul + bias.T # MADDNESS替换后当前层输出，即+bias并不需要激活函数后的结果
 
+        # %
         print(y_out_last)
         print("y_out_last.shape: ", y_out_last.shape)
-        y_out_last_re = y_out_last.reshape(test_sam_num, batch_size, -1, y_out_last.shape[-1]) #AMM字典模式需要复原y大小
+        y_out_last_re = y_out_last.reshape(test_sam_num, -1, y_out_last.shape[-1]) #AMM字典模式需要复原y大小
         print("y_out_last_re.shape: ", y_out_last_re.shape)
         if method == METHOD_SCALAR_QUANTIZE:
             np.save(os.path.join(AMM_train_dirs["dir_result"], '%s%s_trsam%i_tesam%i_fb%i_nbits%i.npy' % 

@@ -1,3 +1,10 @@
+'''
+@file matmul.py
+@author Sciroccogti (scirocco_gti@yeah.net)
+@brief
+@date 2023-03-06 15:40:28
+@modified: 2023-03-06 15:43:42
+'''
 #!/bin/env/python
 
 import pprint
@@ -251,7 +258,7 @@ def estFactory(
     methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
     verbose=1, limit_ntasks=-1, tasks_all_same_shape=False, tasks=None,
     X_path="", W_path="", Y_path="", bias_path="", dir="",
-    nbits=8, quantize_lut=True, upcast_every=None,
+    nbits=8, quantize_lut=True, upcast_every=None, lut_work_const=-1,
     genDataFunc: Callable[[int, float, np.ndarray | None],
                           tuple[np.ndarray, np.ndarray | None, np.ndarray | None]] = sliceData,
 ):
@@ -275,14 +282,10 @@ def estFactory(
         alpha_vals = (1. / 16384, .03125, .0625, .125, .25, .5, 1, 2, 4, 8)
         hparams_dict = [{'d': d, 'alpha': alpha}
                         for d in dvals for alpha in alpha_vals][0]
-    elif (METHOD_PLUTO in methods):
+    elif (METHOD_PLUTO in methods) or (METHOD_MITHRAL in methods):
         hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids,
-                        'lut_work_const': -1, 'quantize_lut': quantize_lut,
+                        'lut_work_const': lut_work_const, 'quantize_lut': quantize_lut,
                         'nbits': nbits, 'upcast_every': upcast_every if upcast_every != None else 16}
-    elif (METHOD_MITHRAL in methods):
-        hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids,
-                        'quantize_lut': quantize_lut, 'nbits': nbits,
-                        'upcast_every': upcast_every if upcast_every != None else 16}
     elif (METHOD_PQ in methods) or (METHOD_MITHRALPQ in methods):
         hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids,
                         'quantize_lut': quantize_lut, 'nbits': nbits,
