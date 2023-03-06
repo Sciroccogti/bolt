@@ -20,7 +20,7 @@ nbits = 8 # # METHOD_SCALAR_QUANTIZE的量化比特数
 # smaller_train_sam_num = 3000 # 减小内存消耗的训练集样本数
 # smallerer_train_sam_num = 1000
 # smallererer_train_sam_num = 50
-# AMM_name_tran = {"etl1":"ex_linear1", "etl2":"ex_linear2", "fc1":"fc1", "dtl1":"dx_linear1", "dtl2":"dx_linear2", "fc2":"fc2"} # 顺序不变，与S1的顺序一致
+AMM_name_tran = {"etl1":"ex_linear1", "etl2":"ex_linear2", "fc1":"fc1", "dtl1":"dx_linear1", "dtl2":"dx_linear2", "fc2":"fc2"} # 顺序不变，与S1的顺序一致
 # host_name = socket.gethostname()
 # if host_name == 'DESKTOP-PLRL7TK':
 #     intermediate_path = ''
