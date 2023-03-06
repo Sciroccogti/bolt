@@ -330,7 +330,7 @@ class MultiCodebookEncoder(abc.ABC):
 
 # ------------------------------------------------ Product Quantization
 
-def _learn_centroids(X, ncentroids, ncodebooks, subvect_len):
+def _learn_centroids(X, ncentroids, ncodebooks, subvect_len, return_tot_mse: bool = False):
     ret = np.empty((ncentroids, ncodebooks, subvect_len))
     # print("_learn_centroids(): running kmeans...")
     tot_sse = 0
@@ -359,6 +359,8 @@ def _learn_centroids(X, ncentroids, ncodebooks, subvect_len):
 
     print("--- total mse / var(X): {:.3g}".format(tot_sse / tot_sse_using_mean))
 
+    if return_tot_mse:
+        return ret, tot_sse_using_mean
     return ret
 
 

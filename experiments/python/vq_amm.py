@@ -6,8 +6,6 @@ import numpy as np
 import vquantizers as vq
 import amm
 
-import torch
-
 KEY_NLOOKUPS = 'nlookups'
 
 

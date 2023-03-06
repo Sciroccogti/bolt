@@ -1,27 +1,34 @@
+'''
+@file matmul.py
+@author Sciroccogti (scirocco_gti@yeah.net)
+@brief
+@date 2023-03-06 15:40:28
+@modified: 2023-03-06 15:43:42
+'''
 #!/bin/env/python
 
-import functools
-import numpy as np
 import pprint
-import scipy
+import sys
 import time
+from collections.abc import Callable
 
 import amm
-import matmul_datasets as md
-import pyience as pyn
+import amm_methods as methods
 import compress
+import matmul_datasets as md
+import numpy as np
 from amm_methods import *
-
-import sys
+from dpq.dpq_encoder import sliceData
+from joblib import Memory
 from Logger import *
+from scipy import special
+from torch import Tensor
+
 # std_out重定向
 # sys.stdout = Logger("./log/caltech/Figure7_log.txt", sys.stdout)
 # sys.stderr = Logger("./log/caltech/Figure7_debug.txt", sys.stderr)
 
 
-import amm_methods as methods
-
-from joblib import Memory
 _memory = Memory('.', verbose=0)
 
 
@@ -163,8 +170,7 @@ def _compute_metrics(task, Y_hat, compression_metrics=True, **sink):
                 # gamma = 1. / np.sqrt(W.shape[0])
                 # gamma = 1. / W.shape[0]
                 gamma = 1
-                similarities = scipy.special.softmax(
-                    -dists_sq_hat * gamma, axis=1)
+                similarities = special.softmax(-dists_sq_hat * gamma, axis=1)
                 class_probs = similarities @ affinities
                 rbf_lbls_hat.append(np.argmax(class_probs, axis=1))
 
@@ -248,10 +254,14 @@ def _fitted_est_for_hparams(method_id, hparams_dict, X_train, W_train,
     return est
 
 
-def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
-               verbose=1, limit_ntasks=-1, tasks_all_same_shape=False, tasks=None,
-               X_path="", W_path="", Y_path="", bias_path="", dir="", 
-               nbits=8, quantize_lut=True, upcast_every=None, lut_work_const=-1):
+def estFactory(
+    methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
+    verbose=1, limit_ntasks=-1, tasks_all_same_shape=False, tasks=None,
+    X_path="", W_path="", Y_path="", bias_path="", dir="",
+    nbits=8, quantize_lut=True, upcast_every=None, lut_work_const=-1,
+    genDataFunc: Callable[[int, float, np.ndarray | None],
+                          tuple[np.ndarray, np.ndarray | None, np.ndarray | None]] = sliceData,
+):
     methods = methods.DEFAULT_METHODS if methods is None else methods
     tasks = md.load_dft_train(X_path, W_path, Y_path, dir, bias_path) if tasks is None else tasks
     if isinstance(methods, str):
@@ -275,11 +285,17 @@ def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
     elif (METHOD_PLUTO in methods) or (METHOD_MITHRAL in methods):
         hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids,
                         'lut_work_const': lut_work_const, 'quantize_lut': quantize_lut,
-                        'nbits': nbits, 'upcast_every':upcast_every if upcast_every != None else 16}
+                        'nbits': nbits, 'upcast_every': upcast_every if upcast_every != None else 16}
     elif (METHOD_PQ in methods) or (METHOD_MITHRALPQ in methods):
         hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids,
-                        'quantize_lut':quantize_lut, 'nbits': nbits, 
+                        'quantize_lut': quantize_lut, 'nbits': nbits,
                         'upcast_every': upcast_every if upcast_every != None else -1}
+    elif (METHOD_DPQ in methods):
+        hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids,
+                        'quantize_lut': quantize_lut, 'nbits': nbits,
+                        'upcast_every': upcast_every if upcast_every != None else -1,
+                        'genDataFunc': genDataFunc,
+                        }
     else:
         hparams_dict = {'ncodebooks': ncodebooks,
                         'ncentroids': ncentroids, 'quantize_lut': quantize_lut}
@@ -322,7 +338,7 @@ def estFactory(methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
             if not can_reuse_est:
                 try:
                     task.W_train = np.atleast_2d(task.W_train)
-                    if bias_path!="":
+                    if bias_path != "":
                         est = _fitted_est_for_hparams(
                             method_id, hparams_dict,
                             task.X_train, task.W_train, task.Y_train, bias=task.bias)
