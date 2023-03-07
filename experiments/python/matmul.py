@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief
 @date 2023-03-06 15:40:28
-@modified: 2023-03-06 15:43:42
+@modified: 2023-03-07 15:51:11
 '''
 #!/bin/env/python
 
@@ -22,7 +22,8 @@ from dpq.dpq_encoder import sliceData
 from joblib import Memory
 from Logger import *
 from scipy import special
-from torch import Tensor
+from vquantizers import (dists_elemwise_dot, dists_elemwise_l1,
+                         dists_elemwise_sq)
 
 # std_out重定向
 # sys.stdout = Logger("./log/caltech/Figure7_log.txt", sys.stdout)
@@ -289,7 +290,9 @@ def estFactory(
     elif (METHOD_PQ in methods) or (METHOD_MITHRALPQ in methods):
         hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids,
                         'quantize_lut': quantize_lut, 'nbits': nbits,
-                        'upcast_every': upcast_every if upcast_every != None else -1}
+                        'upcast_every': upcast_every if upcast_every != None else -1,
+                        'elemwise_dist_func': dists_elemwise_sq,
+                        }
     elif (METHOD_DPQ in methods):
         hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids,
                         'quantize_lut': quantize_lut, 'nbits': nbits,
