@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-07-06 15:07:45
-@modified: 2022-12-01 14:50:07
+@modified: 2023-03-06 16:36:35
 '''
 
 import os
@@ -13,8 +13,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-colors_ = ["r", "g", "b", "orange", "c", "m", "steelblue", "grey", "k"]
-markers_ = ["o", "x", "s", "d", "+", "*", "v", "^", "D"]
+colors_ = ["r", "g", "b", "orange", "c", "m", "steelblue", "grey", "brown", "k"]
+markers_ = ["o", "x", "s", "d", "+", "*", "v", "^", ">", "D"]
 
 fig, [axBER, axNMSE] = plt.subplots(ncols=2, figsize=(12, 4.5))
 plt.rcParams["font.sans-serif"] = ["Sarasa Mono SC Nerd"]
@@ -33,7 +33,7 @@ axBER.yaxis.set_tick_params(direction='in', which='both')
 axNMSE.set_title(r"DFT-IDFT 的信道估计较精确乘法估计信道差距")
 axNMSE.set_xlabel(r"$SNR$")
 axNMSE.set_ylabel(r"信道 $NMSE$")
-axNMSE.set_ylim(top=.1, bottom=1e-4)
+axNMSE.set_ylim(top=1, bottom=1e-3)
 axNMSE.set_yscale("log")
 axNMSE.yaxis.set_minor_locator(ticker.LogLocator(base=10, subs='all', numticks=10))
 axNMSE.yaxis.set_minor_formatter(ticker.NullFormatter())
@@ -46,7 +46,7 @@ axBER.set_xlim([0, 10])
 # axBER.set_xlim([-5, 2.5])
 # axBER.set_xticks(np.arange(-10, 5, step=2.5))
 
-axNMSE.set_xlim([0, 10])
+axNMSE.set_xlim([-10, 10])
 # axNMSE.set_xlim([-5, 2.5])
 # axNMSE.set_xticks(np.arange(-10, 5, step=2.5))
 
@@ -57,15 +57,20 @@ colorCnt = 0
 for file in files_:
     match = None
     try:
+        # if match == None:
+        #     match = re.match(r"\+[0-9][a-z,A-Z].*?\.csv", file)
+        # if match == None:
+        #     match = re.match(r"\+\+\+[0-9][a-z,A-Z].*?\.csv", file)
         if match == None:
-            match = re.match(r"\+N512\+[0-9][a-z,A-Z].*?\.csv", file)
-
+            match = re.match(r"\+rms500\+[0-9][a-z,A-Z].*?\.csv", file)
+        # if match == None:
+        #     match = re.match(r"\+DPQ[0-9]\+[a-z,A-Z].*?\.csv", file)
         if match != None:
 
             fin = open(path + file, "r")
             lines_ = fin.readlines()
 
-            method = lines_[15].split(",")[1].strip()
+            method = lines_[18].split(",")[1].strip()
             curColor = colors_[colorCnt]
             curLine = "-"
             if method.startswith("Exact"):
@@ -79,7 +84,7 @@ for file in files_:
             snr_ = []
             ber_ = []
             rawNMSE_ = []
-            for line in lines_[17:]:
+            for line in lines_[20:]:
                 try:
                     snr_.append(float(line.split(",")[0]))
                     if float(line.split(",")[1]) == 0:
