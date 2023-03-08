@@ -47,14 +47,14 @@ for method in [METHOD_MITHRAL, METHOD_PQ]:
             upcast_goal = 16
     else:
         if method == METHOD_MITHRAL:
-            upcast_goal = -1
+            upcast_goal = 16
         else:
-            upcast_goal = -1
+            upcast_goal = 16
 
 
     nbits_trained = 0
     
-    nbits_goal = 16
+    nbits_goal = 10
     if quantize_lut == False:
         nbits_goal = 0
     nbits = nbits_goal # 要运行的量化比特数
