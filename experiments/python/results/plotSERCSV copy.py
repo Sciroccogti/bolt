@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-07-06 15:07:45
-@modified: 2023-01-12 20:29:49
+@modified: 2023-02-22 11:41:44
 '''
 
 import os
@@ -20,8 +20,8 @@ fig, [axBER, axNMSE] = plt.subplots(ncols=2, figsize=(12, 4.5))
 plt.rcParams["font.sans-serif"] = ["Sarasa Mono SC Nerd"]
 axBER.set_title(r"DFT-IDFT 的信道估计误比特率")
 axBER.set_xlabel(r"$SNR$")
-axBER.set_ylabel(r"$BER$")
-axBER.set_ylim(top=.1, bottom=1e-5)
+axBER.set_ylabel(r"$SER$")
+axBER.set_ylim(top=.1, bottom=1e-3)
 axBER.set_yscale("log")
 axBER.yaxis.set_minor_locator(ticker.LogLocator(base=10, subs='all', numticks=10))
 axBER.yaxis.set_minor_formatter(ticker.NullFormatter())
@@ -42,8 +42,8 @@ axNMSE.grid(True, which="minor", ls="--")
 axNMSE.xaxis.set_tick_params(direction='in', which='both')  # 刻度线向内
 axNMSE.yaxis.set_tick_params(direction='in', which='both')
 
-# axBER.set_xlim([0, 10])
-axBER.set_xlim([-5, 2.5])
+axBER.set_xlim([0, 10])
+# axBER.set_xlim([-5, 2.5])
 # axBER.set_xticks(np.arange(-10, 5, step=2.5))
 
 axNMSE.set_xlim([-10, 10])
@@ -57,15 +57,18 @@ colorCnt = 0
 for file in files_:
     match = None
     try:
+        # if match == None:
+        #     match = re.match(r"\+[0-9][a-z,A-Z].*?\.csv", file)
+        # if match == None:
+        #     match = re.match(r"\+\+\+[0-9][a-z,A-Z].*?\.csv", file)
         if match == None:
-            match = re.match(r"\+[0-9][a-z,A-Z].*?\.csv", file)
-
+            match = re.match(r"\+MIMOc0\.5\+[0-9][a-z,A-Z].*?\.csv", file)
         if match != None:
 
             fin = open(path + file, "r")
             lines_ = fin.readlines()
 
-            method = lines_[17].split(",")[1].strip()
+            method = lines_[18].split(",")[1].strip()
             curColor = colors_[colorCnt]
             curLine = "-"
             if method.startswith("Exact"):
@@ -79,7 +82,7 @@ for file in files_:
             snr_ = []
             ber_ = []
             rawNMSE_ = []
-            for line in lines_[19:]:
+            for line in lines_[20:]:
                 try:
                     snr_.append(float(line.split(",")[0]))
                     if float(line.split(",")[1]) == 0:

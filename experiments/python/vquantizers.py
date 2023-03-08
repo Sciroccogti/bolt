@@ -394,7 +394,7 @@ def _fit_pq_lut(q, centroids, elemwise_dist_func):
 class PQEncoder(MultiCodebookEncoder):
 
     def __init__(self, ncodebooks, ncentroids=256,
-                 elemwise_dist_func=dists_elemwise_dot,
+                 elemwise_dist_func=dists_elemwise_sq,
                  preproc='PQ', encode_algo=None, quantize_lut=True,
                  nbits=8, upcast_every=-1, accumulate_how='sum',
                  **preproc_kwargs):
@@ -476,7 +476,7 @@ class PQEncoder(MultiCodebookEncoder):
         # print("Q shape: ", Q.shape)
         for i, q in enumerate(Q):
             lut = _fit_pq_lut(q, centroids=self.centroids,
-                              elemwise_dist_func=self.elemwise_dist_func)
+                              elemwise_dist_func=self.elemwise_dist_func)  # dist_func not really used
             if self.quantize_lut and quantize:
                 quantize_max_level = 2 ** self.nbits
                 lut = np.maximum(0, lut - self.lut_offsets)
@@ -501,7 +501,8 @@ class PQEncoder(MultiCodebookEncoder):
             idxs = clusterize.encode_using_splits(
                 X, self.subvect_len, self.splits_lists, split_type=split_type)
         else:
-            idxs = pq._encode_X_pq(X, codebooks=self.centroids)
+            idxs = pq._encode_X_pq(X, codebooks=self.centroids,
+                                   elemwise_dist_func=self.elemwise_dist_func)
 
         # self.offsets is set in MultiCodebookEncoder.__init__
         return idxs + self.offsets  # offsets let us index into raveled dists
