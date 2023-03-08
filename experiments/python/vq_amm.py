@@ -6,19 +6,18 @@ import numpy as np
 import vquantizers as vq
 import amm
 
-import torch
-
 KEY_NLOOKUPS = 'nlookups'
 
 
 class VQMatmul(amm.ApproxMatmul, abc.ABC):
-    def __init__(self, ncodebooks, ncentroids=None, quantize_lut=True, nbits=8, upcast_every=-1):
+    def __init__(self, ncodebooks, ncentroids=None, quantize_lut=True, nbits=8, upcast_every=-1, elemwise_dist_func=vq.dists_elemwise_sq):
         self.ncodebooks = ncodebooks
         self.ncentroids = (self._get_ncentroids() if ncentroids is None
                            else ncentroids)
         self.quantize_lut = quantize_lut
         self.nbits = nbits
         self.upcast_every = upcast_every
+        self.elemwise_dist_func = elemwise_dist_func
         self.enc = self._create_encoder(ncodebooks)
         self.reset_for_new_task()
 
@@ -26,6 +25,7 @@ class VQMatmul(amm.ApproxMatmul, abc.ABC):
     def _create_encoder(self, ncodebooks):  # to be overriden by subclasses
         return vq.PQEncoder(ncodebooks=ncodebooks, ncentroids=self.ncentroids,
                             quantize_lut=self.quantize_lut, upcast_every=self.upcast_every,
+                            elemwise_dist_func=self.elemwise_dist_func,
                             **self._get_encoder_kwargs())
 
     # @abc.abstractmethod
@@ -73,7 +73,9 @@ class VQMatmul(amm.ApproxMatmul, abc.ABC):
 class PQMatmul(VQMatmul):
 
     def _create_encoder(self, ncodebooks):  # to be overriden by subclasses
-        return vq.PQEncoder(ncodebooks=ncodebooks, ncentroids=self.ncentroids, upcast_every=self.upcast_every,
+        return vq.PQEncoder(ncodebooks=ncodebooks, ncentroids=self.ncentroids,
+                            elemwise_dist_func=self.elemwise_dist_func,
+                            upcast_every=self.upcast_every,
                             quantize_lut=self.quantize_lut, nbits=self.nbits, **self._get_encoder_kwargs())
 
     def _get_ncentroids(self):

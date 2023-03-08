@@ -9,10 +9,10 @@
 ```bash
 cd bolt # 进入项目路径
 git submodule update --init # 下载子模块 kmc2（github源）
-conda create -n bolt --file ./requirements.txt python=3.10 # 新建虚拟环境
+conda env create -f ./bolt.conda.yaml # 新建虚拟环境
 conda activate bolt # 启用虚拟环境
-conda install cudatoolkit=11.3 torch # 安装 cuda 和 Pytorch
 pip3 install ./third_party/kmc2/ # 安装 kmc2
+pip3 install fastcluster
 ```
 
 #### Windows 上安装教程

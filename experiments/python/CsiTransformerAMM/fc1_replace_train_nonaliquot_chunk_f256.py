@@ -1,7 +1,3 @@
-# %% [markdown]
-# encoder transformer层的linear2层（etl2）替换为近似矩阵乘法
-
-# %%
 import numpy as np
 import os
 import sys
@@ -24,7 +20,7 @@ from NNutils import *
 from amm_methods import *
 import socket # Obtain the current host name, which can be used to select different data directories and result saving directories
 
-# %%
+# %
 # method = METHOD_MITHRAL
 # method = METHOD_PQ
 # method = METHOD_PLUTO
@@ -32,14 +28,14 @@ import socket # Obtain the current host name, which can be used to select differ
 # method = METHOD_EXACT
 # method = METHOD_SCALAR_QUANTIZE
 quantize_lut = False
-for method in [METHOD_PQ, METHOD_MITHRAL]:
+for method in [METHOD_MITHRAL, METHOD_PQ]:
 
-    linear_name = 'etl2'
+    linear_name = 'fc1'
     feedback_bits = 256
-    linear_name_full = "ex_linear2"
+    linear_name_full = "fc1"
 
-    auto_train_change_nbits = True # 是否根据已运行的训练性能结果改变nbits自动训练，（train_sam_num取已训练的最大值）
-    auto_train_change_upcast = False # 是否根据已运行的训练性能结果改变upcast自动训练，（train_sam_num取已训练的最大值）
+    auto_train_change_nbits = False # 是否根据已运行的训练性能结果改变nbits自动训练，（train_sam_num取已训练的最大值）
+    auto_train_change_upcast = True # 是否根据已运行的训练性能结果改变upcast自动训练，（train_sam_num取已训练的最大值）
 
     if auto_train_change_upcast == True:
         if method == METHOD_MITHRAL:
@@ -50,14 +46,14 @@ for method in [METHOD_PQ, METHOD_MITHRAL]:
             upcast_goal = 16
     else:
         if method == METHOD_MITHRAL:
-            upcast_goal = -1
-        else:
             upcast_goal = 16
+        else:
+            upcast_goal = -1
 
 
     nbits_trained = 8
     
-    nbits_goal = 12
+    nbits_goal = 8
     if quantize_lut == False:
         nbits_goal = 0
     nbits = nbits_goal # 要运行的量化比特数
@@ -129,7 +125,7 @@ for method in [METHOD_PQ, METHOD_MITHRAL]:
 
         print(y_out_last)
         print("y_out_last.shape: ", y_out_last.shape)
-        y_out_last_re = y_out_last.reshape(test_sam_num, batch_size, -1, y_out_last.shape[-1]) #AMM字典模式需要复原y大小
+        y_out_last_re = y_out_last.reshape(test_sam_num, -1, y_out_last.shape[-1])
         print("y_out_last_re.shape: ", y_out_last_re.shape)
         if method == METHOD_SCALAR_QUANTIZE:
             np.save(os.path.join(AMM_train_dirs["dir_result"], '%s%s_trsam%i_tesam%i_fb%i_nbits%i.npy' % 

@@ -1,0 +1,35 @@
+name: bolt
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - autopep8
+  - cuda>=11.7
+  - cuda-toolkit>=11.7
+  - cuda-tools>=11.7
+  - cuda-visual-tools>=11.7
+  - cudatoolkit>=11.7
+  - cudnn
+  - Cython
+  - fastcluster
+  - matplotlib
+  - numba
+  - numpy
+  - pandas
+  - pip
+  - python>=3.10.4
+  - pytorch=1.13.1
+  - pytorch-cuda>=11.7
+  - pytest
+  - scipy
+  - scikit-learn
+  - seaborn
+  - tensorboard
+  - tensorflow-gpu
+  - tqdm
+  - zstandard
+  - pip:
+    - nanopq
+    - pytorch-minimize
