@@ -11,7 +11,7 @@ import product_quantize as pq
 import subspaces as subs
 import clusterize
 from utils import kmeans
-
+import time
 
 # ================================================================ misc funcs
 
@@ -653,8 +653,12 @@ class MithralEncoder(MultiCodebookEncoder):
         '''Q是B的转置, 本函数会在读入矩阵B的时候调用, 即 set_B'''
         Q = np.atleast_2d(Q)
         luts = np.zeros((Q.shape[0], self.ncodebooks, self.ncentroids))
+        # start = time.time()
         for i, q in enumerate(Q):
             luts[i] = clusterize.mithral_lut(q, self.centroids)  # 此时 luts 为 float64
+        # end = time.time()
+        # t=end-start
+        # print("B矩阵编码时间为%f"%t)
         if self.quantize_lut:
             luts, offset, scale = _mithral_quantize_luts(
                 luts, self.lut_work_const, nbits=self.nbits)
