@@ -32,7 +32,8 @@ class Bucket(object):
     def __init__(self, D=None, N=0, sumX=None, sumX2=None, point_ids=None,
                  bucket_id=0, support_add_and_remove=False):
         # self.reset(D=D, sumX=sumX, sumX2=sumX2)
-        # assert point_ids is not None point_ids是每一行的索引序号
+        # assert point_ids is not None
+        # point_ids 是每一行的索引序号
         if point_ids is None:
             assert N == 0
             point_ids = (set() if support_add_and_remove
@@ -1965,7 +1966,7 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
         if lut_work_const < 0:
             print("fitting dense lstsq to X_res")
             print(f"  with X_enc:{X_enc.shape} Y:{X_res.shape}")
-            W = encoded_lstsq(X_enc=X_enc, Y=X_res, K=ncentroids)
+            W = encoded_lstsq(X_enc=X_enc, Y=X_res, K=ncentroids)  # eq(8)
             print(f"fitted dense lstsq with W:{W.shape}")
             # exit(0)
         else:
@@ -2417,7 +2418,8 @@ def assignments_from_splits(X, splits):
 
 def assignments_from_multisplits(X, splits):
     '''
-    assignments_from_multisplits函数与assignments_from_splits函数类似, 但它多了一个前置步骤, 即对于每一个split, 将X的每一行分成若干组。然后, 对于每一个组, 都会根据splits中的信息将其编码。
+    assignments_from_multisplits函数与assignments_from_splits函数类似, 但它多了一个前置步骤, 即对于每一个split, 将X的每一行分成若干组。
+    然后, 对于每一个组, 都会根据splits中的信息将其编码。
     '''
     # 计算 splits 中的每一个 split 对 X 的每一行的分类结果
     N, _ = X.shape

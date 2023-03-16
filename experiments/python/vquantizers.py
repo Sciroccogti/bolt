@@ -640,17 +640,31 @@ class MithralEncoder(MultiCodebookEncoder):
                 'nbits': self.nbits, 'upcast_every': self.upcast_every}
 
     def fit(self, X, Q=None):
+        # splits_list: (C, logK), centroids: (C, K, D)
+        # centroids 中
+        # 第一个码本中的质心的前 D/C 列为主要元素，其它列为最小二乘法得到的修正参数
+        # 第二个码本中的第 D/C ~ 2D/C-1 列为主要元素，以此类推
         self.splits_lists, self.centroids = clusterize.learn_mithral(
             X, self.ncodebooks, ncentroids=self.ncentroids, lut_work_const=self.lut_work_const,
             nonzeros_heuristic=self.nonzeros_heuristic, verbose=1)
         # self._learn_lut_quantization(X, Q)
 
     def encode_X(self, X):
+        # try:
+        #     cnt = np.load("K16C128-cnt.npy")
+        # except:
+        #     cnt = np.zeros((self.ncentroids,))
         idxs = clusterize.mithral_encode(X, self.splits_lists)
+        # for idx in idxs:
+        #     cnt[idx] += 1
+        # np.save("K16C128-cnt.npy", cnt)
         return idxs + self.offsets
 
     def encode_Q(self, Q):
         '''Q是B的转置, 本函数会在读入矩阵B的时候调用, 即 set_B'''
+        np.save("./K16C128.npy", self.centroids[0, :, :2])
+        # print(np.shape(self.centroids[0, :, :2]))
+
         Q = np.atleast_2d(Q)
         luts = np.zeros((Q.shape[0], self.ncodebooks, self.ncentroids))
         for i, q in enumerate(Q):
