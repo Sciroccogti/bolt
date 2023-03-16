@@ -1862,12 +1862,13 @@ def _learn_mithral_initialization(X, ncodebooks, ncentroids: int = 16,
                 X_res[buck.point_ids] -= centroid
                 # update centroid here in case we want to regularize it somehow
                 all_centroids[c, b] = centroid
-                np.append(all_centroids_tight, centroid[np.newaxis, :], axis=0)
+                # np.append(all_centroids_tight, centroid[np.newaxis, :], axis=0)
 
         # print("_learn_mithral_initialization\nall_centroids:\n", all_centroids)
         # print("X_res mse / X mse: ",
         #       (X_res * X_res).mean() / (X_orig * X_orig).mean())
-        np.save("all_centroids_tight.npy", all_centroids_tight)
+        # np.save("all_centroids_tight.npy", all_centroids_tight)
+        # print("保存了一次")
     
     return X_res, all_splits, all_centroids, all_buckets
 
