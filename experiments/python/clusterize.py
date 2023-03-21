@@ -2044,12 +2044,31 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
         
         # print("X_enc\n",X_enc)
 
-        if lut_work_const < 0:
+        # step = 25
+        # N_step = N // step
+        # all_centroids_delta = np.zeros((ncodebooks, ncentroids_per_codebook, D))
+        # for i in range(step):
+        #     W = encoded_lstsq(X_enc=X_enc[i*N_step:(i+1)*N_step,:], Y=X_res[i*N_step:(i+1)*N_step,:], K=ncentroids)
+        #     all_centroids_delta += W.reshape(ncodebooks, ncentroids_per_codebook, D) / step
+
+        intermediate_var_path = os.path.join(dir_now, "CsiTransformerAMM/intermediate_var")
+        centroids_before_ridge_path = os.path.join(intermediate_var_path, f"centroids{all_centroids.shape}_b_ridge.npy")
+        if not os.path.exists(centroids_before_ridge_path):
+            np.save(centroids_before_ridge_path, all_centroids)
+        if lut_work_const == -1:
             print("fitting dense lstsq to X_res")
             print(f"  with X_enc:{X_enc.shape} Y:{X_res.shape}")
             W = encoded_lstsq(X_enc=X_enc, Y=X_res, K=ncentroids)
             print(f"fitted dense lstsq with W:{W.shape}")
+            all_centroids_delta = W.reshape(ncodebooks, ncentroids_per_codebook, D)
             # exit(0)
+        elif lut_work_const < -1:
+            step = -lut_work_const
+            N_step = N // step
+            all_centroids_delta = np.zeros((ncodebooks, ncentroids_per_codebook, D))
+            for i in range(step):
+                W = encoded_lstsq(X_enc=X_enc[i*N_step:(i+1)*N_step,:], Y=X_res[i*N_step:(i+1)*N_step,:], K=ncentroids)
+                all_centroids_delta += W.reshape(ncodebooks, ncentroids_per_codebook, D) / step
         else:
             print("fitting sparse lstsq to X_res")
             print(f"  with X_enc:{X_enc.shape} Y:{X_res.shape}")
@@ -2058,10 +2077,13 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
                 X_enc, X_res, K=ncentroids, nnz_blocks=lut_work_const,
                 pq_perm_algo=used_perm_algo)
             print(f"fitted sparse lstsq with W:{W.shape}")
+            all_centroids_delta = W.reshape(ncodebooks, ncentroids_per_codebook, D)
             # exit(0)
 
-        all_centroids_delta = W.reshape(ncodebooks, ncentroids_per_codebook, D)
         all_centroids += all_centroids_delta
+        centroids_after_ridge_path = os.path.join(intermediate_var_path, f"centroids{all_centroids.shape}{lut_work_const}_a_ridge.npy")
+        if not os.path.exists(centroids_after_ridge_path):
+            np.save(centroids_after_ridge_path, all_centroids)
         if "verbose" in kwargs.keys():
             if kwargs["verbose"] > 3:
                 np.set_printoptions(threshold=np.inf)
