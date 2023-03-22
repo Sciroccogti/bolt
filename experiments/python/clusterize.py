@@ -191,6 +191,9 @@ def _cumsum_cols(X):
 
 @numba.njit(fastmath=True, cache=True)  # njit = no python, cache binary
 def _cumsse_cols(X):
+    """
+    对于每一列，计算当前行及以前的元素的SSE，输出为 (N,D)
+    """
     N, D = X.shape
     cumsses = np.empty((N, D), X.dtype)
     cumX_row = np.empty(D, X.dtype)
@@ -216,6 +219,9 @@ def optimal_split_val(X, dim, possible_vals=None, X_orig=None,
                       return_possible_vals_losses=False, force_val=None,
                       # shrink_towards_median=True):
                       shrink_towards_median=False):
+    """
+    遍历各元素，计算以其为分割阈值时，两部分数据的 SSE 之和。
+    """
 
     X_orig = X if X_orig is None else X_orig
     # X_orig = X # TODO rm
@@ -1943,6 +1949,7 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
 
         print("X_res1 mse / X mse: ", mse1 / mse_orig)
     else:
+        # X_res: residual, X - centroid
         X_res, all_splits, all_centroids, all_buckets = (
             X_res0, all_splits0, all_centroids0, all_buckets0)
 
@@ -1963,11 +1970,26 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
         # Algorithm 1:Maddness Hash   ——Blalock, Davis, and John Guttag. "Multiplying matrices without multiplying." International Conference on Machine Learning. PMLR, 2021.
         X_enc = mithral_encode(X, all_splits)
 
-        if lut_work_const < 0:
+        if lut_work_const < -1:
+            step = -lut_work_const
+            slice = N // step
+            all_centroids_delta_step = np.zeros((ncodebooks, ncentroids_per_codebook, D))
+            for i in range(step):
+                Wstep = encoded_lstsq(X_enc=X_enc[i*slice:(i+1)*slice],
+                                      Y=X_res[i*slice:(i+1)*slice], K=ncentroids)
+                all_centroids_delta_step += Wstep.reshape(ncodebooks,
+                                                          ncentroids_per_codebook, D) / step
+            all_centroids_delta = all_centroids_delta_step
+        elif lut_work_const < 0:
             print("fitting dense lstsq to X_res")
             print(f"  with X_enc:{X_enc.shape} Y:{X_res.shape}")
             W = encoded_lstsq(X_enc=X_enc, Y=X_res, K=ncentroids)  # eq(8)
             print(f"fitted dense lstsq with W:{W.shape}")
+            all_centroids_delta = W.reshape(ncodebooks, ncentroids_per_codebook, D)
+            # check how much improvement we got
+            X_res -= _XW_encoded(X_enc, W)  # if we fit to X_res
+            mse_res = (X_res * X_res).mean()
+            print("X_res mse / X mse after lstsq: ", mse_res / mse_orig)
             # exit(0)
         else:
             print("fitting sparse lstsq to X_res")
@@ -1977,9 +1999,13 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
                 X_enc, X_res, K=ncentroids, nnz_blocks=lut_work_const,
                 pq_perm_algo=used_perm_algo)
             print(f"fitted sparse lstsq with W:{W.shape}")
+            all_centroids_delta = W.reshape(ncodebooks, ncentroids_per_codebook, D)
+            # check how much improvement we got
+            X_res -= _XW_encoded(X_enc, W)  # if we fit to X_res
+            mse_res = (X_res * X_res).mean()
+            print("X_res mse / X mse after lstsq: ", mse_res / mse_orig)
             # exit(0)
 
-        all_centroids_delta = W.reshape(ncodebooks, ncentroids_per_codebook, D)
         all_centroids += all_centroids_delta
         if "verbose" in kwargs.keys():
             if kwargs["verbose"] > 3:
@@ -1987,10 +2013,6 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
                 print('all_centroids_delta\n', all_centroids_delta)
                 print('all_centroids\n', all_centroids)
 
-        # check how much improvement we got
-        X_res -= _XW_encoded(X_enc, W)  # if we fit to X_res
-        mse_res = (X_res * X_res).mean()
-        print("X_res mse / X mse after lstsq: ", mse_res / mse_orig)
         # print("min, median, max, std, of all centroids after lstsq:\n",
         #       all_centroids.min(), np.median(all_centroids),
         #       all_centroids.max(), all_centroids.std())
