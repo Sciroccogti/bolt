@@ -1855,6 +1855,9 @@ def _learn_mithral_initialization(X, ncodebooks, ncentroids: int = 16,
             return_centroids=False, return_buckets=True, **kwargs)
         for split in multisplits:
             split.dim = idxs[split.dim]
+        print("multisplits:", multisplits)
+        # print("multisplits.shape:",len(multisplits[0]))
+        
         all_splits.append(multisplits)
         all_buckets.append(buckets)
 
