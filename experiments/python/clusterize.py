@@ -1840,8 +1840,13 @@ def _learn_mithral_initialization(X, ncodebooks, ncentroids: int = 16,
         elif nonzeros_heuristic in ('r2', 'opq'):
             idxs = my_ixs[c]
 
-        use_X_res = X_res[:, idxs]  # 取出每个码本的训练矩阵
-        use_X_orig = X_orig[:, idxs]
+        def delete_all_0_rows(x):
+            x = np.delete(x, np.where(np.all(x == 0, axis=1)), axis=0)
+            return x
+        use_X_res = delete_all_0_rows(X_res[:, idxs])  # 取出每个码本的训练矩阵
+        use_X_orig = delete_all_0_rows(X_orig[:, idxs])
+        # use_X_res = X_res[:, idxs]  # 取出每个码本的训练矩阵
+        # use_X_orig = X_orig[:, idxs]
         #print(np.corrcoef(X_orig[:,idxs], rowvar=False))
         # learn codebook to soak current residuals
         multisplits, _, buckets = learn_multisplits(
