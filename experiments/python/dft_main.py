@@ -898,8 +898,8 @@ if __name__ == '__main__':
         writer = csv.writer(fout)
         writer.writerow(["start_time", starttime])
         for key, value in params.items():
-            if type(value) == list:
-                writer.writerow([key] + value)
+            if type(value) == list or type(value) == np.ndarray:
+                writer.writerow([key] + list(value))
             else:
                 writer.writerow([key, value])
         writer.writerow(["SNR"] + results_)
