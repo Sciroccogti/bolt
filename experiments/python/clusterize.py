@@ -47,6 +47,10 @@ import ridge
 #             mask[i] = False
 #         return mask
 
+def delete_all_0_rows(x):
+    x = np.delete(x, np.where(np.all(x == 0, axis=1)), axis=0)
+    return x
+
 def change_every_nth_true_to_false(mask, n):
     '''每n个True的最后一个变为False'''
     change_next = n
@@ -199,8 +203,13 @@ class Bucket(object):
         my_idxs = np.asarray(self.point_ids)
         if X_orig is not None:
             X_orig = X_orig[my_idxs]
+        X_orig=delete_all_0_rows(X_orig)
+        X_del0=delete_all_0_rows(X[my_idxs])
+        # 判断numpy数组X_del0是否为空
+        if X_del0.size == 0:
+            return 0, 0
         return optimal_split_val(
-            X[my_idxs], dim, possible_vals=possible_vals, X_orig=X_orig,
+            X_del0, dim, possible_vals=possible_vals, X_orig=X_orig,
             return_possible_vals_losses=return_possible_vals_losses)
 
     def col_means(self):
@@ -715,7 +724,7 @@ def learn_multisplits_orig(X, nsplits, log2_max_vals_per_split=4,
 
 @_memory.cache
 def learn_multisplits(
-        X, nsplits=4, return_centroids=True, return_buckets=False,
+        X, nsplits=4, return_centroids=True, return_buckets=False, 
         # learn_quantize_params=False,
         # learn_quantize_params='int16', X_orig=None, try_ndims=1,
         # learn_quantize_params='int16', X_orig=None, try_ndims=2,
@@ -1840,13 +1849,10 @@ def _learn_mithral_initialization(X, ncodebooks, ncentroids: int = 16,
         elif nonzeros_heuristic in ('r2', 'opq'):
             idxs = my_ixs[c]
 
-        def delete_all_0_rows(x):
-            x = np.delete(x, np.where(np.all(x == 0, axis=1)), axis=0)
-            return x
-        use_X_res = delete_all_0_rows(X_res[:, idxs])  # 取出每个码本的训练矩阵
-        use_X_orig = delete_all_0_rows(X_orig[:, idxs])
-        # use_X_res = X_res[:, idxs]  # 取出每个码本的训练矩阵
-        # use_X_orig = X_orig[:, idxs]
+        # use_X_res = delete_all_0_rows(X_res[:, idxs])  # 取出每个码本的训练矩阵
+        # use_X_orig = delete_all_0_rows(X_orig[:, idxs])
+        use_X_res = X_res[:, idxs]  # 取出每个码本的训练矩阵
+        use_X_orig = X_orig[:, idxs]
         #print(np.corrcoef(X_orig[:,idxs], rowvar=False))
         # learn codebook to soak current residuals
         multisplits, _, buckets = learn_multisplits(
