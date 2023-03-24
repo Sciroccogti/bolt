@@ -22,7 +22,7 @@ class Transceiver:
     def __init__(self, params):
         self.params = params
         self.Nifft = params['Nifft']
-        self.Ncarrier = params['Ncarrier']
+        self.Ncarrier = params['Ncarrier']  # 导频子载波数
         self.qAry = params['qAry']
         self.Symbol_len = params['Symbol_len']
         self.Symbol_num = params['Symbol_num']
@@ -36,7 +36,7 @@ class Transceiver:
         for nf in range(self.Ncarrier):
             self.Xpilot[0, nf] = self.Modulation(
                 self.bitpilot[0, 2 * nf:2 * nf + 2])
-        self.Xpilot = np.transpose(self.Xpilot)
+        self.Xpilot = np.transpose(self.Xpilot)  # (Ncarries, 1)
         self.Create_DFTmatrix()
 
     def Create_DFTmatrix(self):
@@ -326,6 +326,7 @@ class Transceiver:
                                      X_path="IDFT_X.npy", W_path="IDFT_W.npy", Y_path="IDFT_Y.npy",
                                      dir="dft", nbits=self.params["nbits"],
                                      quantize_lut=self.quantize_lut,
+                                     lut_work_const=-1,
                                      genDataFunc=self.gen_IDFTTrain,
                                      )
         else:
@@ -868,12 +869,12 @@ params = {
     # 'PathGain': np.linspace(1, 0.1, 16).tolist(),
     # 'PathGain': np.power(10, [i/10 for i in range(0, -16, -1)]),
     'PathGain': IEEE802_11_model(_rms, 50e-9, 16),
-    'SNR': np.linspace(-20, 10, 13).tolist(),
+    'SNR': np.linspace(-20, 15, 15).tolist(),
     'ErrorFrame': 200,
     'TestFrame': 20000,
     'LDPC_iter': 20,
-    'ncodebooks': 16,
-    'ncentroids': 256,
+    'ncodebooks': 128,
+    'ncentroids': 64,
     'quantize_lut': True,
     'nbits': 8,
     'rms': _rms,
