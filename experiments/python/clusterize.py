@@ -203,13 +203,17 @@ class Bucket(object):
         my_idxs = np.asarray(self.point_ids)
         if X_orig is not None:
             X_orig = X_orig[my_idxs]
-        X_orig=delete_all_0_rows(X_orig)
-        X_del0=delete_all_0_rows(X[my_idxs])
-        # 判断numpy数组X_del0是否为空
-        if X_del0.size == 0:
-            return 0, 0
+        delete_0_rows = 0
+        if delete_0_rows:
+            X_orig=delete_all_0_rows(X_orig)
+            X_my_idxs=delete_all_0_rows(X[my_idxs])
+            # 判断numpy数组X_del0是否为空
+            if X_del0.size == 0:
+                return 0, 0
+        else:
+            X_my_idxs=X[my_idxs]
         return optimal_split_val(
-            X_del0, dim, possible_vals=possible_vals, X_orig=X_orig,
+            X_my_idxs, dim, possible_vals=possible_vals, X_orig=X_orig,
             return_possible_vals_losses=return_possible_vals_losses)
 
     def col_means(self):
