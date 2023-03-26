@@ -271,19 +271,21 @@ def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, p
     excel_path = os.path.join(dir_now, '../../../../csi_transformer/performance','%s_f%i%s.xls' % (linear_name, feedback_bits, excel_suffix))
     res_path = os.path.join(dir_now, "../../../res/%s/f%i/%s" % (method, feedback_bits, linear_name))
     create_dir(res_path)
-    param2change_abbr_dict = {"nbits":"nb", "upcast_every":"uc"}
+    param2change_abbr_dict = {"nbits":"nb", "upcast_every":"uc", "lut_work_const":"lwc"}
     param2change_abbr = param2change_abbr_dict[param2change] # 新运行的点的要更改的参数在文件名中的缩写
     theotherparam_abbr = param2change_abbr_dict[theotherparam]
     # 读取 Excel 文件并将其存储在变量 df 中
     df = pd.read_excel(excel_path)
     # print(df)
-    row_ref = { "AMM_method": method, param2change: param_trained} # 运行参考的训练集大小的行
-    row_run = { "AMM_method": method, param2change: param_goal, } # 运行的目标行，用于排除已运行的
+    row_ref = { "AMM_method": method, param2change: param_trained, "lut_work_const":-1} # 运行参考的训练集大小的行
+    row_run = { "AMM_method": method, param2change: param_goal,  "lut_work_const":-1} # 运行的目标行，用于排除已运行的
     # excel中符合row值的行
     method_ref_value = df.loc[(df[list(row_ref.keys())[0]] == row_ref[list(row_ref.keys())[0]]) 
-                            & (df[list(row_ref.keys())[1]] == row_ref[list(row_ref.keys())[1]])]
+                            & (df[list(row_ref.keys())[1]] == row_ref[list(row_ref.keys())[1]])
+                            & (df[list(row_ref.keys())[2]] == row_ref[list(row_ref.keys())[2]])]
     method_run_value = df.loc[(df[list(row_run.keys())[0]] == row_run[list(row_run.keys())[0]]) 
-                            & (df[list(row_run.keys())[1]] == row_run[list(row_run.keys())[1]])]
+                            & (df[list(row_run.keys())[1]] == row_run[list(row_run.keys())[1]])
+                            & (df[list(row_run.keys())[2]] == row_run[list(row_run.keys())[2]])]
     cb_ct_combinations = method_ref_value[['cb', 'ct']].values
     # print("method_ref_value:\n", method_ref_value)
     # print("method_run_value:\n", method_run_value)

@@ -31,8 +31,8 @@ import socket # Obtain the current host name, which can be used to select differ
 # method = METHOD_MITHRALPQ
 # method = METHOD_EXACT
 # method = METHOD_SCALAR_QUANTIZE
-quantize_lut = True
-for method in [METHOD_PQ]:
+
+for method in [METHOD_MITHRAL]:
 
     linear_name = 'etl2'
     feedback_bits = 256
@@ -57,7 +57,9 @@ for method in [METHOD_PQ]:
 
     nbits_trained = 0
     
-    nbits_goal = 10
+    nbits_goal = 16
+
+    quantize_lut = True
     if quantize_lut == False:
         nbits_goal = 0
     nbits = nbits_goal # 要运行的量化比特数
