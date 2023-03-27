@@ -2069,8 +2069,8 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
         #     W = encoded_lstsq(X_enc=X_enc[i*N_step:(i+1)*N_step,:], Y=X_res[i*N_step:(i+1)*N_step,:], K=ncentroids)
         #     all_centroids_delta += W.reshape(ncodebooks, ncentroids_per_codebook, D) / step
 
-        intermediate_var_path = os.path.join(dir_now, "CsiTransformerAMM/intermediate_var")
-        centroids_before_ridge_path = os.path.join(intermediate_var_path, f"centroids{all_centroids.shape}_b_ridge.npy")
+        intermediate_var_path = os.path.join(dir_now, "CsiTransformerAMM/intermediate_var/npy/etl2")
+        centroids_before_ridge_path = os.path.join(intermediate_var_path, f"centroids{all_centroids.shape}_b_ridge_N{N}.npy")
         if not os.path.exists(centroids_before_ridge_path):
             np.save(centroids_before_ridge_path, all_centroids)
         if lut_work_const == -1:
@@ -2099,7 +2099,7 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
             # exit(0)
 
         all_centroids += all_centroids_delta
-        centroids_after_ridge_path = os.path.join(intermediate_var_path, f"centroids{all_centroids.shape}{lut_work_const}_a_ridge.npy")
+        centroids_after_ridge_path = os.path.join(intermediate_var_path, f"centroids{all_centroids.shape}{lut_work_const}_a_ridge_N{N}.npy")
         if not os.path.exists(centroids_after_ridge_path):
             np.save(centroids_after_ridge_path, all_centroids)
         if "verbose" in kwargs.keys():

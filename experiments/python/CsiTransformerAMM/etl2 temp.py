@@ -44,10 +44,10 @@ if auto_train_change_nbits:
     nbits_trained = 8
 if auto_train_change_upcast:
     upcast_trained = 16
-quantize_lut = False
-nbits_goal = 8
-upcast_goal = -1
-lut_work_const = -4
+quantize_lut = True
+nbits_goal = 16
+upcast_goal = 16
+lut_work_const = -1
 if quantize_lut == False:
     nbits_goal = 0
 nbits = nbits_goal # 要运行的量化比特数
@@ -57,8 +57,8 @@ test_sam_num = 1000 # 测试集样本数(如需修改，请同时修改下面的
 
 if not auto_train_change_nbits and not auto_train_change_upcast:
     ncodebooks = 512 # max:512
-    ncentroids = 32
-    train_sam_num = 1000 # 训练集样本数
+    ncentroids = 256
+    train_sam_num = 100 # 训练集样本数
 elif auto_train_change_nbits:
     param2change = "nbits"
     param_trained = nbits_trained
