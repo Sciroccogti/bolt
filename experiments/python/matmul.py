@@ -263,6 +263,17 @@ def estFactory(
     genDataFunc: Callable[[int, float, np.ndarray | None],
                           tuple[np.ndarray, np.ndarray | None, np.ndarray | None]] = sliceData,
 ):
+    """
+    Init an amm estimator
+
+    :param ncodebooks: C，码本数
+    :param ncentroids: K，质心数
+    :param nbits: 位宽，SQ 中用于量化 A、B 矩阵，Mithral 和 PQ 中用于量化 LUT 中存储的乘积
+    :param quantize_lut: 是否量化 Mithral 和 PQ 等的 LUT，若为 True 则会使用 nbits 中定义的位宽
+    :param upcast_every: 是否在累加乘积时，用求平均替代求和。< 2 则关闭。dists_enc 函数
+    :param lut_work_const: 是否用岭回归优化质心，< -1 则会分 -lut_work_const 步进行优化，= 1 则不优化。learn_mithral 函数
+    :param genDataFunc: 用于向 DPQ 提供训练数据
+    """
     methods = methods.DEFAULT_METHODS if methods is None else methods
     tasks = md.load_dft_train(X_path, W_path, Y_path, dir, bias_path) if tasks is None else tasks
     if isinstance(methods, str):
