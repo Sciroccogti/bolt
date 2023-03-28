@@ -25,10 +25,10 @@ from amm_methods import *
 import socket # Obtain the current host name, which can be used to select different data directories and result saving directories
 
 # %%
-# method = METHOD_MITHRAL
+method = METHOD_MITHRAL
 # method = METHOD_PQ
 # method = METHOD_PLUTO
-method = METHOD_MITHRALPQ
+# method = METHOD_MITHRALPQ
 # method = METHOD_EXACT
 # method = METHOD_SCALAR_QUANTIZE
 # for method in [METHOD_MITHRAL, METHOD_PQ]:
@@ -46,9 +46,9 @@ if auto_train_change_nbits:
 if auto_train_change_upcast:
     upcast_trained = 16
 quantize_lut = True
-nbits_goal = 32
+nbits_goal = 16
 upcast_goal = -1
-lut_work_const = -1
+lut_work_const = -4
 if quantize_lut == False:
     nbits_goal = 0
 nbits = nbits_goal # 要运行的量化比特数
@@ -56,8 +56,8 @@ upcast_every = upcast_goal # 要运行的upcast
 
 test_sam_num = 1000 # 测试集样本数(如需修改，请同时修改下面的读取文件，现文件默认1000个样本)
 
-for ncodebooks in [512]: # max:512
-    for ncentroids in [16,64,256]:
+for ncodebooks in [64]: # max:512
+    for ncentroids in [512,1024,2048]:
         if not auto_train_change_nbits and not auto_train_change_upcast:
             print(ncodebooks, ncentroids)
             train_sam_num = 1000 # 训练集样本数
