@@ -259,7 +259,7 @@ def estFactory(
     methods=['Mithral'], ntasks=1, ncodebooks=32, ncentroids=256,
     verbose=1, limit_ntasks=-1, tasks_all_same_shape=False, tasks=None,
     X_path="", W_path="", Y_path="", bias_path="", dir="",
-    nbits=8, quantize_lut=True, upcast_every=None, lut_work_const=-1,
+    nbits=8, quantize_lut=True, upcast_every=None, lut_work_const=-1, del0=False,
     genDataFunc: Callable[[int, float, np.ndarray | None],
                           tuple[np.ndarray, np.ndarray | None, np.ndarray | None]] = sliceData,
 ):
@@ -286,7 +286,7 @@ def estFactory(
     elif (METHOD_PLUTO in methods) or (METHOD_MITHRAL in methods):
         hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids,
                         'lut_work_const': lut_work_const, 'quantize_lut': quantize_lut,
-                        'nbits': nbits, 'upcast_every': upcast_every if upcast_every != None else 16}
+                        'nbits': nbits, 'upcast_every': upcast_every if upcast_every != None else 16, 'del0': del0,}
     elif (METHOD_PQ in methods) or (METHOD_MITHRALPQ in methods):
         hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids,
                         'quantize_lut': quantize_lut, 'nbits': nbits,

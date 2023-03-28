@@ -191,7 +191,7 @@ class Bucket(object):
         return create_bucket(X0, ids0, id0), create_bucket(X1, ids1, id1)
 
     def optimal_split_val(self, X, dim, possible_vals=None, X_orig=None,
-                          return_possible_vals_losses=False):
+                          return_possible_vals_losses=False, del0=False):
         if self.N < 2 or self.point_ids is None:
             # print("bucket.N < 2 return split_val 0:", self.N)
             if self.point_ids is None:
@@ -203,12 +203,11 @@ class Bucket(object):
         my_idxs = np.asarray(self.point_ids)
         if X_orig is not None:
             X_orig = X_orig[my_idxs]
-        delete_0_rows = 0
-        if delete_0_rows:
+        if del0:
             X_orig=delete_all_0_rows(X_orig)
             X_my_idxs=delete_all_0_rows(X[my_idxs])
             # 判断numpy数组X_del0是否为空
-            if X_del0.size == 0:
+            if X_my_idxs.size == 0:
                 return 0, 0
         else:
             X_my_idxs=X[my_idxs]
@@ -738,7 +737,7 @@ def learn_multisplits(
         # learn_quantize_params=True,
         # verbose=3):
         # verbose=2):
-        verbose=1):
+        verbose=1, **kwargs):
     # assert nsplits <= 4  # >4 splits means >16 split_vals for this func's impl
     # X:当前码本的学习数据矩阵 nsplits: 质心数以2为底的对数
 
@@ -838,7 +837,9 @@ def learn_multisplits(
                     dim, np.min(X[:, dim]), np.max(X[:, dim])))
             split_vals = []  # each bucket contributes one split val
             for b, buck in enumerate(buckets):
-                val, loss = buck.optimal_split_val(X, dim, X_orig=X_orig)
+                del0 = kwargs['del0'] and s < nsplits-1 # 只删除最后一次求最佳阈值前的输入X矩阵的全0行（最终求质心考虑0）：不行，性能更差，质心含0更高
+                # del0 = kwargs['del0'] and s > 0
+                val, loss = buck.optimal_split_val(X, dim, X_orig=X_orig, del0=del0)
                 losses[d] += loss
                 if d > 0 and losses[d] >= np.min(losses[:d]):
                     if verbose > 2:
@@ -2070,9 +2071,13 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
         #     all_centroids_delta += W.reshape(ncodebooks, ncentroids_per_codebook, D) / step
 
         intermediate_var_path = os.path.join(dir_now, "CsiTransformerAMM/intermediate_var/npy/etl2")
-        centroids_before_ridge_path = os.path.join(intermediate_var_path, f"centroids{all_centroids.shape}_b_ridge_N{N}.npy")
-        if not os.path.exists(centroids_before_ridge_path):
-            np.save(centroids_before_ridge_path, all_centroids)
+        if kwargs['del0']:
+            del0 = "_del0"
+        else:
+            del0 = ""
+        centroids_before_ridge_path = os.path.join(intermediate_var_path, f"centroids{all_centroids.shape}_b_ridge_N{N}{del0}.npy")
+        # if not os.path.exists(centroids_before_ridge_path):
+        np.save(centroids_before_ridge_path, all_centroids)
         if lut_work_const == -1:
             print("fitting dense lstsq to X_res")
             print(f"  with X_enc:{X_enc.shape} Y:{X_res.shape}")
@@ -2099,9 +2104,9 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
             # exit(0)
 
         all_centroids += all_centroids_delta
-        centroids_after_ridge_path = os.path.join(intermediate_var_path, f"centroids{all_centroids.shape}{lut_work_const}_a_ridge_N{N}.npy")
-        if not os.path.exists(centroids_after_ridge_path):
-            np.save(centroids_after_ridge_path, all_centroids)
+        centroids_after_ridge_path = os.path.join(intermediate_var_path, f"centroids{all_centroids.shape}{lut_work_const}_a_ridge_N{N}{del0}.npy")
+        # if not os.path.exists(centroids_after_ridge_path):
+        np.save(centroids_after_ridge_path, all_centroids)
         if "verbose" in kwargs.keys():
             if kwargs["verbose"] > 3:
                 np.set_printoptions(threshold=np.inf)

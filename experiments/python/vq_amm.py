@@ -490,10 +490,11 @@ class PlutoMatmul(VQMatmul):
 class MithralMatmul(VQMatmul):
 
     def __init__(self, ncodebooks, ncentroids: int = 16, nonzeros_heuristic="pq",
-                 lut_work_const=-1, upcast_every=16, quantize_lut=True, nbits=8):
+                 lut_work_const=-1, upcast_every=16, quantize_lut=True, nbits=8, del0=False):#del0:True:在最后一次之前的求最佳分割阈值时删去X数据集的全零行
         self.nonzeros_heuristic = nonzeros_heuristic
         self.lut_work_const = lut_work_const
         self.quantize_lut = quantize_lut
+        self.del0 = del0
         if (lut_work_const is not None) and (lut_work_const > 0) and (
                 lut_work_const > ncodebooks):
             raise amm.InvalidParametersException(
@@ -517,13 +518,14 @@ class MithralMatmul(VQMatmul):
             upcast_every=self.upcast_every,
             quantize_lut=self.quantize_lut,
             nbits=self.nbits,
+            del0=self.del0
         )
         return mithral_enc
 
     def get_params(self):
         return {'ncodebooks': self.ncodebooks, 'ncentroids': self.ncentroids,
                 'quantize_lut': self.quantize_lut, 'nbits': self.nbits,
-                'upcast_every': self.upcast_every, 'lut_work_const': self.lut_work_const}
+                'upcast_every': self.upcast_every, 'lut_work_const': self.lut_work_const, 'del0': self.del0}
 
     def get_speed_metrics(self, A, B, fixedA=False, fixedB=False):
         N, D = A.shape
