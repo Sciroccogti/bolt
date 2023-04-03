@@ -34,7 +34,8 @@ else:
     dir_now = os.getcwd()
 sys.path.append(dir_now)
 sys.path.append(os.path.join(dir_now, '../../../../ridge'))
-import ridge
+# import ridge
+import pickle
 # from random import random
 # def bucket_id_to_new_bucket_ids(old_id):
 #     i = 2 * old_id
@@ -2069,8 +2070,10 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
         # print("all_splits\n", all_splits)
         
         # print("X_enc\n",X_enc)
-
+        # if 'intermediate_var_path' in kwargs.keys():
+        #     intermediate_var_path = kwargs['intermediate_var_path']
         intermediate_var_path = os.path.join(dir_now, "CsiTransformerAMM/intermediate_var/npy/etl2")
+        multisplit_var_path = os.path.join(dir_now, "CsiTransformerAMM/intermediate_var/pkl/etl1")
         if kwargs['del0']:
             del0 = "_del0"
         else:
@@ -2078,6 +2081,10 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
         centroids_before_ridge_path = os.path.join(intermediate_var_path, f"centroids{all_centroids.shape}_b_ridge_N{N}{del0}.npy")
         # if not os.path.exists(centroids_before_ridge_path):
         np.save(centroids_before_ridge_path, all_centroids)
+        with open(os.path.join(multisplit_var_path, f"CKD{all_centroids.shape}_split.pkl"), 'wb') as f:
+            pickle.dump(all_splits, f)
+        with open(os.path.join(multisplit_var_path, f"CKD{all_centroids.shape}_bucket.pkl"), 'wb') as f:
+            pickle.dump(all_buckets, f)
         if lut_work_const < -1:
             step = -lut_work_const
             slice = N // step
@@ -2100,13 +2107,6 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
             mse_res = (X_res * X_res).mean()
             print("X_res mse / X mse after lstsq: ", mse_res / mse_orig)
             # exit(0)
-        elif lut_work_const < -1:
-            step = -lut_work_const
-            N_step = N // step
-            all_centroids_delta = np.zeros((ncodebooks, ncentroids_per_codebook, D))
-            for i in range(step):
-                W = encoded_lstsq(X_enc=X_enc[i*N_step:(i+1)*N_step,:], Y=X_res[i*N_step:(i+1)*N_step,:], K=ncentroids)
-                all_centroids_delta += W.reshape(ncodebooks, ncentroids_per_codebook, D) / step
         else:
             print("fitting sparse lstsq to X_res")
             print(f"  with X_enc:{X_enc.shape} Y:{X_res.shape}")
