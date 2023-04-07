@@ -15,6 +15,7 @@ bits = 256
 batch_size = 32
 S1 = [32,32,1,32,32,1] # ex_linear1in大小为batch_size*S1*S2;etl1,etl2,fc1,dtl1,dtl2,fc2的S1大小
 S1_dict = {"etl1":32, "etl2":32, "fc1":1, "dtl1":32, "dtl2":32, "fc2":1}
+D_dict = {"etl1":64, "etl2":512, "fc1":2048}
 nbits = 8 # # METHOD_SCALAR_QUANTIZE的量化比特数
 # whole_train_sam_num = 7000 # 完整的训练集样本数
 # smaller_train_sam_num = 3000 # 减小内存消耗的训练集样本数
@@ -248,8 +249,55 @@ def dataset_prepare(direc, linear_name_full, feedback_bits, sam_num_list, batch_
                         join_from_intermediate_j1(cu.intermediate_path, dire, dire_train, feedback_bits, intermediate_name, sam_num, train_or_test)
                     elif linear_name_full in out_transformer_list:
                         join_from_intermediate(cu.intermediate_path, dire, dire_train, feedback_bits, intermediate_name, sam_num, train_or_test)
-                
-def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, param2change:str, param_trained, param_goal, theotherparam:str, theotherparam_val, flag = '', excel_suffix = ''):
+
+def find_specified_params_perform_best(linear_name:str, method:str, feedback_bits:int, 
+                                        cb:int, ct:int, nbits:int, upcast_every:int, 
+                                        lut_work_const:int=0, excel_suffix = ''):
+    '''
+    从已经运行的符合参数要求的AMM结果中，寻找性能最好的参数们。
+
+    Parameters
+    ----------
+    linear_name : str
+        要运行的全连接层名(缩写)。
+    method : str
+        要运行的AMM方法。
+    feedback_bits : int
+        CsiTransformer压缩后的长度。
+    cb : int
+        码本数。
+    ct : int
+        质心数。
+    nbits : int
+        LUT量化位数。
+    upcast_every : int
+        MADDNESS的upcast_every参数。
+    lut_work_const : int, optional
+        岭回归参数。 默认为0，表示不限制寻找范围中的lut_work_const。
+    '''
+    excel_path = os.path.join(dir_now, 
+                              '../../../../csi_transformer/performance',
+                              '%s_f%i%s.xls' % (linear_name, feedback_bits, 
+                                                excel_suffix))
+    # 读取 Excel 文件并将其存储在变量 df 中
+    df = pd.read_excel(excel_path)
+    # 从df取出符合条件的行
+    if lut_work_const == 0:
+        df_meet = df[(df['AMM_method'] == method) & (df['cb'] == cb) & (df['ct'] == ct) 
+                & (df['nbits'] == nbits) & (df['upcast_every'] == upcast_every)]
+    else:
+        df_meet = df[(df['AMM_method'] == method) & (df['cb'] == cb) & (df['ct'] == ct) 
+                & (df['nbits'] == nbits) & (df['upcast_every'] == upcast_every)
+                & (df['lut_work_const'] == lut_work_const)]
+    # 从df_meet中取出NMSE最小的行
+    df_best = df_meet[df_meet['NMSE'] == df_meet['NMSE'].min()]
+    return df_best
+    
+
+def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, 
+                               param2change:str, param_trained, param_goal, 
+                               theotherparam:str, theotherparam_val, flag = '', 
+                               excel_suffix = ''):
     '''
     根据已经运行的符合参数要求的AMM结果, 返回待运行的码本数、质心数、训练集batch数组合的DataFrame, 适用于改变AMM method的某个参数(如nbits、upcast_every)后, 需要依照已运行的改变参数的之前的各点的cb、ct、ntr(取max)参数运行改变参数之后的点的情况。
     
