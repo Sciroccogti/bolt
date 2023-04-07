@@ -282,6 +282,20 @@ def estFactory(
         limit_ntasks = np.inf
     # method_id
     method_id = methods[0]
+    if "ex_linear1" in X_path:
+        linear_name = "etl1"
+    elif "ex_linear2" in X_path:
+        linear_name = "etl2"
+    elif "fc1" in X_path:
+        linear_name = "fc1"
+    elif "dx_linear1" in X_path:
+        linear_name = "dtl1"
+    elif "dx_linear2" in X_path:
+        linear_name = "dtl2"
+    elif "fc2" in X_path:
+        linear_name = "fc2"
+    else:
+        linear_name = "unknown"
     # hparams_dict
     # nc: 1 2 4 8 16 32
     # lut: 2 4 -1
@@ -297,7 +311,8 @@ def estFactory(
     elif (METHOD_PLUTO in methods) or (METHOD_MITHRAL in methods):
         hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids,
                         'lut_work_const': lut_work_const, 'quantize_lut': quantize_lut,
-                        'nbits': nbits, 'upcast_every': upcast_every if upcast_every != None else 16, 'del0': del0,}
+                        'nbits': nbits, 'upcast_every': upcast_every if upcast_every != None else 16, 
+                        'del0': del0, 'linear_name': linear_name}
     elif (METHOD_PQ in methods) or (METHOD_MITHRALPQ in methods):
         hparams_dict = {'ncodebooks': ncodebooks, 'ncentroids': ncentroids,
                         'quantize_lut': quantize_lut, 'nbits': nbits,
@@ -382,7 +397,7 @@ def estFactory(
     return est
 
 
-def eval_matmul(est, X_test=None, W_test=None):
+def eval_matmul(est, X_test=None, W_test=None, reset=True):
     # task = list(enumerate(md.load_dft_test()))[0][1]
     # task = list(enumerate(md.construct_dft_test(X_test, W_test))[0][1])
     # tast = md.load_dft_tasks()
@@ -390,8 +405,11 @@ def eval_matmul(est, X_test=None, W_test=None):
         X_test = X_test.numpy()
     except:
         pass
-    est.reset_for_new_task()
-    est.set_B(W_test)
+    if reset:
+        est.reset_for_new_task()
+        est.set_B(W_test)
+    else:
+        est.reset_for_new_task(A_only=True)
     Y_hat = est.predict(X_test, W_test)
     return Y_hat
 

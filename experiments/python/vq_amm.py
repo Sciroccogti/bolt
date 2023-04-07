@@ -6,6 +6,20 @@ import numpy as np
 import vquantizers as vq
 import amm
 
+import sys
+import os
+# 获取当前文件所在的文件夹路径
+if "__file__" in globals():
+    # 获取__file__变量的值
+    file_path = __file__
+    # 获取当前文件所在的文件夹路径
+    dir_now = os.path.dirname(file_path)
+else:
+    # 获取当前工作目录
+    dir_now = os.getcwd()
+sys.path.append(dir_now)
+import pickle
+
 KEY_NLOOKUPS = 'nlookups'
 
 
@@ -39,9 +53,10 @@ class VQMatmul(amm.ApproxMatmul, abc.ABC):
     def _get_encoder_kwargs(self):  # to be overriden by subclasses
         return {}
 
-    def reset_for_new_task(self):
+    def reset_for_new_task(self, A_only=False):
         self.A_enc = None
-        self.luts = None
+        if not A_only:
+            self.luts = None
 
     def fit(self, A, B, Y=None):
         _, D = A.shape
@@ -490,11 +505,13 @@ class PlutoMatmul(VQMatmul):
 class MithralMatmul(VQMatmul):
 
     def __init__(self, ncodebooks, ncentroids: int = 16, nonzeros_heuristic="pq",
-                 lut_work_const=-1, upcast_every=16, quantize_lut=True, nbits=8, del0=False):#del0:True:在最后一次之前的求最佳分割阈值时删去X数据集的全零行
+                 lut_work_const=-1, upcast_every=16, quantize_lut=True, nbits=8, 
+                 del0=False, linear_name="unknown"):#del0:True:在最后一次之前的求最佳分割阈值时删去X数据集的全零行
         self.nonzeros_heuristic = nonzeros_heuristic
         self.lut_work_const = lut_work_const
         self.quantize_lut = quantize_lut
         self.del0 = del0
+        self.linear_name = linear_name
         if (lut_work_const is not None) and (lut_work_const > 0) and (
                 lut_work_const > ncodebooks):
             raise amm.InvalidParametersException(
@@ -518,14 +535,16 @@ class MithralMatmul(VQMatmul):
             upcast_every=self.upcast_every,
             quantize_lut=self.quantize_lut,
             nbits=self.nbits,
-            del0=self.del0
+            del0=self.del0,
+            linear_name=self.linear_name
         )
         return mithral_enc
 
     def get_params(self):
         return {'ncodebooks': self.ncodebooks, 'ncentroids': self.ncentroids,
                 'quantize_lut': self.quantize_lut, 'nbits': self.nbits,
-                'upcast_every': self.upcast_every, 'lut_work_const': self.lut_work_const, 'del0': self.del0}
+                'upcast_every': self.upcast_every, 'lut_work_const': self.lut_work_const, 
+                'del0': self.del0, 'linear_name': self.linear_name}
 
     def get_speed_metrics(self, A, B, fixedA=False, fixedB=False):
         N, D = A.shape
@@ -548,6 +567,10 @@ class MithralMatmul(VQMatmul):
             self.set_A(A)
         if self.luts is None:
             self.set_B(B)
+        intermediate_var_path = os.path.join(dir_now, "CsiTransformerAMM/intermediate_var/npy/%s" % self.linear_name)
+        if not os.path.exists(intermediate_var_path):
+            os.makedirs(intermediate_var_path)
+        np.save(os.path.join(intermediate_var_path, f"A_enc_{self.A_enc.shape}_{self.ncodebooks}_{self.ncentroids}.npy"), self.A_enc)
         return self.enc.dists_enc(self.A_enc, self.luts,
                                   offset=self.offset, scale=self.scale)
 

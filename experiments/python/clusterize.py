@@ -33,7 +33,7 @@ else:
     # 获取当前工作目录
     dir_now = os.getcwd()
 sys.path.append(dir_now)
-sys.path.append(os.path.join(dir_now, '../../../../ridge'))
+# sys.path.append(os.path.join(dir_now, '../../../../ridge'))
 # import ridge
 import pickle
 # from random import random
@@ -2072,8 +2072,8 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
         # print("X_enc\n",X_enc)
         # if 'intermediate_var_path' in kwargs.keys():
         #     intermediate_var_path = kwargs['intermediate_var_path']
-        intermediate_var_path = os.path.join(dir_now, "CsiTransformerAMM/intermediate_var/npy/etl2")
-        multisplit_var_path = os.path.join(dir_now, "CsiTransformerAMM/intermediate_var/pkl/etl1")
+        intermediate_var_path = os.path.join(dir_now, "CsiTransformerAMM/intermediate_var/npy/%s" % kwargs['linear_name'])
+        multisplit_var_path = os.path.join(dir_now, "CsiTransformerAMM/intermediate_var/pkl/%s" % kwargs['linear_name'])
         if kwargs['del0']:
             del0 = "_del0"
         else:
@@ -2081,9 +2081,9 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
         centroids_before_ridge_path = os.path.join(intermediate_var_path, f"centroids{all_centroids.shape}_b_ridge_N{N}{del0}.npy")
         # if not os.path.exists(centroids_before_ridge_path):
         np.save(centroids_before_ridge_path, all_centroids)
-        with open(os.path.join(multisplit_var_path, f"CKD{all_centroids.shape}_split.pkl"), 'wb') as f:
+        with open(os.path.join(multisplit_var_path, f"CKD{all_centroids.shape}_split_N{N}.pkl"), 'wb') as f:
             pickle.dump(all_splits, f)
-        with open(os.path.join(multisplit_var_path, f"CKD{all_centroids.shape}_bucket.pkl"), 'wb') as f:
+        with open(os.path.join(multisplit_var_path, f"CKD{all_centroids.shape}_bucket_N{N}.pkl"), 'wb') as f:
             pickle.dump(all_buckets, f)
         if lut_work_const < -1:
             step = -lut_work_const
