@@ -662,9 +662,6 @@ class MithralEncoder(MultiCodebookEncoder):
 
     def encode_Q(self, Q):
         '''Q是B的转置, 本函数会在读入矩阵B的时候调用, 即 set_B'''
-        np.save("./K16C128.npy", self.centroids[0, :, :2])
-        # print(np.shape(self.centroids[0, :, :2]))
-
         Q = np.atleast_2d(Q)
         luts = np.zeros((Q.shape[0], self.ncodebooks, self.ncentroids))
         for i, q in enumerate(Q):
