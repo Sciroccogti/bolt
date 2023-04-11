@@ -16,6 +16,7 @@ batch_size = 32
 S1 = [32,32,1,32,32,1] # ex_linear1in大小为batch_size*S1*S2;etl1,etl2,fc1,dtl1,dtl2,fc2的S1大小
 S1_dict = {"etl1":32, "etl2":32, "fc1":1, "dtl1":32, "dtl2":32, "fc2":1}
 D_dict = {"etl1":64, "etl2":512, "fc1":2048}
+batch_N_dict = {"etl1":1024, "etl2":1024, "fc1":32, "dtl1":1024, "dtl2":1024, "fc2":32}
 nbits = 8 # # METHOD_SCALAR_QUANTIZE的量化比特数
 # whole_train_sam_num = 7000 # 完整的训练集样本数
 # smaller_train_sam_num = 3000 # 减小内存消耗的训练集样本数

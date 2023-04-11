@@ -2558,9 +2558,6 @@ def assignments_from_splits(X, splits):
 
 
 def assignments_from_multisplits(X, splits):
-    '''
-    assignments_from_multisplits函数与assignments_from_splits函数类似, 但它多了一个前置步骤, 即对于每一个split, 将X的每一行分成若干组。然后, 对于每一个组, 都会根据splits中的信息将其编码。
-    '''
     # 计算 splits 中的每一个 split 对 X 的每一行的分类结果
     N, _ = X.shape
     nsplits = len(splits)
