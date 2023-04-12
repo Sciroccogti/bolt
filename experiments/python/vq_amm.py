@@ -506,12 +506,13 @@ class MithralMatmul(VQMatmul):
 
     def __init__(self, ncodebooks, ncentroids: int = 16, nonzeros_heuristic="pq",
                  lut_work_const=-1, upcast_every=16, quantize_lut=True, nbits=8, 
-                 del0=False, linear_name="unknown"):#del0:True:在最后一次之前的求最佳分割阈值时删去X数据集的全零行
+                 del0=False, linear_name="unknown", force_val=""):#del0:True:在最后一次之前的求最佳分割阈值时删去X数据集的全零行
         self.nonzeros_heuristic = nonzeros_heuristic
         self.lut_work_const = lut_work_const
         self.quantize_lut = quantize_lut
         self.del0 = del0
         self.linear_name = linear_name
+        self.force_val = force_val
         if (lut_work_const is not None) and (lut_work_const > 0) and (
                 lut_work_const > ncodebooks):
             raise amm.InvalidParametersException(
@@ -536,7 +537,8 @@ class MithralMatmul(VQMatmul):
             quantize_lut=self.quantize_lut,
             nbits=self.nbits,
             del0=self.del0,
-            linear_name=self.linear_name
+            linear_name=self.linear_name,
+            force_val=self.force_val
         )
         return mithral_enc
 
@@ -544,7 +546,7 @@ class MithralMatmul(VQMatmul):
         return {'ncodebooks': self.ncodebooks, 'ncentroids': self.ncentroids,
                 'quantize_lut': self.quantize_lut, 'nbits': self.nbits,
                 'upcast_every': self.upcast_every, 'lut_work_const': self.lut_work_const, 
-                'del0': self.del0, 'linear_name': self.linear_name}
+                'del0': self.del0, 'linear_name': self.linear_name, 'force_val': self.force_val}
 
     def get_speed_metrics(self, A, B, fixedA=False, fixedB=False):
         N, D = A.shape

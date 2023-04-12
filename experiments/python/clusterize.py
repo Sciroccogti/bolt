@@ -192,7 +192,8 @@ class Bucket(object):
         return create_bucket(X0, ids0, id0), create_bucket(X1, ids1, id1)
 
     def optimal_split_val(self, X, dim, possible_vals=None, X_orig=None,
-                          return_possible_vals_losses=False, del0=False):
+                          return_possible_vals_losses=False, del0=False,
+                          force_val=""):
         if self.N < 2 or self.point_ids is None:
             # print("bucket.N < 2 return split_val 0:", self.N)
             if self.point_ids is None:
@@ -214,7 +215,7 @@ class Bucket(object):
             X_my_idxs=X[my_idxs]
         return optimal_split_val(
             X_my_idxs, dim, possible_vals=possible_vals, X_orig=X_orig,
-            return_possible_vals_losses=return_possible_vals_losses)
+            return_possible_vals_losses=return_possible_vals_losses, force_val=force_val)
 
     def col_means(self):
         return self.sumX.astype(np.float64) / max(1, self.N)
@@ -293,7 +294,7 @@ def _cumsse_cols(X):
 @_memory.cache
 def optimal_split_val(X, dim, possible_vals=None, X_orig=None,
                       # return_possible_vals_losses=False, force_val='median'):
-                      return_possible_vals_losses=False, force_val=None,
+                      return_possible_vals_losses=False, force_val='',
                       # shrink_towards_median=True):
                       shrink_towards_median=False):
     """
@@ -846,7 +847,7 @@ def learn_multisplits(
             for b, buck in enumerate(buckets):
                 del0 = kwargs['del0'] and s < nsplits-1 # 只删除最后一次求最佳阈值前的输入X矩阵的全0行（最终求质心考虑0）：不行，性能更差，质心含0更高
                 # del0 = kwargs['del0'] and s > 0
-                val, loss = buck.optimal_split_val(X, dim, X_orig=X_orig, del0=del0)
+                val, loss = buck.optimal_split_val(X, dim, X_orig=X_orig, del0=del0, force_val=kwargs['force_val'])
                 losses[d] += loss
                 if d > 0 and losses[d] >= np.min(losses[:d]):
                     if verbose > 2:
@@ -2078,12 +2079,13 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
             del0 = "_del0"
         else:
             del0 = ""
-        centroids_before_ridge_path = os.path.join(intermediate_var_path, f"centroids{all_centroids.shape}_b_ridge_N{N}{del0}.npy")
+        split_method = '_mean'
+        centroids_before_ridge_path = os.path.join(intermediate_var_path, f"centroids{all_centroids.shape}_b_ridge_N{N}{del0}{split_method}.npy")
         # if not os.path.exists(centroids_before_ridge_path):
         np.save(centroids_before_ridge_path, all_centroids)
-        with open(os.path.join(multisplit_var_path, f"CKD{all_centroids.shape}_split_N{N}.pkl"), 'wb') as f:
+        with open(os.path.join(multisplit_var_path, f"CKD{all_centroids.shape}_split_N{N}{split_method}.pkl"), 'wb') as f:
             pickle.dump(all_splits, f)
-        with open(os.path.join(multisplit_var_path, f"CKD{all_centroids.shape}_bucket_N{N}.pkl"), 'wb') as f:
+        with open(os.path.join(multisplit_var_path, f"CKD{all_centroids.shape}_bucket_N{N}{split_method}.pkl"), 'wb') as f:
             pickle.dump(all_buckets, f)
         if lut_work_const < -1:
             step = -lut_work_const
@@ -2123,7 +2125,7 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
             # exit(0)
 
         all_centroids += all_centroids_delta
-        centroids_after_ridge_path = os.path.join(intermediate_var_path, f"centroids{all_centroids.shape}{lut_work_const}_a_ridge_N{N}{del0}.npy")
+        centroids_after_ridge_path = os.path.join(intermediate_var_path, f"centroids{all_centroids.shape}{lut_work_const}_a_ridge_N{N}{del0}{split_method}.npy")
         # if not os.path.exists(centroids_after_ridge_path):
         np.save(centroids_after_ridge_path, all_centroids)
         if "verbose" in kwargs.keys():

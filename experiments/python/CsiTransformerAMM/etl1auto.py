@@ -53,6 +53,7 @@ if quantize_lut == False:
     nbits_goal = 0
 nbits = nbits_goal # 要运行的量化比特数
 upcast_every = upcast_goal # 要运行的upcast
+force_val = 'mean'
 
 test_sam_num = 1000 # 测试集样本数(如需修改，请同时修改下面的读取文件，现文件默认1000个样本)
 
@@ -103,12 +104,12 @@ for ncodebooks in [64]: # max:512
             est3 = mm.estFactory(X_path=AMM_train_dirs["linearin_path_train"], W_path=AMM_train_dirs["weightpath"], 
                                 Y_path=AMM_train_dirs["y_train"], dir= AMM_train_dirs["dir_train"], ncodebooks=ncodebooks, 
                                 ncentroids=ncentroids, methods=[method], nbits=nbits, quantize_lut = quantize_lut, 
-                                upcast_every=upcast_every, bias_path=AMM_train_dirs["biaspath"],lut_work_const=-1)
+                                upcast_every=upcast_every, bias_path=AMM_train_dirs["biaspath"], lut_work_const=-1, force_val=force_val)
         elif method == METHOD_MITHRAL:
             est3 = mm.estFactory(X_path=AMM_train_dirs["linearin_path_train"], W_path=AMM_train_dirs["weightpath"], 
                                 Y_path=AMM_train_dirs["y_train"], dir= AMM_train_dirs["dir_train"], ncodebooks=ncodebooks, 
                                 ncentroids=ncentroids, methods=[method], nbits=nbits, quantize_lut = quantize_lut,
-                                upcast_every=upcast_every, lut_work_const=lut_work_const)
+                                upcast_every=upcast_every, lut_work_const=lut_work_const, force_val=force_val)
         else:
             est3 = mm.estFactory(X_path=AMM_train_dirs["linearin_path_train"], W_path=AMM_train_dirs["weightpath"], 
                                 Y_path=AMM_train_dirs["y_train"], dir= AMM_train_dirs["dir_train"], ncodebooks=ncodebooks, 
@@ -137,9 +138,10 @@ for ncodebooks in [64]: # max:512
                                                                 (method, linear_name, train_sam_num, test_sam_num, feedback_bits, nbits)), 
                                                                 y_out_last_re.astype(np.float32))
         elif method == METHOD_MITHRAL or method == METHOD_PLUTO:
-            np.save(os.path.join(AMM_train_dirs["dir_result"], '%s%s_trsam%i_tesam%i_fb%i_cb%i_ct%i_ql%i_nb%i_uc%i_lwc%i.npy' % 
+            np.save(os.path.join(AMM_train_dirs["dir_result"], '%s%s_trsam%i_tesam%i_fb%i_cb%i_ct%i_ql%i_nb%i_uc%i_lwc%i_fv%s.npy' % 
                                                                 (method, linear_name, train_sam_num, test_sam_num, feedback_bits, 
-                                                                ncodebooks, ncentroids, quantize_lut, nbits, upcast_every, lut_work_const)), y_out_last_re)
+                                                                ncodebooks, ncentroids, quantize_lut, nbits, upcast_every, lut_work_const,
+                                                                force_val)), y_out_last_re)
         elif method == METHOD_PQ or method == METHOD_MITHRALPQ:
             np.save(os.path.join(AMM_train_dirs["dir_result"], '%s%s_trsam%i_tesam%i_fb%i_cb%i_ct%i_ql%i_nb%i_uc%i.npy' % 
                                                                 (method, linear_name, train_sam_num, test_sam_num, feedback_bits, 
