@@ -21,10 +21,14 @@ import myopq as myopq
 from joblib import Memory
 _memory = Memory('.', verbose=0)
 
+from re import match
 # def bucket_id_to_new_bucket_ids(old_id):
 #     i = 2 * old_id
 #     return i, i + 1
 
+def delete_all_0_rows(x):
+    x = np.delete(x, np.where(np.all(x == 0, axis=1)), axis=0)
+    return x
 
 class Bucket(object):
     __slots__ = 'N D id sumX sumX2 point_ids support_add_and_remove'.split()
@@ -105,12 +109,13 @@ class Bucket(object):
         # print("my_idxs shape, dtype", my_idxs.shape, my_idxs.dtype)
         X = X[my_idxs]
         X_orig = X if X_orig is None else X_orig[my_idxs]
-        mask = X_orig[:, dim] < val  # X_orig的dim列小于val的值所在的行（返回值为布尔向量）
+        mask = X_orig[:, dim] <= val # X_orig的dim列小于val的值所在的行（返回值为布尔向量）
+
         not_mask = ~mask
-        X0 = X[mask]  # X_orig的dim列小于val的值所在的行取出来
-        X1 = X[not_mask]  # X_orig的dim列大于等于val的值所在的行取出来
-        ids0 = my_idxs[mask]  # X_orig的dim列小于val的值所在的行的序号
-        ids1 = my_idxs[not_mask]  # X_orig的dim列大于等于val的值所在的行的序号
+        X0 = X[mask] # X_orig的dim列小于val的值所在的行取出来
+        X1 = X[not_mask] # X_orig的dim列大于等于val的值所在的行取出来
+        ids0 = my_idxs[mask] # X_orig的dim列小于val的值所在的行的序号
+        ids1 = my_idxs[not_mask] # X_orig的dim列大于等于val的值所在的行的序号
 
         def create_bucket(points, ids, bucket_id):
             sumX = points.sum(axis=0) if len(ids) else None
@@ -122,7 +127,8 @@ class Bucket(object):
         return create_bucket(X0, ids0, id0), create_bucket(X1, ids1, id1)
 
     def optimal_split_val(self, X, dim, possible_vals=None, X_orig=None,
-                          return_possible_vals_losses=False):
+                          return_possible_vals_losses=False, del0=False,
+                          force_val=""):
         if self.N < 2 or self.point_ids is None:
             # print("bucket.N < 2 return split_val 0:", self.N)
             if self.point_ids is None:
@@ -134,9 +140,17 @@ class Bucket(object):
         my_idxs = np.asarray(self.point_ids)
         if X_orig is not None:
             X_orig = X_orig[my_idxs]
+        if del0:
+            X_orig=delete_all_0_rows(X_orig)
+            X_my_idxs=delete_all_0_rows(X[my_idxs])
+            # 判断numpy数组X_del0是否为空
+            if X_my_idxs.size == 0:
+                return 0, 0
+        else:
+            X_my_idxs=X[my_idxs]
         return optimal_split_val(
-            X[my_idxs], dim, possible_vals=possible_vals, X_orig=X_orig,
-            return_possible_vals_losses=return_possible_vals_losses)
+            X_my_idxs, dim, possible_vals=possible_vals, X_orig=X_orig,
+            return_possible_vals_losses=return_possible_vals_losses, force_val=force_val)
 
     def col_means(self):
         return self.sumX.astype(np.float64) / max(1, self.N)
@@ -215,7 +229,7 @@ def _cumsse_cols(X):
 @_memory.cache
 def optimal_split_val(X, dim, possible_vals=None, X_orig=None,
                       # return_possible_vals_losses=False, force_val='median'):
-                      return_possible_vals_losses=False, force_val=None,
+                      return_possible_vals_losses=False, force_val='',
                       # shrink_towards_median=True):
                       shrink_towards_median=False):
     """
@@ -666,7 +680,7 @@ def learn_multisplits(
         # learn_quantize_params=True,
         # verbose=3):
         # verbose=2):
-        verbose=1):
+        verbose=1, **kwargs):
     # assert nsplits <= 4  # >4 splits means >16 split_vals for this func's impl
     # X:当前码本的学习数据矩阵 nsplits: 质心数以2为底的对数
 
@@ -766,7 +780,24 @@ def learn_multisplits(
                     dim, np.min(X[:, dim]), np.max(X[:, dim])))
             split_vals = []  # each bucket contributes one split val
             for b, buck in enumerate(buckets):
-                val, loss = buck.optimal_split_val(X, dim, X_orig=X_orig)
+                del0 = kwargs['del0'] and s < nsplits-1 # 只删除最后一次求最佳阈值前的输入X矩阵的全0行（最终求质心考虑0）：不行，性能更差，质心含0更高
+                pattern1 = r'^\d+mean$'
+                pattern2 = r'^\d+median$'
+                if kwargs['force_val'] in ['', 'mean', 'median']:
+                    force_val = kwargs['force_val']
+                elif match(pattern1, kwargs['force_val']): # '16mean'
+                    cumsse_th = int(kwargs['force_val'].split('mean')[0])
+                    if 2 ** nsplits < cumsse_th:
+                        force_val = ''
+                    else:
+                        force_val = 'mean'
+                elif match(pattern2, kwargs['force_val']):
+                    cumsse_th = int(kwargs['force_val'].split('median')[0])
+                    if 2 ** nsplits < cumsse_th:
+                        force_val = ''
+                    else:
+                        force_val = 'median'
+                val, loss = buck.optimal_split_val(X, dim, X_orig=X_orig, del0=del0, force_val=force_val)
                 losses[d] += loss
                 if d > 0 and losses[d] >= np.min(losses[:d]):
                     if verbose > 2:
@@ -942,13 +973,17 @@ def _densify_X_enc(X_enc, K=16):
     return out
 
 
-def _fit_ridge_enc(X_enc=None, Y=None, K=16, lamda=1, X_bin=None):
+def _fit_ridge_enc(X_enc=None, Y=None, K=16, lamda=1, X_bin=None, mode=1):
     if X_bin is None:
         X_bin = _densify_X_enc(X_enc, K=K)
-    est = linear_model.Ridge(fit_intercept=False, alpha=lamda)
-    est.fit(X_bin, Y)
-    # return est.coef_.T
-    sk_result = est.coef_.T
+    if mode == 1:
+        est = linear_model.Ridge(fit_intercept=False, alpha=lamda, solver="auto")
+        est.fit(X_bin, Y)
+        # return est.coef_.T
+        sk_result = est.coef_.T
+    else:
+        coef = ridge.ridge(stim=X_bin, resp=Y, alpha=lamda)
+        sk_result = coef.T
     """
     G = torch.from_numpy(X_bin.astype(np.float32))
     A_res = torch.from_numpy(Y)
@@ -1190,7 +1225,7 @@ def encoded_lstsq(X_enc=None, X_bin=None, Y=None, K=16, XtX=None, XtY=None,
                   precondition=True, stable_ridge=True):
 
     if stable_ridge:
-        return _fit_ridge_enc(X_enc=X_enc, Y=Y, X_bin=X_bin, K=K, lamda=1)
+        return _fit_ridge_enc(X_enc=X_enc, Y=Y, X_bin=X_bin, K=K, lamda=1, mode=1)
     print("not doing sklearn")
     exit(0)
 
@@ -2438,9 +2473,6 @@ def assignments_from_splits(X, splits):
 
 
 def assignments_from_multisplits(X, splits):
-    '''
-    assignments_from_multisplits函数与assignments_from_splits函数类似, 但它多了一个前置步骤, 即对于每一个split, 将X的每一行分成若干组。然后, 对于每一个组, 都会根据splits中的信息将其编码。
-    '''
     # 计算 splits 中的每一个 split 对 X 的每一行的分类结果
     N, _ = X.shape
     nsplits = len(splits)
