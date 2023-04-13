@@ -6,20 +6,6 @@ import numpy as np
 import vquantizers as vq
 import amm
 
-import sys
-import os
-# 获取当前文件所在的文件夹路径
-if "__file__" in globals():
-    # 获取__file__变量的值
-    file_path = __file__
-    # 获取当前文件所在的文件夹路径
-    dir_now = os.path.dirname(file_path)
-else:
-    # 获取当前工作目录
-    dir_now = os.getcwd()
-sys.path.append(dir_now)
-import pickle
-
 KEY_NLOOKUPS = 'nlookups'
 
 
@@ -569,10 +555,6 @@ class MithralMatmul(VQMatmul):
             self.set_A(A)
         if self.luts is None:
             self.set_B(B)
-        intermediate_var_path = os.path.join(dir_now, "CsiTransformerAMM/intermediate_var/npy/%s" % self.linear_name)
-        if not os.path.exists(intermediate_var_path):
-            os.makedirs(intermediate_var_path)
-        np.save(os.path.join(intermediate_var_path, f"A_enc_{self.A_enc.shape}_{self.ncodebooks}_{self.ncentroids}.npy"), self.A_enc)
         return self.enc.dists_enc(self.A_enc, self.luts,
                                   offset=self.offset, scale=self.scale)
 

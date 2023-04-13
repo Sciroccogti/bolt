@@ -21,59 +21,14 @@ import myopq as myopq
 from joblib import Memory
 _memory = Memory('.', verbose=0)
 
-import sys
-import os
-# 获取当前文件所在的文件夹路径
-if "__file__" in globals():
-    # 获取__file__变量的值
-    file_path = __file__
-    # 获取当前文件所在的文件夹路径
-    dir_now = os.path.dirname(file_path)
-else:
-    # 获取当前工作目录
-    dir_now = os.getcwd()
-sys.path.append(dir_now)
-# sys.path.append(os.path.join(dir_now, '../../../../ridge'))
-# import ridge
-import pickle
 from re import match
-# from random import random
 # def bucket_id_to_new_bucket_ids(old_id):
 #     i = 2 * old_id
 #     return i, i + 1
 
-# def flip_mask(mask, possibility=0.5):
-#     '''布尔向量中的True以50%的概率变为False'''
-#     for i in range(len(mask)):
-#         if mask[i] == True and random() <= possibility:
-#             mask[i] = False
-#         return mask
-
 def delete_all_0_rows(x):
     x = np.delete(x, np.where(np.all(x == 0, axis=1)), axis=0)
     return x
-
-def change_every_nth_true_to_false(mask, n):
-    '''每n个True的最后一个变为False'''
-    change_next = n
-    for i in range(len(mask)):
-        if mask[i] and change_next == 1:
-            mask[i] = False
-            change_next = n
-        elif mask[i]:
-            change_next -= 1
-    return mask
-
-def change_every_nth_false_to_true(mask, n, vals):
-    '''每n个False的最后一个变为True,同时要求满足对应位置vals分隔值为0才纳入考虑'''
-    change_next = n
-    for i in range(len(mask)):
-        if ~mask[i] and change_next == 1 and vals[i]==0:
-            mask[i] = True
-            change_next = n
-        elif ~mask[i] and vals[i]==0:
-            change_next -= 1
-    return mask
 
 class Bucket(object):
     __slots__ = 'N D id sumX sumX2 point_ids support_add_and_remove'.split()
@@ -154,34 +109,13 @@ class Bucket(object):
         # print("my_idxs shape, dtype", my_idxs.shape, my_idxs.dtype)
         X = X[my_idxs]
         X_orig = X if X_orig is None else X_orig[my_idxs]
-        mask = X_orig[:, dim] <= val # X_orig的dim列小于val的值所在的行（返回值为布尔向量）TODO
-        # if val == 0:
-        #     mask = change_every_nth_true_to_false(mask, 2)
+        mask = X_orig[:, dim] <= val # X_orig的dim列小于val的值所在的行（返回值为布尔向量）
+
         not_mask = ~mask
         X0 = X[mask] # X_orig的dim列小于val的值所在的行取出来
         X1 = X[not_mask] # X_orig的dim列大于等于val的值所在的行取出来
         ids0 = my_idxs[mask] # X_orig的dim列小于val的值所在的行的序号
         ids1 = my_idxs[not_mask] # X_orig的dim列大于等于val的值所在的行的序号
-        # nonzero_counts = np.count_nonzero(X_orig[:, dim])
-        # if self.N > 0:
-        #     if nonzero_counts / self.N < 0.01:
-
-        # print("当前桶序号：\n", self.id)
-        # print("当前桶行数：\n", self.N)
-        # print("当前矩阵大小:\n", X_orig.shape)
-        # print("当前分割的列号：\n", dim)
-        
-        # print("当前分割的列的非零元素个数：\n", nonzero_counts)
-        # print("当前分割的列的分割阈值：\n", val)
-        # print("分割后桶1序号：\n", id0)
-        # print("分割后桶1行数：\n", len(ids0))
-        # nonzero_counts = np.count_nonzero(X0[:, dim])
-        # print("分割后桶1对应列的非零元素个数：\n", nonzero_counts)
-        # print("分割后桶2序号：\n", id1)
-        # print("分割后桶2行数：\n", len(ids1))
-        # nonzero_counts = np.count_nonzero(X1[:, dim])
-        # print("分割后桶1对应列的非零元素个数：\n", nonzero_counts)
-        
 
         def create_bucket(points, ids, bucket_id):
             sumX = points.sum(axis=0) if len(ids) else None
@@ -847,7 +781,6 @@ def learn_multisplits(
             split_vals = []  # each bucket contributes one split val
             for b, buck in enumerate(buckets):
                 del0 = kwargs['del0'] and s < nsplits-1 # 只删除最后一次求最佳阈值前的输入X矩阵的全0行（最终求质心考虑0）：不行，性能更差，质心含0更高
-                # del0 = kwargs['del0'] and s > 0
                 pattern1 = r'^\d+mean$'
                 pattern2 = r'^\d+median$'
                 if kwargs['force_val'] in ['', 'mean', 'median']:
@@ -875,11 +808,7 @@ def learn_multisplits(
 
         # determine best dim to split on, and pull out associated split
         # vals for all buckets
-        # nonzero_counts = np.count_nonzero(X, axis=0)#TODO
-        # try_dims_nonzero_ratio = nonzero_counts[try_dims]/N#TODO
-        # mask = data[0, :] > th
-        # best_tried_dim_idx = np.argmin(losses[try_dims_nonzero_ratio>0.1])#TODO
-        best_tried_dim_idx = np.argmin(losses)#TODO
+        best_tried_dim_idx = np.argmin(losses)
         best_dim = try_dims[best_tried_dim_idx]
         use_split_vals = all_split_vals[best_tried_dim_idx]  # 分割后性能最好的列的分割阈值
         # MultiSplit类：记录列号和该列分割阈值, 可设定偏移值和放缩因子
@@ -1861,8 +1790,6 @@ def _learn_mithral_initialization(X, ncodebooks, ncentroids: int = 16,
     # ------------------------ 0th iteration; initialize all codebooks
     all_splits = []
     all_buckets = []
-    all_centroids_tight = np.zeros(D, dtype=np.float32)
-    all_centroids_tight = all_centroids_tight[np.newaxis, :]
     for c in range(ncodebooks):
         if nonzeros_heuristic == 'pq':
             start_idx, end_idx = pq_idxs[c]
@@ -1879,8 +1806,6 @@ def _learn_mithral_initialization(X, ncodebooks, ncentroids: int = 16,
         elif nonzeros_heuristic in ('r2', 'opq'):
             idxs = my_ixs[c]
 
-        # use_X_res = delete_all_0_rows(X_res[:, idxs])  # 取出每个码本的训练矩阵
-        # use_X_orig = delete_all_0_rows(X_orig[:, idxs])
         use_X_res = X_res[:, idxs]  # 取出每个码本的训练矩阵
         use_X_orig = X_orig[:, idxs]
         #print(np.corrcoef(X_orig[:,idxs], rowvar=False))
@@ -1891,9 +1816,6 @@ def _learn_mithral_initialization(X, ncodebooks, ncentroids: int = 16,
             return_centroids=False, return_buckets=True, **kwargs)
         for split in multisplits:
             split.dim = idxs[split.dim]
-        # print("multisplits:", multisplits)
-        # print("multisplits.shape:",len(multisplits[0]))
-        
         all_splits.append(multisplits)
         all_buckets.append(buckets)
 
@@ -1906,13 +1828,10 @@ def _learn_mithral_initialization(X, ncodebooks, ncentroids: int = 16,
                 X_res[buck.point_ids] -= centroid
                 # update centroid here in case we want to regularize it somehow
                 all_centroids[c, b] = centroid
-                # np.append(all_centroids_tight, centroid[np.newaxis, :], axis=0)
 
         # print("_learn_mithral_initialization\nall_centroids:\n", all_centroids)
         # print("X_res mse / X mse: ",
         #       (X_res * X_res).mean() / (X_orig * X_orig).mean())
-        # np.save("all_centroids_tight.npy", all_centroids_tight)
-        # print("保存了一次")
     
     return X_res, all_splits, all_centroids, all_buckets
 
@@ -2084,33 +2003,7 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
         ## optimize centroids discriminatively conditioned on assignments
         # Algorithm 1:Maddness Hash   ——Blalock, Davis, and John Guttag. "Multiplying matrices without multiplying." International Conference on Machine Learning. PMLR, 2021.
         X_enc = mithral_encode(X, all_splits)
-        # print("len all_splits\n", len(all_splits))
-        # print("all_splits\n", all_splits)
-        
-        # print("X_enc\n",X_enc)
-        # if 'intermediate_var_path' in kwargs.keys():
-        #     intermediate_var_path = kwargs['intermediate_var_path']
-        intermediate_var_path = os.path.join(dir_now, "CsiTransformerAMM/intermediate_var/npy/%s" % kwargs['linear_name'])
-        multisplit_var_path = os.path.join(dir_now, "CsiTransformerAMM/intermediate_var/pkl/%s" % kwargs['linear_name'])
-        if kwargs['del0']:
-            del0 = "_del0"
-        else:
-            del0 = ""
-        pattern1 = r'\d+mean$'
-        pattern2 = r'\d+median$'
-        if kwargs['force_val'] in ['mean', 'median']:
-            split_method = '_' + kwargs['force_val']
-        elif match(pattern1, kwargs['force_val']) or match(pattern2, kwargs['force_val']):
-            split_method = '_' + kwargs['force_val']
-        else:
-            split_method = ''
-        centroids_before_ridge_path = os.path.join(intermediate_var_path, f"centroids{all_centroids.shape}_b_ridge_N{N}{del0}{split_method}.npy")
-        # if not os.path.exists(centroids_before_ridge_path):
-        np.save(centroids_before_ridge_path, all_centroids)
-        with open(os.path.join(multisplit_var_path, f"CKD{all_centroids.shape}_split_N{N}{split_method}.pkl"), 'wb') as f:
-            pickle.dump(all_splits, f)
-        with open(os.path.join(multisplit_var_path, f"CKD{all_centroids.shape}_bucket_N{N}{split_method}.pkl"), 'wb') as f:
-            pickle.dump(all_buckets, f)
+
         if lut_work_const < -1:
             step = -lut_work_const
             slice = N // step
@@ -2120,7 +2013,6 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
                                       Y=X_res[i*slice:(i+1)*slice], K=ncentroids)
                 all_centroids_delta_step += Wstep.reshape(ncodebooks,
                                                           ncentroids_per_codebook, D) / step
-                # X_res -= _XW_encoded(X_enc[i*slice:(i+1)*slice], Wstep)  # if we fit to X_res
             all_centroids_delta = all_centroids_delta_step
         elif lut_work_const < 0:
             print("fitting dense lstsq to X_res")
@@ -2149,9 +2041,6 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
             # exit(0)
 
         all_centroids += all_centroids_delta
-        centroids_after_ridge_path = os.path.join(intermediate_var_path, f"centroids{all_centroids.shape}{lut_work_const}_a_ridge_N{N}{del0}{split_method}.npy")
-        # if not os.path.exists(centroids_after_ridge_path):
-        np.save(centroids_after_ridge_path, all_centroids)
         if "verbose" in kwargs.keys():
             if kwargs["verbose"] > 3:
                 np.set_printoptions(threshold=np.inf)
@@ -2612,9 +2501,6 @@ def assignments_from_multisplits(X, splits):
         #     x = x * split.scaleby
         # indicators = x > vals
         indicators = split.preprocess_x(X[:, split.dim]) > vals
-        # print("split.preprocess_x(X[:, split.dim]):\n",split.preprocess_x(X[:, split.dim]))#TODO：remove
-        # print("vals:\n",vals) #TODO：remove
-        # indicators = change_every_nth_false_to_true(indicators,2,vals)
         group_ids = (group_ids * 2) + indicators
 
     if nsplits <= nsplits_affecting_group_id:
@@ -2633,7 +2519,6 @@ def assignments_from_multisplits(X, splits):
         #     x = x * split.scaleby
         # indicators = x > vals
         indicators = split.preprocess_x(X[:, split.dim]) > vals
-        # indicators = change_every_nth_false_to_true(indicators,2,vals)
         assignments = (assignments * 2) + indicators
 
     return assignments
