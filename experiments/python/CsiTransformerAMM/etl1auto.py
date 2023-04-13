@@ -53,12 +53,14 @@ if quantize_lut == False:
     nbits_goal = 0
 nbits = nbits_goal # 要运行的量化比特数
 upcast_every = upcast_goal # 要运行的upcast
-force_val = 'mean'
+# force_val = 'mean'
+# force_val = 'median'
+force_val = ''
 
 test_sam_num = 1000 # 测试集样本数(如需修改，请同时修改下面的读取文件，现文件默认1000个样本)
 
 for ncodebooks in [64]: # max:512
-    for ncentroids in [128,256,512,1024,2048]:
+    for ncentroids in [16]:
         if not auto_train_change_nbits and not auto_train_change_upcast:
             print(ncodebooks, ncentroids)
             train_sam_num = 1000 # 训练集样本数

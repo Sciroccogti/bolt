@@ -36,6 +36,7 @@ sys.path.append(dir_now)
 # sys.path.append(os.path.join(dir_now, '../../../../ridge'))
 # import ridge
 import pickle
+from re import match
 # from random import random
 # def bucket_id_to_new_bucket_ids(old_id):
 #     i = 2 * old_id
@@ -847,7 +848,23 @@ def learn_multisplits(
             for b, buck in enumerate(buckets):
                 del0 = kwargs['del0'] and s < nsplits-1 # 只删除最后一次求最佳阈值前的输入X矩阵的全0行（最终求质心考虑0）：不行，性能更差，质心含0更高
                 # del0 = kwargs['del0'] and s > 0
-                val, loss = buck.optimal_split_val(X, dim, X_orig=X_orig, del0=del0, force_val=kwargs['force_val'])
+                pattern1 = r'^\d+mean$'
+                pattern2 = r'^\d+median$'
+                if kwargs['force_val'] in ['', 'mean', 'median']:
+                    force_val = kwargs['force_val']
+                elif match(pattern1, kwargs['force_val']): # '16mean'
+                    cumsse_th = int(kwargs['force_val'].split('mean')[0])
+                    if 2 ** nsplits < cumsse_th:
+                        force_val = ''
+                    else:
+                        force_val = 'mean'
+                elif match(pattern2, kwargs['force_val']):
+                    cumsse_th = int(kwargs['force_val'].split('median')[0])
+                    if 2 ** nsplits < cumsse_th:
+                        force_val = ''
+                    else:
+                        force_val = 'median'
+                val, loss = buck.optimal_split_val(X, dim, X_orig=X_orig, del0=del0, force_val=force_val)
                 losses[d] += loss
                 if d > 0 and losses[d] >= np.min(losses[:d]):
                     if verbose > 2:
@@ -2079,7 +2096,14 @@ def learn_mithral(X, ncodebooks, ncentroids: int, return_buckets=False,
             del0 = "_del0"
         else:
             del0 = ""
-        split_method = '_mean'
+        pattern1 = r'\d+mean$'
+        pattern2 = r'\d+median$'
+        if kwargs['force_val'] in ['mean', 'median']:
+            split_method = '_' + kwargs['force_val']
+        elif match(pattern1, kwargs['force_val']) or match(pattern2, kwargs['force_val']):
+            split_method = '_' + kwargs['force_val']
+        else:
+            split_method = ''
         centroids_before_ridge_path = os.path.join(intermediate_var_path, f"centroids{all_centroids.shape}_b_ridge_N{N}{del0}{split_method}.npy")
         # if not os.path.exists(centroids_before_ridge_path):
         np.save(centroids_before_ridge_path, all_centroids)
