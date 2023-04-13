@@ -492,7 +492,10 @@ class MithralMatmul(VQMatmul):
 
     def __init__(self, ncodebooks, ncentroids: int = 16, nonzeros_heuristic="pq",
                  lut_work_const=-1, upcast_every=16, quantize_lut=True, nbits=8, 
-                 del0=False, linear_name="unknown", force_val=""):#del0:True:在最后一次之前的求最佳分割阈值时删去X数据集的全零行
+                 del0=False, linear_name="unknown", force_val=""):
+        """
+        :param del0: True:在最后一次之前的求最佳分割阈值时删去X数据集的全零行
+        """
         self.nonzeros_heuristic = nonzeros_heuristic
         self.lut_work_const = lut_work_const
         self.quantize_lut = quantize_lut

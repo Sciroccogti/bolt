@@ -670,7 +670,7 @@ def learn_multisplits_orig(X, nsplits, log2_max_vals_per_split=4,
 
 @_memory.cache
 def learn_multisplits(
-        X, nsplits=4, return_centroids=True, return_buckets=False, 
+        X, nsplits=4, return_centroids=True, return_buckets=False,
         # learn_quantize_params=False,
         # learn_quantize_params='int16', X_orig=None, try_ndims=1,
         # learn_quantize_params='int16', X_orig=None, try_ndims=2,
@@ -1225,7 +1225,7 @@ def encoded_lstsq(X_enc=None, X_bin=None, Y=None, K=16, XtX=None, XtY=None,
                   precondition=True, stable_ridge=True):
 
     if stable_ridge:
-        return _fit_ridge_enc(X_enc=X_enc, Y=Y, X_bin=X_bin, K=K, lamda=1,mode=1)
+        return _fit_ridge_enc(X_enc=X_enc, Y=Y, X_bin=X_bin, K=K, lamda=1, mode=1)
     print("not doing sklearn")
     exit(0)
 
