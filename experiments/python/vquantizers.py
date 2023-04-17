@@ -623,13 +623,17 @@ def _mithral_quantize_luts(luts, lut_work_const, nbits=8, force_power_of_2=True)
 class MithralEncoder(MultiCodebookEncoder):
 
     def __init__(self, ncodebooks, ncentroids: int, nonzeros_heuristic='pq',
-                 lut_work_const=-1, upcast_every=16, quantize_lut=True, nbits=8):
+                 lut_work_const=-1, upcast_every=16, quantize_lut=True, nbits=8, 
+                 del0=False, force_val="", linear_name="unknown"):
         super().__init__(
             ncodebooks=ncodebooks, ncentroids=ncentroids,
             quantize_lut=quantize_lut, upcast_every=upcast_every,
             accumulate_how='mean', nbits=nbits)
         self.nonzeros_heuristic = nonzeros_heuristic
         self.lut_work_const = lut_work_const
+        self.del0 = del0
+        self.force_val = force_val
+        self.linear_name = linear_name
 
     def name(self):
         return "{}_{}".format('mithral', super().name())
@@ -637,7 +641,8 @@ class MithralEncoder(MultiCodebookEncoder):
     def params(self):
         return {'ncodebooks': self.ncodebooks, 'ncentroids': self.ncentroids,
                 'lut_work_const': self.lut_work_const, 'quantize_lut': self.quantize_lut,
-                'nbits': self.nbits, 'upcast_every': self.upcast_every}
+                'nbits': self.nbits, 'upcast_every': self.upcast_every, 'del0': self.del0, 
+                'linear_name': self.linear_name, 'force_val': self.force_val}
 
     def fit(self, X, Q=None):
         # splits_list: (C, logK), centroids: (C, K, D)
@@ -646,7 +651,8 @@ class MithralEncoder(MultiCodebookEncoder):
         # 第二个码本中的第 D/C ~ 2D/C-1 列为主要元素，以此类推
         self.splits_lists, self.centroids = clusterize.learn_mithral(
             X, self.ncodebooks, ncentroids=self.ncentroids, lut_work_const=self.lut_work_const,
-            nonzeros_heuristic=self.nonzeros_heuristic, verbose=1)
+            nonzeros_heuristic=self.nonzeros_heuristic, del0=self.del0, force_val=self.force_val,
+            linear_name=self.linear_name, verbose=1)
         # self._learn_lut_quantization(X, Q)
 
     def encode_X(self, X):

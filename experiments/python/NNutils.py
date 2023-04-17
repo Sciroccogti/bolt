@@ -15,12 +15,14 @@ bits = 256
 batch_size = 32
 S1 = [32,32,1,32,32,1] # ex_linear1in大小为batch_size*S1*S2;etl1,etl2,fc1,dtl1,dtl2,fc2的S1大小
 S1_dict = {"etl1":32, "etl2":32, "fc1":1, "dtl1":32, "dtl2":32, "fc2":1}
+D_dict = {"etl1":64, "etl2":512, "fc1":2048}
+batch_N_dict = {"etl1":1024, "etl2":1024, "fc1":32, "dtl1":1024, "dtl2":1024, "fc2":32}
 nbits = 8 # # METHOD_SCALAR_QUANTIZE的量化比特数
 # whole_train_sam_num = 7000 # 完整的训练集样本数
 # smaller_train_sam_num = 3000 # 减小内存消耗的训练集样本数
 # smallerer_train_sam_num = 1000
 # smallererer_train_sam_num = 50
-# AMM_name_tran = {"etl1":"ex_linear1", "etl2":"ex_linear2", "fc1":"fc1", "dtl1":"dx_linear1", "dtl2":"dx_linear2", "fc2":"fc2"} # 顺序不变，与S1的顺序一致
+AMM_name_tran = {"etl1":"ex_linear1", "etl2":"ex_linear2", "fc1":"fc1", "dtl1":"dx_linear1", "dtl2":"dx_linear2", "fc2":"fc2"} # 顺序不变，与S1的顺序一致
 # host_name = socket.gethostname()
 # if host_name == 'DESKTOP-PLRL7TK':
 #     intermediate_path = ''
@@ -230,6 +232,7 @@ def dataset_prepare(direc, linear_name_full, feedback_bits, sam_num_list, batch_
             dataset_name = '%s%s_%s_f%i_sam%i.npy' % (linear_name_full, data_place, train_or_test, feedback_bits, sam_num)
             
             dataset_path = os.path.join(dire, dataset_name)
+            # print(dataset_path)
             if not os.path.exists(dataset_path): #不存在则创建数据集
                 if data_place == "_y": # y数据集在生成out数据集时同时生成
                     data_place = "out"
@@ -247,8 +250,55 @@ def dataset_prepare(direc, linear_name_full, feedback_bits, sam_num_list, batch_
                         join_from_intermediate_j1(cu.intermediate_path, dire, dire_train, feedback_bits, intermediate_name, sam_num, train_or_test)
                     elif linear_name_full in out_transformer_list:
                         join_from_intermediate(cu.intermediate_path, dire, dire_train, feedback_bits, intermediate_name, sam_num, train_or_test)
-                
-def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, param2change:str, param_trained, param_goal, theotherparam:str, theotherparam_val, flag = ''):
+
+def find_specified_params_perform_best(linear_name:str, method:str, feedback_bits:int, 
+                                        cb:int, ct:int, nbits:int, upcast_every:int, 
+                                        lut_work_const:int=0, excel_suffix = ''):
+    '''
+    从已经运行的符合参数要求的AMM结果中，寻找性能最好的参数们。
+
+    Parameters
+    ----------
+    linear_name : str
+        要运行的全连接层名(缩写)。
+    method : str
+        要运行的AMM方法。
+    feedback_bits : int
+        CsiTransformer压缩后的长度。
+    cb : int
+        码本数。
+    ct : int
+        质心数。
+    nbits : int
+        LUT量化位数。
+    upcast_every : int
+        MADDNESS的upcast_every参数。
+    lut_work_const : int, optional
+        岭回归参数。 默认为0，表示不限制寻找范围中的lut_work_const。
+    '''
+    excel_path = os.path.join(dir_now, 
+                              '../../../../csi_transformer/performance',
+                              '%s_f%i%s.xls' % (linear_name, feedback_bits, 
+                                                excel_suffix))
+    # 读取 Excel 文件并将其存储在变量 df 中
+    df = pd.read_excel(excel_path)
+    # 从df取出符合条件的行
+    if lut_work_const == 0:
+        df_meet = df[(df['AMM_method'] == method) & (df['cb'] == cb) & (df['ct'] == ct) 
+                & (df['nbits'] == nbits) & (df['upcast_every'] == upcast_every)]
+    else:
+        df_meet = df[(df['AMM_method'] == method) & (df['cb'] == cb) & (df['ct'] == ct) 
+                & (df['nbits'] == nbits) & (df['upcast_every'] == upcast_every)
+                & (df['lut_work_const'] == lut_work_const)]
+    # 从df_meet中取出NMSE最小的行
+    df_best = df_meet[df_meet['NMSE'] == df_meet['NMSE'].min()]
+    return df_best
+    
+
+def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, 
+                               param2change:str, param_trained, param_goal, 
+                               theotherparam:str, theotherparam_val, flag = '', 
+                               excel_suffix = ''):
     '''
     根据已经运行的符合参数要求的AMM结果, 返回待运行的码本数、质心数、训练集batch数组合的DataFrame, 适用于改变AMM method的某个参数(如nbits、upcast_every)后, 需要依照已运行的改变参数的之前的各点的cb、ct、ntr(取max)参数运行改变参数之后的点的情况。
     
@@ -262,26 +312,32 @@ def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, p
     theotherparam: "nbits"和"upcast_every"中除了param2change的另外一个
     theotherparam_val: "nbits"和"upcast_every"中除了param2change的另外一个的值
     flag: 两个场景: AMM训练时, flag不填; AMM训练完给出AMM结果后测试CsiTransformer性能时, flag为"performance_test"。
+    excel_suffix: 要保存数据的excel的后缀, 默认无后缀
     
     output:
     cb_ct_ntr_combinations_unique: 码本数、质心数、训练集batch数组合的DataFrame
     '''
-    excel_path = os.path.join(dir_now, '../../../../csi_transformer/performance','%s_f%i.xls' % (linear_name, feedback_bits))
+    excel_path = os.path.join(dir_now, '../../../../csi_transformer/performance','%s_f%i%s.xls' % (linear_name, feedback_bits, excel_suffix))
     res_path = os.path.join(dir_now, "../../../res/%s/f%i/%s" % (method, feedback_bits, linear_name))
-    param2change_abbr_dict = {"nbits":"nb", "upcast_every":"uc"}
+    create_dir(res_path)
+    param2change_abbr_dict = {"nbits":"nb", "upcast_every":"uc", "lut_work_const":"lwc"}
     param2change_abbr = param2change_abbr_dict[param2change] # 新运行的点的要更改的参数在文件名中的缩写
     theotherparam_abbr = param2change_abbr_dict[theotherparam]
     # 读取 Excel 文件并将其存储在变量 df 中
     df = pd.read_excel(excel_path)
     # print(df)
-    row_ref = { "AMM_method": method, param2change: param_trained} # 运行参考的训练集大小的行
-    row_run = { "AMM_method": method, param2change: param_goal, } # 运行的目标行，用于排除已运行的
+    row_ref = { "AMM_method": method, param2change: param_trained, "lut_work_const":-1} # 运行参考的训练集大小的行
+    row_run = { "AMM_method": method, param2change: param_goal,  "lut_work_const":-1} # 运行的目标行，用于排除已运行的
     # excel中符合row值的行
     method_ref_value = df.loc[(df[list(row_ref.keys())[0]] == row_ref[list(row_ref.keys())[0]]) 
-                            & (df[list(row_ref.keys())[1]] == row_ref[list(row_ref.keys())[1]])]
+                            & (df[list(row_ref.keys())[1]] == row_ref[list(row_ref.keys())[1]])
+                            & (df[list(row_ref.keys())[2]] == row_ref[list(row_ref.keys())[2]])]
     method_run_value = df.loc[(df[list(row_run.keys())[0]] == row_run[list(row_run.keys())[0]]) 
-                            & (df[list(row_run.keys())[1]] == row_run[list(row_run.keys())[1]])]
+                            & (df[list(row_run.keys())[1]] == row_run[list(row_run.keys())[1]])
+                            & (df[list(row_run.keys())[2]] == row_run[list(row_run.keys())[2]])]
     cb_ct_combinations = method_ref_value[['cb', 'ct']].values
+    # print("method_ref_value:\n", method_ref_value)
+    # print("method_run_value:\n", method_run_value)
     #将cb_ct_combinations转换为Pandas的DataFrame
     cb_ct_combinations_df = pd.DataFrame(cb_ct_combinations, columns=['cb', 'ct'])
     #删除重复组合
@@ -315,6 +371,8 @@ def change_param_auto_run_list(linear_name:str, method:str, feedback_bits:int, p
         method_run_value_filtered = method_run_value[(method_run_value['cb'] == cb) 
                                 & (method_run_value['ct'] == ct) & (method_run_value['n_train_sam'] == n_train_sam)
                                 & (method_run_value[theotherparam] == theotherparam_val)]
+        # print(row_ref)
+        # print(method_run_value_filtered)
         # 获取AMM相乘结果路径下的所有文件和文件夹的名称列表
         names = os.listdir(res_path)
         # 创建一个空列表，用于保存文件名
