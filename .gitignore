@@ -2,7 +2,7 @@ experiments/assets/**/params.txt
 *.pkl
 *.mat
 *.npy
-experiments/python/results/*.csv
+experiments/python/results/**/*.csv
 experiments/python/results/*.txt
 experiments/python/runs
 *.svg

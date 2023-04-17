@@ -16,6 +16,9 @@ def top_principal_component(X, niters=100, return_eigenval=False,
                             momentum=.9, nguesses=32, learning_rate=1.,
                             # allow_materialize=False):
                             allow_materialize_XtX=True):
+    """
+    主成分分析(Principal Component Analysis, PCA)
+    """
     N, D = X.shape
     X = X.astype(np.float32)
     X = X - X.mean(axis=0)
