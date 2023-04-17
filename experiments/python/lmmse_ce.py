@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2023-03-15 12:26:08
-@modified: 2023-04-06 22:27:55
+@modified: 2023-04-13 14:22:30
 '''
 
 import csv
@@ -15,13 +15,31 @@ from amm_methods import *
 from dft_main import (IEEE802_11_model, Transceiver, cal_NMSE,
                       convert_complexToReal_Y)
 from tqdm import tqdm
+from scipy import interpolate
 
 
 class LMMSE(Transceiver):
     def __init__(self, params):
-        super().__init__(params)
+        self.params = params
+        self.nCP = params['nCP']
+        self.Ncarrier = params['Ncarrier']  # 导频子载波数
+        self.qAry = params['qAry']
+        self.pilotLoc = params['pilotLoc']
+        self.Symbol_num = params['Symbol_num']
+        self.matmul_method = params['matmul_method']
+        self.ldpc_rate = params['ldpc_rate']
+        self.quantize_lut = params['quantize_lut']
+        self.bitpilot = np.squeeze(self.genBit(
+            self.qAry * self.Ncarrier * self.Symbol_num))  # 列向量
+        self.Xpilot = np.zeros((len(self.pilotLoc)), dtype=complex)  # 调制后的导频
+        for nf in range(len(self.pilotLoc)):
+            self.Xpilot[nf] = self.Modulation(
+                self.bitpilot[2 * nf:2 * nf + 2])
 
-    def LMMSEChannelEst(self, Rhh, Ypilot, snr):
+    def LMMSEChannelEst(self, Rhh, H_LS, snr):
+        """
+        :param Rhh: 信道协方差矩阵，为对角阵
+        """
         # beta = E(x^2) * E(1 / x^2)，x 为星座点
         if self.qAry in [1, 2]:
             beta = 1
@@ -31,26 +49,62 @@ class LMMSE(Transceiver):
             beta = 2.6854170765732626
         else:
             assert False, "qAry must be 1, 2, 4, 6"
-        H_LS = Ypilot / self.Xpilot
+
+        # Rhh = np.diag(Rhh)
 
         # Calculate weighting matrix based on transmitted pilots and noise variance
         # W_lmmse = np.zeros((self.Ncarrier, self.Ncarrier), dtype=complex)
-        W_lmmse = Rhh @ np.linalg.inv(Rhh + (beta / snr) * np.eye(self.Ncarrier))
+        W_lmmse = Rhh @ np.linalg.inv(Rhh + (beta / snr) * np.eye(len(Rhh)))
         H_est = W_lmmse @ H_LS
-        return np.diag(np.squeeze(H_est))
+        return H_est
 
     def LSChannelEst(self, Ypilot):
-        H_est = Ypilot / self.Xpilot
-        return np.diag(np.squeeze(H_est))
+        H_est = np.squeeze(Ypilot / self.Xpilot)
+        return np.diag(H_est)
+        # cs = interpolate.interp1d(self.pilotLoc, H_est, kind="nearest-up", fill_value="extrapolate")
+        # H_LS = cs(np.arange(0, self.Ncarrier))
+        # # H_LS = np.interp(np.arange(0, self.Ncarrier), self.pilotLoc, H_est)
+        # return np.diag(np.squeeze(H_LS))
+
+    def interp(self, H_pilot):
+        cs = interpolate.interp1d(self.pilotLoc, np.diag(H_pilot),
+                                  kind="nearest-up", fill_value="extrapolate")
+        H_intp = cs(np.arange(0, self.Ncarrier))
+        return np.diag(H_intp)
+
+    def estAutoCor(self, H_LS):
+        """
+        R(dk) = E_k{H_LS(k) * H_LS(k + dk}
+        :param H_LS: LS估计的信道
+        :return: 信道自相关估计
+        """
+        Rhh = H_LS @ H_LS.conj().T
+        return Rhh
+
+        # N = len(H_LS)
+        # temp = np.correlate(H_LS, H_LS, mode='full')
+        # temp = temp[-1::-1] / N
+        # Rhh = np.zeros((N, N), dtype=complex)
+        # for i in range(N):
+        #     Rhh[i, :] = temp[N - 1 - i:N * 2 - 1 - i]
+        # return Rhh
+
+        # N = len(H_LS)
+        # R = np.zeros((N, N), dtype=complex)
+        # for dk in range(N):
+        #     for k in range(N):
+        #         R[dk, k] = H_LS[k] * np.conj(H_LS[(k + dk) % N])
+        # Rhh = np.mean(R, axis=1)
+        # return Rhh
 
     def sim(self, outputPath: str):
         SNRs = self.params['SNR']
-        BER = np.zeros((1, len(SNRs)))
-        FER = np.zeros((1, len(SNRs)))
-        NMSE_dft = np.zeros((1, len(SNRs)))
-        NMSE_idft = np.zeros((1, len(SNRs)))
-        H_NMSE = np.zeros((1, len(SNRs)))
-        rawH_NMSE = np.zeros((1, len(SNRs)))
+        BER = np.zeros((len(SNRs)))
+        FER = np.zeros((len(SNRs)))
+        NMSE_dft = np.zeros((len(SNRs)))
+        NMSE_idft = np.zeros((len(SNRs)))
+        H_NMSE = np.zeros((len(SNRs)))
+        rawH_NMSE = np.zeros((len(SNRs)))
         ErrorFrame = self.params['ErrorFrame']
         TestFrame = self.params['TestFrame']
         Bitlen = self.qAry * self.Ncarrier * self.Symbol_num
@@ -61,76 +115,95 @@ class LMMSE(Transceiver):
             bar = tqdm(range(TestFrame), ncols=100)
             for ns in bar:
                 bar.set_description_str("%.2fdB" % SNR)
-                bar.set_postfix_str("FER: %.2e" % (FER[0][i] / ns))
+                bar.set_postfix_str("FER: %.2e" % (FER[i] / ns))
                 # 生成信息比特、调制
-                InfoStream = self.genBit(int(Bitlen * self.ldpc_rate))
+                InfoStream = np.squeeze(self.genBit(int(Bitlen * self.ldpc_rate)))
                 BitStream = InfoStream
-                X = np.zeros((1, self.Ncarrier), dtype=complex)
+                X = np.zeros((self.Ncarrier), dtype=complex)
+                pPilotLoc = 0
                 for nf in range(self.Ncarrier):
-                    X[0, nf] = self.Modulation(BitStream[0, 2 * nf:2 * nf + 2])
-                # 生成信道矩阵，DFT信道估计
-                H = self.Channel_create(0)
+                    if pPilotLoc < len(self.pilotLoc) and nf == self.pilotLoc[pPilotLoc]:
+                        # 插入导频
+                        X[nf] = self.Xpilot[pPilotLoc]
+                        pPilotLoc += 1
+                    else:
+                        X[nf] = self.Modulation(BitStream[2 * nf:2 * nf + 2])
+
+                # 生成信道矩阵
+                # H = self.Channel_create(0)
+                H = self.genChannel()
                 noise = np.random.randn(
-                    self.Ncarrier, 1)+1j * np.random.randn(self.Ncarrier, 1)
-                Ypilot = np.dot(H, self.Xpilot) + np.sqrt(sigma_2/2) * noise
-                Rhh = np.dot(H, H.conj().T)
-                Hest_LMMSE = self.LMMSEChannelEst(Rhh, Ypilot, 1/sigma_2)
+                    self.Ncarrier) + 1j * np.random.randn(self.Ncarrier)
+                # noise = np.zeros_like(noise)
+                Y = np.dot(H, X) + np.sqrt(sigma_2/2) * noise
+                Ypilot = Y[self.pilotLoc]
+                # Rhh = np.dot(H, H.conj().T)
                 Hest_LS = self.LSChannelEst(Ypilot)
 
                 if params["matmul_method"] == "LS":
-                    Hest_DFT = Hest_LS
+                    Hest_DFT = self.interp(Hest_LS)
                 else:
-                    Hest_DFT = Hest_LMMSE
+                    # R = self.estAutoCor(H[self.pilotLoc])
+                    R = self.estAutoCor(Hest_LS)
+                    Hest_LMMSE = self.LMMSEChannelEst(R, Hest_LS, 1/sigma_2)
+                    Hest_DFT = self.interp(Hest_LMMSE)
 
                 rawh_nmse = cal_NMSE(convert_complexToReal_Y(
-                    H), convert_complexToReal_Y(Hest_DFT))
-                lsh_nmse = cal_NMSE(convert_complexToReal_Y(
-                    H), convert_complexToReal_Y(Hest_LS))
+                    # H), convert_complexToReal_Y(Hest_DFT))
+                    np.diag(H)[self.pilotLoc]), convert_complexToReal_Y(np.diag(Hest_DFT)[self.pilotLoc]))  # 只算插值前的误差
 
                 # 更新
-                # NMSE_dft[0][i] += nmse_dft
-                # NMSE_idft[0][i] += nmse_idft
-                # H_NMSE[0][i] += h_nmse
-                rawH_NMSE[0][i] += rawh_nmse
+                # NMSE_dft[i] += nmse_dft
+                # NMSE_idft[i] += nmse_idft
+                # H_NMSE[i] += h_nmse
+                rawH_NMSE[i] += rawh_nmse
 
-                noise = np.random.randn(
-                    self.Ncarrier, 1) + 1j * np.random.randn(self.Ncarrier, 1)
                 # 均衡、解调
-                Y = np.dot(H, np.transpose(X)) + np.sqrt(sigma_2/2) * noise
                 G = np.dot(np.conj(Hest_DFT.T), np.linalg.inv(
                     Hest_DFT*np.conj(Hest_DFT.T)+sigma_2*np.eye(self.Ncarrier)))
                 Xest = np.dot(G, Y)
                 Xest = np.transpose(Xest)
                 rho = np.diag(np.dot(G, Hest_DFT))
-                LLR = np.zeros((1, BitStream.size))
+                LLR = np.zeros((BitStream.size))
                 for nf in range(self.Ncarrier):
                     miu_k = rho[nf]
                     epsilon_2 = miu_k - miu_k**2
-                    LLR[0][2*nf:2*nf +
-                           2] = self.QPSK_LLR(Xest[0][nf], miu_k, epsilon_2)
-                LLR = np.array([[1 if x >= 0 else 0 for x in LLR[0]]])
+                    LLR[2*nf:2*nf + 2] = self.QPSK_LLR(Xest[nf], miu_k, epsilon_2)
+                LLR = np.array([1 if x >= 0 else 0 for x in LLR])
                 count_error = 0
                 for j in range(InfoStream.size):
-                    if InfoStream[0][j] != LLR[0][j]:
+                    if j in self.pilotLoc:
+                        continue
+                    if InfoStream[j] != LLR[j]:
                         count_error += 1
-                BER[0][i] += count_error
+                BER[i] += count_error
                 if count_error != 0:
-                    FER[0][i] += 1
-                if FER[0][i] >= ErrorFrame:
+                    FER[i] += 1
+                if FER[i] >= ErrorFrame:
                     break
-            BER[0][i] /= (ns + 1) * self.Ncarrier * self.qAry * self.ldpc_rate
-            FER[0][i] /= (ns + 1)
-            NMSE_dft[0][i] /= (ns + 1)
-            NMSE_idft[0][i] /= (ns + 1)
-            H_NMSE[0][i] /= (ns + 1)
-            rawH_NMSE[0][i] /= (ns + 1)
+            BER[i] /= (ns + 1) * self.Ncarrier * self.qAry * self.ldpc_rate
+            FER[i] /= (ns + 1)
+            NMSE_dft[i] /= (ns + 1)
+            NMSE_idft[i] /= (ns + 1)
+            H_NMSE[i] /= (ns + 1)
+            rawH_NMSE[i] /= (ns + 1)
 
             with open(outputPath, "a+") as fout:
                 writer = csv.writer(fout)
-                writer.writerow([SNR, BER[0][i], FER[0][i], NMSE_dft[0][i],
-                                 NMSE_idft[0][i], H_NMSE[0][i], rawH_NMSE[0][i]])
+                writer.writerow([SNR, BER[i], FER[i], NMSE_dft[i],
+                                 NMSE_idft[i], H_NMSE[i], rawH_NMSE[i]])
 
         return BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE
+
+    def genChannel(self):
+        n_paths = self.params["L"]  # 信道路径数
+        path_gains_linear = self.params["PathGain"]
+        path_gains_matrix = np.diag(path_gains_linear)  # 路径增益矩阵
+        Rayleigh = (np.random.randn(n_paths,) + 1j * np.random.randn(n_paths,)) / np.sqrt(2)
+        ht = np.dot(path_gains_matrix, Rayleigh)  # 信道系数
+        H = np.fft.fft(ht, self.Ncarrier)  # 信道矩阵 (1, Ncarrier)
+        H = np.diag(np.squeeze(H))
+        return H
 
 
 def PDP_Pedestrian_B():
@@ -141,16 +214,28 @@ def PDP_Pedestrian_B():
     pdp[12] = 10**(-8.0/10)
     pdp[23] = 10**(-7.8/10)
     pdp[37] = 10**(-23.9/10)
+    pdp /= np.sum(pdp)
     return pdp
 
+
+# def Channel_Pedestrian_A():
+#     Ncarrier = 512
+
+#     tau = [0, 200e-9, 800e-9, 1200e-9, 2300e-9, 3700e-9]
+#     powerdB = [0, -0.9, -4.9, -8.0, -7.8, -23.9]
+
+#     fs = 5e6
+#     freq = np.arange(-fs/2, fs/2, Ncarrier)
+#     pdp /= np.sum(pdp)
+#     return pdp
 
 _rms = 25e-9
 
 params = {
-    'Nifft': 128,
-    'Ncarrier': 128,
+    'nCP': 64,
+    'Ncarrier': 512,
     'qAry': 2,
-    'Symbol_len': 128,
+    'pilotLoc': [i for i in range(7, 512-64, 8)],
     'Symbol_num': 1,
     'ldpc_rate': 1,
     'L': 38,
@@ -159,7 +244,7 @@ params = {
     # 'PathGain': np.power(10, [i/10 for i in range(0, -16, -1)]),
     # 'PathGain': IEEE802_11_model(_rms, 50e-9, 6),
     'PathGain': PDP_Pedestrian_B(),
-    'SNR': np.linspace(-20, 15, 15).tolist(),
+    'SNR': np.linspace(15, -20, 15).tolist(),
     'ErrorFrame': 200,
     'TestFrame': 20000,
     'LDPC_iter': 20,
