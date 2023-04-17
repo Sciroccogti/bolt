@@ -326,6 +326,7 @@ class Transceiver:
                                      X_path="IDFT_X.npy", W_path="IDFT_W.npy", Y_path="IDFT_Y.npy",
                                      dir="dft", nbits=self.params["nbits"],
                                      quantize_lut=self.quantize_lut,
+                                     lut_work_const=1,
                                      genDataFunc=self.gen_IDFTTrain,
                                      )
         else:
@@ -853,7 +854,7 @@ def IEEE802_11_model(rms: float, Ts: float, L: int) -> np.ndarray:
     return ret
 
 
-_rms = 75e-9
+_rms = 500e-9
 
 params = {
     'Nifft': 128,
@@ -868,14 +869,14 @@ params = {
     # 'PathGain': np.linspace(1, 0.1, 16).tolist(),
     # 'PathGain': np.power(10, [i/10 for i in range(0, -16, -1)]),
     'PathGain': IEEE802_11_model(_rms, 50e-9, 16),
-    'SNR': np.linspace(-20, 10, 13).tolist(),
+    'SNR': np.linspace(-20, 15, 15).tolist(),
     'ErrorFrame': 200,
     'TestFrame': 20000,
     'LDPC_iter': 20,
-    'ncodebooks': 16,
+    'ncodebooks': 128,
     'ncentroids': 256,
     'quantize_lut': True,
-    'nbits': 8,
+    'nbits': 16,
     'rms': _rms,
     'matmul_method': METHOD_MITHRAL
 }
