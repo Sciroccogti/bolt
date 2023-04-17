@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2023-03-15 12:26:08
-@modified: 2023-04-13 14:22:30
+@modified: 2023-04-17 20:48:15
 '''
 
 import csv
@@ -17,6 +17,9 @@ from dft_main import (IEEE802_11_model, Transceiver, cal_NMSE,
 from tqdm import tqdm
 from scipy import interpolate
 
+def mse(X:np.ndarray, X_hat:np.ndarray):
+    return np.mean(np.abs(X - X_hat)**2)
+
 
 class LMMSE(Transceiver):
     def __init__(self, params):
@@ -29,7 +32,7 @@ class LMMSE(Transceiver):
         self.matmul_method = params['matmul_method']
         self.ldpc_rate = params['ldpc_rate']
         self.quantize_lut = params['quantize_lut']
-        self.bitpilot = np.squeeze(self.genBit(
+        self.bitpilot = np.squeeze(self.Bit_create(
             self.qAry * self.Ncarrier * self.Symbol_num))  # 列向量
         self.Xpilot = np.zeros((len(self.pilotLoc)), dtype=complex)  # 调制后的导频
         for nf in range(len(self.pilotLoc)):
@@ -78,8 +81,9 @@ class LMMSE(Transceiver):
         :param H_LS: LS估计的信道
         :return: 信道自相关估计
         """
-        Rhh = H_LS @ H_LS.conj().T
-        return Rhh
+        R0 = H_LS @ H_LS.conj().T # 对角线即为 R0 = H_LS[k] * H_LS[k]
+        # R0 = 
+        # return Rhh
 
         # N = len(H_LS)
         # temp = np.correlate(H_LS, H_LS, mode='full')
@@ -89,13 +93,30 @@ class LMMSE(Transceiver):
         #     Rhh[i, :] = temp[N - 1 - i:N * 2 - 1 - i]
         # return Rhh
 
+        # H_LS = np.diag(H_LS)
         # N = len(H_LS)
         # R = np.zeros((N, N), dtype=complex)
         # for dk in range(N):
         #     for k in range(N):
-        #         R[dk, k] = H_LS[k] * np.conj(H_LS[(k + dk) % N])
+        #         R[dk, k] = H_LS[k] * np.conj(H_LS)[(k + dk) % N]
         # Rhh = np.mean(R, axis=1)
         # return Rhh
+
+        H = np.diag(H_LS)
+        k = np.array([i for i in range(len(H))])
+        HH= H @ H.conj().T
+        tmp = H * H.conj() * k
+        r = np.sum(tmp) / HH
+        r2 = tmp @ k.T / HH
+        tau_rms = np.sqrt(r2 - r**2)
+        df = 1/ self.Ncarrier
+        K3 = np.repeat(np.array([[i for i in range(len(H))]]).T, len(H), axis=1)
+        K4 = np.repeat(np.array([[i for i in range(len(H))]]), len(H), axis=0)
+
+        rf2 = 1 / (1+ 2j * np.pi * tau_rms * df * (self.Ncarrier / len(H)) * (K3 - K4))
+        R = R0 @ rf2
+        return R0
+
 
     def sim(self, outputPath: str):
         SNRs = self.params['SNR']
@@ -117,7 +138,7 @@ class LMMSE(Transceiver):
                 bar.set_description_str("%.2fdB" % SNR)
                 bar.set_postfix_str("FER: %.2e" % (FER[i] / ns))
                 # 生成信息比特、调制
-                InfoStream = np.squeeze(self.genBit(int(Bitlen * self.ldpc_rate)))
+                InfoStream = np.squeeze(self.Bit_create(int(Bitlen * self.ldpc_rate)))
                 BitStream = InfoStream
                 X = np.zeros((self.Ncarrier), dtype=complex)
                 pPilotLoc = 0
@@ -143,12 +164,11 @@ class LMMSE(Transceiver):
                 if params["matmul_method"] == "LS":
                     Hest_DFT = self.interp(Hest_LS)
                 else:
-                    # R = self.estAutoCor(H[self.pilotLoc])
+                    # R = self.estAutoCor(np.diag(np.diag(H)[self.pilotLoc]))
                     R = self.estAutoCor(Hest_LS)
                     Hest_LMMSE = self.LMMSEChannelEst(R, Hest_LS, 1/sigma_2)
                     Hest_DFT = self.interp(Hest_LMMSE)
-
-                rawh_nmse = cal_NMSE(convert_complexToReal_Y(
+                rawh_nmse = mse(convert_complexToReal_Y(
                     # H), convert_complexToReal_Y(Hest_DFT))
                     np.diag(H)[self.pilotLoc]), convert_complexToReal_Y(np.diag(Hest_DFT)[self.pilotLoc]))  # 只算插值前的误差
 
@@ -207,6 +227,7 @@ class LMMSE(Transceiver):
 
 
 def PDP_Pedestrian_B():
+    # sample every 100ns
     pdp = [0.0 for _ in range(38)]
     pdp[0] = 10**(0/10)
     pdp[2] = 10**(-0.9/10)
@@ -235,7 +256,7 @@ params = {
     'nCP': 64,
     'Ncarrier': 512,
     'qAry': 2,
-    'pilotLoc': [i for i in range(7, 512-64, 8)],
+    'pilotLoc': [i for i in range(1, 512-64, 8)],
     'Symbol_num': 1,
     'ldpc_rate': 1,
     'L': 38,
