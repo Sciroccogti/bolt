@@ -854,7 +854,7 @@ def IEEE802_11_model(rms: float, Ts: float, L: int) -> np.ndarray:
     return ret
 
 
-_rms = 75e-9
+_rms = 500e-9
 
 params = {
     'Nifft': 128,
@@ -876,7 +876,7 @@ params = {
     'ncodebooks': 128,
     'ncentroids': 64,
     'quantize_lut': True,
-    'nbits': 8,
+    'nbits': 16,
     'rms': _rms,
     'matmul_method': METHOD_MITHRAL
 }
