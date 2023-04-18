@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2023-03-15 12:26:08
-@modified: 2023-04-18 13:24:05
+@modified: 2023-04-18 17:06:50
 '''
 
 import csv
@@ -17,8 +17,9 @@ from dft_main import (IEEE802_11_model, Transceiver, cal_NMSE,
 from tqdm import tqdm
 from scipy import interpolate
 
-def mse(X:np.ndarray, X_hat:np.ndarray):
-    return np.mean(np.abs(X - X_hat)**2)
+
+def nmse(X: np.ndarray, X_hat: np.ndarray):
+    return np.sum(np.abs(X - X_hat)**2) / np.sum(np.abs(X)**2)
 
 
 class LMMSE(Transceiver):
@@ -36,10 +37,9 @@ class LMMSE(Transceiver):
             self.qAry * self.Ncarrier * self.Symbol_num))  # 列向量
         self.Xpilot = np.zeros((len(self.pilotLoc)), dtype=complex)  # 调制后的导频
         for nf in range(len(self.pilotLoc)):
-            self.Xpilot[nf] = self.Modulation(
-                self.bitpilot[2 * nf:2 * nf + 2])
+            self.Xpilot[nf] = self.Modulation(self.bitpilot[2 * nf:2 * nf + 2])
 
-    def LMMSEChannelEst(self, Rhh, H_LS, snr):
+    def LMMSEChannelEst(self, Rhh: np.ndarray, H_LS: np.ndarray, snr: float) -> np.ndarray:
         """
         :param Rhh: 信道协方差矩阵，为对角阵
         """
@@ -53,36 +53,34 @@ class LMMSE(Transceiver):
         else:
             assert False, "qAry must be 1, 2, 4, 6"
 
-        # Rhh = np.diag(Rhh)
-
         # Calculate weighting matrix based on transmitted pilots and noise variance
-        # W_lmmse = np.zeros((self.Ncarrier, self.Ncarrier), dtype=complex)
-        W_lmmse = Rhh @ np.linalg.inv(Rhh + (beta / snr) * np.eye(len(Rhh)))
+        # W_lmmse = Rhh @ np.linalg.inv(Rhh + (beta / snr) * np.eye(len(Rhh)))
 
-        rf2 = self.LMMSErf2(H_LS)
-        W = self.LMMSELFC(rf2, snr)
+        RDS = getRDS(H_LS)
+        W = self.getLFC(RDS, snr)
 
-        H_est = W_lmmse @ H_LS
+        H_est = W @ H_LS
         return H_est
 
-    def LMMSELFC(self, rf2, snr):
-        W = rf2 / (rf2 + 1 / snr)
-        return W
-
-    def LMMSErf2(self, H):
-        H = np.diag(H)
-        k = np.array([i for i in range(len(H))])
-        HH = H @ H.conj().T
-        tmp = H * H.conj() * k
-        r = np.sum(tmp) / HH
-        r2 = tmp @ k.T / HH
-        tau_rms = np.sqrt(r2 - r**2)
+    def LMMSErf2(self, H: np.ndarray) -> np.ndarray:
+        tau_rms = getRDS(H)
         df = 1 / self.Ncarrier
         K3 = np.repeat(np.array([[i for i in range(len(H))]]).T, len(H), axis=1)
         K4 = np.repeat(np.array([[i for i in range(len(H))]]), len(H), axis=0)
 
         rf2 = 1 / (1 + 2j * np.pi * tau_rms * df * (self.Ncarrier / len(H)) * (K3 - K4))
         return rf2
+
+    def getLFC(self, RDS: float, snr: float) -> np.ndarray:
+        df = 1 / self.Ncarrier
+        Npilot = len(self.pilotLoc)
+
+        K3 = np.repeat(np.array([[i for i in range(Npilot)]]).T, Npilot, axis=1)
+        K4 = np.repeat(np.array([[i for i in range(Npilot)]]), Npilot, axis=0)
+        rf2 = 1 / (1 + 2j * np.pi * RDS * df * (self.Ncarrier / Npilot) * (K3 - K4))
+
+        W = rf2 @ np.linalg.inv(rf2 + (1 / snr) * np.eye(Npilot))
+        return W
 
     def LSChannelEst(self, Ypilot):
         H_est = np.squeeze(Ypilot / self.Xpilot)
@@ -100,35 +98,15 @@ class LMMSE(Transceiver):
 
     def estAutoCor(self, H_LS):
         """
-        R(dk) = E_k{H_LS(k) * H_LS(k + dk}
+        R(dk) = E_k{H_LS(k) * H_LS(k + dk)}
         :param H_LS: LS估计的信道
         :return: 信道自相关估计
         """
-        R0 = H_LS @ H_LS.conj().T # 对角线即为 R0 = H_LS[k] * H_LS[k]
-        # R0 = 
-        # return Rhh
-
-        # N = len(H_LS)
-        # temp = np.correlate(H_LS, H_LS, mode='full')
-        # temp = temp[-1::-1] / N
-        # Rhh = np.zeros((N, N), dtype=complex)
-        # for i in range(N):
-        #     Rhh[i, :] = temp[N - 1 - i:N * 2 - 1 - i]
-        # return Rhh
-
-        # H_LS = np.diag(H_LS)
-        # N = len(H_LS)
-        # R = np.zeros((N, N), dtype=complex)
-        # for dk in range(N):
-        #     for k in range(N):
-        #         R[dk, k] = H_LS[k] * np.conj(H_LS)[(k + dk) % N]
-        # Rhh = np.mean(R, axis=1)
-        # return Rhh
+        # R0 = H_LS @ H_LS.conj().T  # 对角线即为 H_LS[k] * H_LS[k]，归一化后应当为 R0 = beta
 
         rf2 = self.LMMSErf2(H_LS)
         R = rf2
         return R
-
 
     def sim(self, outputPath: str):
         SNRs = self.params['SNR']
@@ -167,10 +145,8 @@ class LMMSE(Transceiver):
                 H = self.genChannel()
                 noise = np.random.randn(
                     self.Ncarrier) + 1j * np.random.randn(self.Ncarrier)
-                # noise = np.zeros_like(noise)
                 Y = np.dot(H, X) + np.sqrt(sigma_2/2) * noise
                 Ypilot = Y[self.pilotLoc]
-                # Rhh = np.dot(H, H.conj().T)
                 Hest_LS = self.LSChannelEst(Ypilot)
 
                 if params["matmul_method"] == "LS":
@@ -180,7 +156,7 @@ class LMMSE(Transceiver):
                     R = self.estAutoCor(Hest_LS)
                     Hest_LMMSE = self.LMMSEChannelEst(R, Hest_LS, 1/sigma_2)
                     Hest_DFT = self.interp(Hest_LMMSE)
-                rawh_nmse = mse(convert_complexToReal_Y(
+                rawh_nmse = nmse(convert_complexToReal_Y(
                     # H), convert_complexToReal_Y(Hest_DFT))
                     np.diag(H)[self.pilotLoc]), convert_complexToReal_Y(np.diag(Hest_DFT)[self.pilotLoc]))  # 只算插值前的误差
 
@@ -236,6 +212,17 @@ class LMMSE(Transceiver):
         H = np.fft.fft(ht, self.Ncarrier)  # 信道矩阵 (1, Ncarrier)
         H = np.diag(np.squeeze(H))
         return H
+
+
+def getRDS(H: np.ndarray) -> float:
+    H = np.diag(H)
+    k = np.array([i for i in range(len(H))])
+    HH = H @ H.conj().T
+    tmp = H * H.conj() * k
+    r = np.sum(tmp) / HH
+    r2 = tmp @ k.T / HH
+    RDS = np.sqrt(r2 - r**2)
+    return float(RDS.real)
 
 
 def PDP_Pedestrian_B():
