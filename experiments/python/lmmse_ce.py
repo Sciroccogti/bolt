@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2023-03-15 12:26:08
-@modified: 2023-04-17 20:48:15
+@modified: 2023-04-18 13:24:05
 '''
 
 import csv
@@ -58,8 +58,31 @@ class LMMSE(Transceiver):
         # Calculate weighting matrix based on transmitted pilots and noise variance
         # W_lmmse = np.zeros((self.Ncarrier, self.Ncarrier), dtype=complex)
         W_lmmse = Rhh @ np.linalg.inv(Rhh + (beta / snr) * np.eye(len(Rhh)))
+
+        rf2 = self.LMMSErf2(H_LS)
+        W = self.LMMSELFC(rf2, snr)
+
         H_est = W_lmmse @ H_LS
         return H_est
+
+    def LMMSELFC(self, rf2, snr):
+        W = rf2 / (rf2 + 1 / snr)
+        return W
+
+    def LMMSErf2(self, H):
+        H = np.diag(H)
+        k = np.array([i for i in range(len(H))])
+        HH = H @ H.conj().T
+        tmp = H * H.conj() * k
+        r = np.sum(tmp) / HH
+        r2 = tmp @ k.T / HH
+        tau_rms = np.sqrt(r2 - r**2)
+        df = 1 / self.Ncarrier
+        K3 = np.repeat(np.array([[i for i in range(len(H))]]).T, len(H), axis=1)
+        K4 = np.repeat(np.array([[i for i in range(len(H))]]), len(H), axis=0)
+
+        rf2 = 1 / (1 + 2j * np.pi * tau_rms * df * (self.Ncarrier / len(H)) * (K3 - K4))
+        return rf2
 
     def LSChannelEst(self, Ypilot):
         H_est = np.squeeze(Ypilot / self.Xpilot)
@@ -102,20 +125,9 @@ class LMMSE(Transceiver):
         # Rhh = np.mean(R, axis=1)
         # return Rhh
 
-        H = np.diag(H_LS)
-        k = np.array([i for i in range(len(H))])
-        HH= H @ H.conj().T
-        tmp = H * H.conj() * k
-        r = np.sum(tmp) / HH
-        r2 = tmp @ k.T / HH
-        tau_rms = np.sqrt(r2 - r**2)
-        df = 1/ self.Ncarrier
-        K3 = np.repeat(np.array([[i for i in range(len(H))]]).T, len(H), axis=1)
-        K4 = np.repeat(np.array([[i for i in range(len(H))]]), len(H), axis=0)
-
-        rf2 = 1 / (1+ 2j * np.pi * tau_rms * df * (self.Ncarrier / len(H)) * (K3 - K4))
-        R = R0 @ rf2
-        return R0
+        rf2 = self.LMMSErf2(H_LS)
+        R = rf2
+        return R
 
 
     def sim(self, outputPath: str):
@@ -235,7 +247,7 @@ def PDP_Pedestrian_B():
     pdp[12] = 10**(-8.0/10)
     pdp[23] = 10**(-7.8/10)
     pdp[37] = 10**(-23.9/10)
-    pdp /= np.sum(pdp)
+    # pdp /= np.sum(pdp)
     return pdp
 
 

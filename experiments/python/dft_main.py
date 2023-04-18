@@ -64,6 +64,8 @@ class Transceiver:
         # 暂时只能判断一个星座点，未改好
         # input_frame : input bit stream (0,1)
         # qAry: 1--bpsk ; 2--qpsk ; 4--16qam ; 6--64qam
+        assert self.qAry in [1, 2, 4, 6], "qAry must be 1, 2, 4, 6"
+        A = np.sqrt(3 / 2 / (2**self.qAry - 1))  # QAM 归一化系数
         if self.qAry == 1:
             BPSK_I = [-1, 1]
             QAM_input_I = BPSK_I[input_frame]
@@ -72,19 +74,22 @@ class Transceiver:
             QPSK_IQ = [-1, 1]
             QAM_input_I = QPSK_IQ[input_frame[0]]
             QAM_input_Q = QPSK_IQ[input_frame[1]]
-            output_modu = (QAM_input_I + 1j * QAM_input_Q) / np.sqrt(2)
+            output_modu = (QAM_input_I + 1j * QAM_input_Q) * A
         elif self.qAry == 4:
             QAM_16_IQ = [-3, -1, 3, 1]
             QAM_input_I = QAM_16_IQ[input_frame[0]*2 + input_frame[1]]
             QAM_input_Q = QAM_16_IQ[input_frame[2]*2 + input_frame[3]]
-            output_modu = (QAM_input_I + 1j * QAM_input_Q) / np.sqrt(10)
+            output_modu = (QAM_input_I + 1j * QAM_input_Q) * A
         elif self.qAry == 6:
             QAM_64_IQ = [-7, -5, -1, -3, 7, 5, 1, 3]
             QAM_input_I = QAM_64_IQ[input_frame[0] *
                                     4 + input_frame[1]*2 + input_frame[2]]
             QAM_input_Q = QAM_64_IQ[input_frame[3] *
                                     4 + input_frame[4]*2 + input_frame[5]]
-            output_modu = (QAM_input_I + 1j * QAM_input_Q) / np.sqrt(42)
+            output_modu = (QAM_input_I + 1j * QAM_input_Q) * A
+        else:
+            print("qAry must be 1, 2, 4, 6")
+            raise NotImplementedError
         return output_modu
 
     def Channel_create(self, corr: float) -> np.ndarray:
