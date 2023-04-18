@@ -103,8 +103,8 @@ class Transceiver:
         if corr == 0.0:
             noise = (np.random.randn(n_paths,) + 1j * np.random.randn(n_paths,))
             ht = np.dot(np.sqrt(path_gains_matrix/2), noise)
-            H = np.fft.fft(ht, self.Nifft)  # (1, Nifft)
-            H = np.diag(np.squeeze(H))  # (Nifft, Nifft)
+            H = np.fft.fft(ht, self.Ncarrier)  # (1, Ncarrier)
+            H = np.diag(np.squeeze(H))  # (Ncarrier, Ncarrier)
         else:
             # 生成相关矩阵
             corr_matrix_tx = exp_corr_mat(corr_tx, n_tx)  # 发射端相关矩阵
