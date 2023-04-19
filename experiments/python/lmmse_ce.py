@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2023-03-15 12:26:08
-@modified: 2023-04-18 17:06:50
+@modified: 2023-04-19 16:02:14
 '''
 
 import csv
@@ -16,7 +16,7 @@ from dft_main import (IEEE802_11_model, Transceiver, cal_NMSE,
                       convert_complexToReal_Y)
 from tqdm import tqdm
 from scipy import interpolate
-
+from matmul import _estimator_for_method_id
 
 def nmse(X: np.ndarray, X_hat: np.ndarray):
     return np.sum(np.abs(X - X_hat)**2) / np.sum(np.abs(X)**2)
@@ -108,7 +108,30 @@ class LMMSE(Transceiver):
         R = rf2
         return R
 
+    def train(self, sample: int = 1000):
+        SNRs = 10 ** (np.array(self.params["learnSNRs"]) / 10)
+        RDSs = np.empty(shape=(sample, 1))
+        for i in range(sample):
+            H = self.genChannel()
+            RDSs[i][0] = getRDS(H)
+
+        hparams_dict = {
+            'ncodebooks': self.params["ncodebooks"],
+            'ncentroids': self.params["ncentroids"],
+            'quantize_lut': self.params["quantize_lut"],
+            'nbits': self.params["nbits"],
+            'upcast_every': -1,
+            'SNRs': SNRs,
+            # 'elemwise_dist_func': dists_elemwise_sq,
+        }
+        est = _estimator_for_method_id(self.params["matmul_method"], **hparams_dict)
+        est.fit(RDSs)
+        return est
+
     def sim(self, outputPath: str):
+        est = None
+        if self.params["matmul_method"] not in ["LS", "LMMSE"]:
+            est = self.train(sample=51200)
         SNRs = self.params['SNR']
         BER = np.zeros((len(SNRs)))
         FER = np.zeros((len(SNRs)))
@@ -151,11 +174,18 @@ class LMMSE(Transceiver):
 
                 if params["matmul_method"] == "LS":
                     Hest_DFT = self.interp(Hest_LS)
-                else:
+                elif params["matmul_method"] == "LMMSE":
                     # R = self.estAutoCor(np.diag(np.diag(H)[self.pilotLoc]))
                     R = self.estAutoCor(Hest_LS)
                     Hest_LMMSE = self.LMMSEChannelEst(R, Hest_LS, 1/sigma_2)
                     Hest_DFT = self.interp(Hest_LMMSE)
+                elif params["matmul_method"] == "LMMSE_PQ":
+                    RDS = getRDS(Hest_LS)
+                    W = est.predict(np.array([[RDS]]), SNR)[0]
+                    Hest_LMMSEPQ = W @ Hest_LS
+                    Hest_DFT = self.interp(Hest_LMMSEPQ)
+                else:
+                    raise NotImplementedError
                 rawh_nmse = nmse(convert_complexToReal_Y(
                     # H), convert_complexToReal_Y(Hest_DFT))
                     np.diag(H)[self.pilotLoc]), convert_complexToReal_Y(np.diag(Hest_DFT)[self.pilotLoc]))  # 只算插值前的误差
@@ -264,16 +294,16 @@ params = {
     # 'PathGain': np.power(10, [i/10 for i in range(0, -16, -1)]),
     # 'PathGain': IEEE802_11_model(_rms, 50e-9, 6),
     'PathGain': PDP_Pedestrian_B(),
-    'SNR': np.linspace(15, -20, 15).tolist(),
+    'SNR': np.linspace(20, -15, 15).tolist(),
     'ErrorFrame': 200,
     'TestFrame': 20000,
     'LDPC_iter': 20,
-    'ncodebooks': 128,
-    'ncentroids': 128,
-    'quantize_lut': True,
+    'ncodebooks': 1,
+    'ncentroids': 3,
+    'quantize_lut': False,
     'nbits': 32,
-    'rms': _rms,
-    'matmul_method': "LMMSE"
+    'learnSNRs': [2.5, 10, 17.5],
+    'matmul_method': "LMMSE_PQ"
 }
 
 if __name__ == "__main__":

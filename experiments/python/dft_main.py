@@ -65,7 +65,7 @@ class Transceiver:
         # input_frame : input bit stream (0,1)
         # qAry: 1--bpsk ; 2--qpsk ; 4--16qam ; 6--64qam
         assert self.qAry in [1, 2, 4, 6], "qAry must be 1, 2, 4, 6"
-        A = np.sqrt(3 / 2 / (2**self.qAry - 1))  # QAM 归一化系数
+        A = np.sqrt(3 / 2 / (2**self.qAry - 1))  # QAM 归一化系数，使得功率为 1
         if self.qAry == 1:
             BPSK_I = [-1, 1]
             QAM_input_I = BPSK_I[input_frame]
