@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief
 @date 2023-03-06 15:40:28
-@modified: 2023-03-07 15:51:11
+@modified: 2023-04-20 11:33:41
 '''
 #!/bin/env/python
 
@@ -268,10 +268,18 @@ def estFactory(
 
     :param ncodebooks: C，码本数
     :param ncentroids: K，质心数
+    :param force_val:
+        "": 所有二叉树使用cum SSE找到最优阈值
+        "mean": 所有二叉树都使用mean来寻找最优阈值
+        "median": 所有二叉树都使用中值来寻找最优阈值
+        "16mean": 当二叉树当前层小于或等于16个桶时，使用cumSSE来寻找最佳阈值，当大于16个桶时，使用平均值
+        "16median": 当二叉树的当前层小于或等于16个桶时，使用cumSSE找到最优阈值，当大于16个桶时，使用中值
+        "xxmedian": 以此类推
     :param nbits: 位宽，SQ 中用于量化 A、B 矩阵，Mithral 和 PQ 中用于量化 LUT 中存储的乘积
     :param quantize_lut: 是否量化 Mithral 和 PQ 等的 LUT，若为 True 则会使用 nbits 中定义的位宽
     :param upcast_every: 是否在累加乘积时，用求平均替代求和。< 2 则关闭。dists_enc 函数
     :param lut_work_const: 是否用岭回归优化质心，< -1 则会分 -lut_work_const 步进行优化，= 1 则不优化。learn_mithral 函数
+    :param del0: True:在最后一次之前的求最佳分割阈值时删去X数据集的全零行
     :param genDataFunc: 用于向 DPQ 提供训练数据
     """
     methods = methods.DEFAULT_METHODS if methods is None else methods
