@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief
 @date 2023-03-06 15:40:28
-@modified: 2023-04-20 11:33:41
+@modified: 2023-04-20 11:41:41
 '''
 #!/bin/env/python
 
@@ -268,7 +268,7 @@ def estFactory(
 
     :param ncodebooks: C，码本数
     :param ncentroids: K，质心数
-    :param force_val:
+    :param force_val: str, "xxmean" for cumSSE then mean, or "xxmedian", or "" for cumSSE
         "": 所有二叉树使用cum SSE找到最优阈值
         "mean": 所有二叉树都使用mean来寻找最优阈值
         "median": 所有二叉树都使用中值来寻找最优阈值
