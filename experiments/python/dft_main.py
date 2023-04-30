@@ -5,10 +5,10 @@ import time
 
 import matmul as mm
 import numpy as np
-import tensorflow as tf
+# import tensorflow as tf
 import torch
 from amm_methods import *
-from sionna.fec.ldpc.decoding import LDPC5GDecoder, LDPC5GEncoder
+# from sionna.fec.ldpc.decoding import LDPC5GDecoder, LDPC5GEncoder
 from tqdm import tqdm
 from scipy.linalg import toeplitz
 
@@ -17,6 +17,12 @@ from scipy.linalg import toeplitz
 
 # np_config.enable_numpy_behavior() # enable tensor.size() for tensorflow
 
+def nmse(X: np.ndarray, X_hat: np.ndarray):
+    diff = X - X_hat
+    if len(diff.shape) < 2:
+        diff = np.expand_dims(diff, axis=1)
+    ret = np.matmul(diff.conj().T, diff)
+    return np.real(np.squeeze(ret))
 
 class Transceiver:
     def __init__(self, params):
@@ -24,7 +30,7 @@ class Transceiver:
         self.Nifft = params['Nifft']
         self.Ncarrier = params['Ncarrier']  # 导频子载波数
         self.qAry = params['qAry']
-        self.Symbol_len = params['Symbol_len']
+        # self.Symbol_len = params['Symbol_len']
         self.Symbol_num = params['Symbol_num']
         self.matmul_method = params['matmul_method']
         self.ldpc_rate = params['ldpc_rate']
@@ -313,7 +319,8 @@ class Transceiver:
         TestFrame = self.params['TestFrame']
         Bitlen = self.qAry * self.Ncarrier * self.Symbol_num
         if self.ldpc_rate < 1:
-            encoder = LDPC5GEncoder(Bitlen * self.ldpc_rate, Bitlen, dtype=tf.int64)
+            raise NotImplementedError("sionna is abandoned!")
+            encoder = LDPC5GEncoder(Bitlen * self.ldpc_rate, Bitlen)  # , dtype=tf.int64)
             decoder = LDPC5GDecoder(
                 encoder=encoder, num_iter=self.params['LDPC_iter'], hard_out=True)
 
@@ -329,9 +336,11 @@ class Transceiver:
                                      ncodebooks=self.params["ncodebooks"],
                                      ncentroids=self.params["ncentroids"],
                                      X_path="IDFT_X.npy", W_path="IDFT_W.npy", Y_path="IDFT_Y.npy",
-                                     dir="dft", nbits=self.params["nbits"],
+                                     dir="dft",
+                                     force_val=self.params["force_val"],
+                                     nbits=self.params["nbits"],
                                      quantize_lut=self.quantize_lut,
-                                     lut_work_const=-1,
+                                     lut_work_const=1,
                                      genDataFunc=self.gen_IDFTTrain,
                                      )
         else:
@@ -363,8 +372,11 @@ class Transceiver:
                 Hest_DFT, nmse_dft, nmse_idft, h_nmse = self.Channel_est(
                     Ypilot, dft_est=dft_est, idft_est=idft_est)
 
-                rawh_nmse = cal_NMSE(convert_complexToReal_Y(
-                    H), convert_complexToReal_Y(Hest_DFT))
+                # rawh_nmse = cal_NMSE(convert_complexToReal_Y(
+                #     H), convert_complexToReal_Y(Hest_DFT))
+
+                # rawh_nmse = nmse(np.diag(H), np.squeeze(Ypilot / self.Xpilot)) / self.Ncarrier
+                rawh_nmse = nmse(np.diag(H), np.diag(Hest_DFT)) / self.Ncarrier
 
                 # 更新
                 NMSE_dft[0][i] += nmse_dft
@@ -865,7 +877,7 @@ params = {
     'Nifft': 128,
     'Ncarrier': 128,
     'qAry': 2,
-    'Symbol_len': 128,
+    'force_val': "mean",
     'Symbol_num': 1,
     'ldpc_rate': 1,
     'L': 16,
@@ -874,12 +886,12 @@ params = {
     # 'PathGain': np.linspace(1, 0.1, 16).tolist(),
     # 'PathGain': np.power(10, [i/10 for i in range(0, -16, -1)]),
     'PathGain': IEEE802_11_model(_rms, 50e-9, 16),
-    'SNR': np.linspace(-20, 15, 15).tolist(),
+    'SNR': np.linspace(20, -15, 15).tolist(),
     'ErrorFrame': 200,
     'TestFrame': 20000,
     'LDPC_iter': 20,
     'ncodebooks': 128,
-    'ncentroids': 64,
+    'ncentroids': 16,
     'quantize_lut': True,
     'nbits': 16,
     'rms': _rms,
