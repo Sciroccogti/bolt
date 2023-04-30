@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2023-03-15 12:26:08
-@modified: 2023-04-19 16:02:14
+@modified: 2023-04-30 21:41:17
 '''
 
 import csv
@@ -19,7 +19,11 @@ from scipy import interpolate
 from matmul import _estimator_for_method_id
 
 def nmse(X: np.ndarray, X_hat: np.ndarray):
-    return np.sum(np.abs(X - X_hat)**2) / np.sum(np.abs(X)**2)
+    diff = X - X_hat
+    if len(diff.shape) < 2:
+        diff = np.expand_dims(diff, axis=1)
+    ret = np.matmul(diff.conj().T, diff)
+    return np.real(np.squeeze(ret))
 
 
 class LMMSE(Transceiver):
@@ -194,7 +198,7 @@ class LMMSE(Transceiver):
                 # NMSE_dft[i] += nmse_dft
                 # NMSE_idft[i] += nmse_idft
                 # H_NMSE[i] += h_nmse
-                rawH_NMSE[i] += rawh_nmse
+                rawH_NMSE[i] += rawh_nmse / len(self.pilotLoc)
 
                 # 均衡、解调
                 G = np.dot(np.conj(Hest_DFT.T), np.linalg.inv(
@@ -303,7 +307,7 @@ params = {
     'quantize_lut': False,
     'nbits': 32,
     'learnSNRs': [2.5, 10, 17.5],
-    'matmul_method': "LMMSE_PQ"
+    'matmul_method': "LS"
 }
 
 if __name__ == "__main__":
