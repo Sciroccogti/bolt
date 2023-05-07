@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief
 @date 2023-03-06 15:40:28
-@modified: 2023-04-20 11:41:41
+@modified: 2023-05-07 19:34:58
 '''
 #!/bin/env/python
 
@@ -308,6 +308,7 @@ def estFactory(
     # nc: 1 2 4 8 16 32
     # lut: 2 4 -1
     if (METHOD_SCALAR_QUANTIZE in methods):
+        assert nbits < 64, "nbits must be < 64 for scalar quantization, otherwise will result in overflow"
         hparams_dict = {'nbits': nbits}
     elif (METHOD_HASHJL in methods) or (METHOD_SVD in methods) or (METHOD_FD_AMM in methods):
         hparams_dict = {'d': 2}
