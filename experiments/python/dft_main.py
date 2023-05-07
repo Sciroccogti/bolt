@@ -327,11 +327,17 @@ class Transceiver:
         dft_est = None
         idft_est = None
         if self.matmul_method != METHOD_EXACT:
-            dft_est = mm.estFactory(methods=[METHOD_EXACT], verbose=3,  # TODO: change to matmul_method
-                                    ncodebooks=self.params["ncodebooks"],
+            dft_est = mm.estFactory(methods=[self.matmul_method], verbose=3,
+                                    ncodebooks=32,
                                     ncentroids=self.params["ncentroids"],
                                     X_path="DFT_X.npy", W_path="DFT_W.npy", Y_path="DFT_Y.npy",
-                                    dir="dft", quantize_lut=self.quantize_lut)
+                                    dir="dft", 
+                                    force_val=self.params["force_val"],
+                                    nbits=self.params["nbits"],
+                                    quantize_lut=self.quantize_lut,
+                                    lut_work_const=1,
+                                    genDataFunc=self.gen_IDFTTrain,
+                                    )
             idft_est = mm.estFactory(methods=[self.matmul_method],
                                      ncodebooks=self.params["ncodebooks"],
                                      ncentroids=self.params["ncentroids"],
@@ -375,7 +381,7 @@ class Transceiver:
                 # rawh_nmse = cal_NMSE(convert_complexToReal_Y(
                 #     H), convert_complexToReal_Y(Hest_DFT))
 
-                # rawh_nmse = nmse(np.diag(H), np.squeeze(Ypilot / self.Xpilot)) / self.Ncarrier
+                # rawh_nmse0 = nmse(np.diag(H), np.squeeze(Ypilot / self.Xpilot)) / self.Ncarrier
                 rawh_nmse = nmse(np.diag(H), np.diag(Hest_DFT)) / self.Ncarrier
 
                 # 更新
@@ -598,14 +604,14 @@ class Transceiver:
         return IDFT_Xtrain
 
     def create_Traindata(self, SNR):
-        sample = 512000
-        DFT_Xtrain = np.zeros((sample, 20), dtype=complex)
+        sample = 256000
+        DFT_Xtrain = np.zeros((sample, 16), dtype=complex)
         DFT_Ytrain = np.zeros((sample, self.Nifft), dtype=complex)
-        DFT_W = self.DFTm[0:20]  # 20*128
+        DFT_W = self.DFTm[0:16]  # L*128
 
         IDFT_Xtrain = np.zeros((sample, self.Nifft), dtype=complex)
-        IDFT_Ytrain = np.zeros((sample, 20), dtype=complex)
-        IDFT_W = self.IDFTm[:, 0:20]  # 128*20
+        IDFT_Ytrain = np.zeros((sample, 16), dtype=complex)
+        IDFT_W = self.IDFTm[:, 0:16]  # 128*L
         sigma_2 = np.power(10, (-SNR / 10))
         for i in range(sample):
             H = self.Channel_create(0)
@@ -890,8 +896,8 @@ params = {
     'ErrorFrame': 200,
     'TestFrame': 20000,
     'LDPC_iter': 20,
-    'ncodebooks': 128,
-    'ncentroids': 16,
+    'ncodebooks': 256,
+    'ncentroids': 256,
     'quantize_lut': True,
     'nbits': 16,
     'rms': _rms,
