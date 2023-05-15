@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2023-03-15 12:26:08
-@modified: 2023-04-30 21:41:17
+@modified: 2023-05-06 20:51:57
 '''
 
 import csv
@@ -146,13 +146,13 @@ class LMMSE(Transceiver):
         ErrorFrame = self.params['ErrorFrame']
         TestFrame = self.params['TestFrame']
         Bitlen = self.qAry * self.Ncarrier * self.Symbol_num
-        for i, SNR in enumerate(SNRs):
-            sigma_2 = np.power(10, (-SNR/10))
+        for i, SNRdb in enumerate(SNRs):
+            sigma_2 = np.power(10, (-SNRdb/10))
             ns = 0
-            print("SNR: ", SNR)
+            print("SNR: ", SNRdb)
             bar = tqdm(range(TestFrame), ncols=100)
             for ns in bar:
-                bar.set_description_str("%.2fdB" % SNR)
+                bar.set_description_str("%.2fdB" % SNRdb)
                 bar.set_postfix_str("FER: %.2e" % (FER[i] / ns))
                 # 生成信息比特、调制
                 InfoStream = np.squeeze(self.Bit_create(int(Bitlen * self.ldpc_rate)))
@@ -180,19 +180,26 @@ class LMMSE(Transceiver):
                     Hest_DFT = self.interp(Hest_LS)
                 elif params["matmul_method"] == "LMMSE":
                     # R = self.estAutoCor(np.diag(np.diag(H)[self.pilotLoc]))
-                    R = self.estAutoCor(Hest_LS)
-                    Hest_LMMSE = self.LMMSEChannelEst(R, Hest_LS, 1/sigma_2)
+                    # R = self.estAutoCor(Hest_LS)
+                    # Hest_LMMSE = self.LMMSEChannelEst(R, Hest_LS, 2/sigma_2)
+
+                    RDS = getRDS(Hest_LS)
+                    snr = 10 ** (SNRdb / 10)
+                    W = self.getLFC(RDS, 3*snr)
+                    Hest_LMMSE = W @ Hest_LS
                     Hest_DFT = self.interp(Hest_LMMSE)
                 elif params["matmul_method"] == "LMMSE_PQ":
                     RDS = getRDS(Hest_LS)
-                    W = est.predict(np.array([[RDS]]), SNR)[0]
+                    W = est.predict(np.array([[RDS]]), SNRdb)[0]
                     Hest_LMMSEPQ = W @ Hest_LS
                     Hest_DFT = self.interp(Hest_LMMSEPQ)
                 else:
                     raise NotImplementedError
-                rawh_nmse = nmse(convert_complexToReal_Y(
-                    # H), convert_complexToReal_Y(Hest_DFT))
-                    np.diag(H)[self.pilotLoc]), convert_complexToReal_Y(np.diag(Hest_DFT)[self.pilotLoc]))  # 只算插值前的误差
+                # rawh_nmse = nmse(convert_complexToReal_Y(
+                #     # H), convert_complexToReal_Y(Hest_DFT))
+                #     np.diag(H)[self.pilotLoc]), convert_complexToReal_Y(np.diag(Hest_DFT)[self.pilotLoc]))  # 只算插值前的误差
+
+                rawh_nmse = nmse(np.diag(H)[self.pilotLoc], np.diag(Hest_DFT)[self.pilotLoc])
 
                 # 更新
                 # NMSE_dft[i] += nmse_dft
@@ -232,7 +239,7 @@ class LMMSE(Transceiver):
 
             with open(outputPath, "a+") as fout:
                 writer = csv.writer(fout)
-                writer.writerow([SNR, BER[i], FER[i], NMSE_dft[i],
+                writer.writerow([SNRdb, BER[i], FER[i], NMSE_dft[i],
                                  NMSE_idft[i], H_NMSE[i], rawH_NMSE[i]])
 
         return BER, FER, NMSE_dft, NMSE_idft, H_NMSE, rawH_NMSE
@@ -307,7 +314,7 @@ params = {
     'quantize_lut': False,
     'nbits': 32,
     'learnSNRs': [2.5, 10, 17.5],
-    'matmul_method': "LS"
+    'matmul_method': "LMMSE"
 }
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@
 @author Sciroccogti (scirocco_gti@yeah.net)
 @brief 
 @date 2022-07-06 15:07:45
-@modified: 2023-04-19 17:18:16
+@modified: 2023-05-06 17:22:46
 '''
 
 import os
@@ -20,7 +20,7 @@ markers_ = ["o", "x", "s", "d", "+", "*", "v", "^", "D"]
 width = 6
 height = 4.5
 fig, axNMSE = plt.subplots(ncols=1, figsize=(width, height))
-plt.rcParams["font.sans-serif"] = ["Sarasa Mono SC Nerd"]
+plt.rcParams["font.sans-serif"] = ["Source Han Sans CN"]
 # axBER.set_title(r"DFT-IDFT 的信道估计误比特率")
 # axBER.set_xlabel(r"$SNR$")
 # axBER.set_ylabel(r"$SER$")
@@ -65,7 +65,7 @@ for file in files_:
         # if match == None:
         #     match = re.match(r"\+\+\+[0-9][a-z,A-Z].*?\.csv", file)
         if match == None:
-            match = re.match(r"\+PedNMSE\+.*?\.csv", file)
+            match = re.match(r"\+PedRight\+.*?\.csv", file)
         if match != None:
 
             fin = open(path + file, "r")
