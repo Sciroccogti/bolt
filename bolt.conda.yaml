@@ -14,6 +14,10 @@ dependencies:
   - cudnn
   - Cython
   - fastcluster
+  - ipykernel
+  - ipympl
+  - ipython
+  - ipywidgets
   - matplotlib
   - numba
   - numpy
